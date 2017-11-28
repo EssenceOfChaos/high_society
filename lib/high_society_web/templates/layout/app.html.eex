@@ -4,32 +4,35 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="">
-    <meta name="author" content="">
+    <meta name="description" content="The High Society Mastermind">
+    <meta name="author" content="Frederick John">
 
-    <title>Hello HighSociety!</title>
+    <title>High Society</title>
+    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/animate.css/3.5.2/animate.min.css">
+<link rel="stylesheet" href="//cdn.muicss.com/mui-0.9.30/extra/mui-colors.min.css">
     <link rel="stylesheet" href="<%= static_path(@conn, "/css/app.css") %>">
   </head>
 
   <body>
-    <div class="container">
-      <header class="header">
-        <nav role="navigation">
-          <ul class="nav nav-pills pull-right">
-            <li><a href="http://www.phoenixframework.org/docs">Get Started</a></li>
-          </ul>
-        </nav>
-        <span class="logo"></span>
-      </header>
 
+    <%= render "_navigation.html", conn: @conn%>
+    <div id="content-wrapper" class="mui--text-center">
       <p class="alert alert-info" role="alert"><%= get_flash(@conn, :info) %></p>
       <p class="alert alert-danger" role="alert"><%= get_flash(@conn, :error) %></p>
 
       <main role="main">
         <%= render @view_module, @view_template, assigns %>
       </main>
+    </div><!-- end of content-wrapper -->
 
-    </div> <!-- /container -->
+
+    <%= render "_footer.html", conn: @conn%>
+     <script src="//cdn.muicss.com/mui-0.9.30/extra/mui-combined.min.js"></script>
     <script src="<%= static_path(@conn, "/js/app.js") %>"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/wow/1.1.2/wow.min.js"></script>
+      <script>
+        new WOW().init();
+      </script>
   </body>
 </html>
