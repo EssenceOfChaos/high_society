@@ -1,0 +1,34 @@
+<div class="mui-container-fluid">
+  <div class="mui-row">
+   <div class="mui-col-md-4 mui-col-md-offset-1">
+<br>
+
+<h2>Show Post</h2>
+
+<ul>
+
+  <li>
+    <strong>Title:</strong>
+    <%= @post.title %>
+  </li>
+
+
+  <li>
+    <strong>Content:</strong>
+    <%= @post.content %>
+  </li>
+
+
+  <li>
+    <strong>Votes:</strong>
+    <%= @post.likes %>
+  </li>
+
+</ul>
+
+<span><%= link "Edit", to: post_path(@conn, :edit, @post) %></span>
+<span><%= link "Back", to: post_path(@conn, :index) %></span>
+
+</div>
+</div>
+</div>

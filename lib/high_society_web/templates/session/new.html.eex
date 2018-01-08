@@ -1,0 +1,35 @@
+<div class="mui-container-fluid">
+  <div class="mui-row">
+   <div class="mui-col-md-4 mui-col-md-offset-4">
+<br>
+
+
+<%= form_for @conn, session_path(@conn, :create), [name: :session], fn f -> %>
+            
+            
+            
+            <div class="mui-textfield">
+            <label for="email">Email</label>
+              <div class="input-group">
+              <span class="input-group-addon" id="basic-addon1"><i class="fa fa-envelope" aria-hidden="true"></i></span>
+              <%= email_input f, :email, class: "form-control", autofocus: "on", placeholder: "Email", id: "email" %>
+              </div>
+          </div>
+
+            <div class="mui-textfield">
+            <label for="password">Password</label>
+            <div class="input-group">
+              <span class="input-group-addon" id="basic-addon1"><i class="fa fa-key" aria-hidden="true"></i></span>
+              <%= password_input f, :password, class: "form-control", autocomplete: "off", placeholder: "Password", id: "password" %>
+              </div>
+          </div>
+
+            <div class="mui-textfield">
+          <%= submit "Login", class: "btn btn-primary", id: "login" %>
+          </div>
+  
+        <% end %>
+
+        </div>
+        </div>
+        </div>

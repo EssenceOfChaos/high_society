@@ -1,0 +1,39 @@
+<div class="mui-container-fluid">
+  <div class="mui-row">
+   <div class="mui-col-md-8 mui-col-md-offset-1">
+
+<br>
+<h2>Listing Posts</h2>
+
+<table class="mui-table mui-table--bordered">
+  <thead>
+    <tr>
+    <th>Title</th>
+      <th>Content</th>
+      <th>Likes</th>
+
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+<%= for post <- @posts do %>
+    <tr>
+      <td><strong><%= post.title %></strong></td>
+      <td><%= post.content %></td>
+      <td><%= post.likes %></td>
+
+      <td class="text-right">
+        <span><%= link "Show", to: post_path(@conn, :show, post), class: "mui-btn mui-btn--small" %></span>
+        <span> <%= link "Like", to: post_path(@conn, :upvote, post), method: :post, class: "button is-primary"  %></span>
+        <span><%= link "Dislike",  to: post_path(@conn, :downvote, post), method: :post, class: "button is-warning"  %></span>
+        <span><%= link "Delete", to: post_path(@conn, :delete, post), method: :delete, data: [confirm: "Are you sure?"], class: "mui-btn mui-btn--small mui-btn--danger" %></span>
+      </td>
+    </tr>
+<% end %>
+  </tbody>
+</table>
+
+<span><%= link "New Post", to: post_path(@conn, :new), class: "mui-btn mui-btn--raised" %></span>
+</div>
+</div>
+</div>

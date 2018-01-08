@@ -40,6 +40,7 @@ defmodule HighSocietyWeb do
       import HighSocietyWeb.Router.Helpers
       import HighSocietyWeb.ErrorHelpers
       import HighSocietyWeb.Gettext
+      import HighSociety.Accounts.Auth, only: [current_user: 1, logged_in?: 1]
     end
   end
 

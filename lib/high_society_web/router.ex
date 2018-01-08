@@ -17,6 +17,17 @@ defmodule HighSocietyWeb.Router do
     pipe_through :browser # Use the default browser stack
 
     get "/", PageController, :index
+    scope "/posts" do
+      post "/:id/upvote", PostController, :upvote
+      post "/:id/downvote", PostController, :downvote
+    end
+    resources "/posts", PostController
+    resources "/users", UserController
+        ## Routes for sessions ##
+  get    "/login",  SessionController, :new
+  post   "/login",  SessionController, :create
+  delete "/logout", SessionController, :delete
+
   end
 
   # Other scopes may use custom stacks.
