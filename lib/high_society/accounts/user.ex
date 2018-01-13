@@ -1,7 +1,8 @@
 defmodule HighSociety.Accounts.User do
   use Ecto.Schema
   import Ecto.Changeset
-  alias HighSociety.Accounts.User
+  alias HighSociety.Accounts.{User, Encryption}
+
 
 
   schema "users" do
@@ -20,7 +21,7 @@ defmodule HighSociety.Accounts.User do
   @doc false
   def changeset(%User{} = user, attrs) do
     user
-    |> cast(attrs, [:username, :email, :password_hash])
+    |> cast(attrs, [:username, :email, :password])
     |> validate_required([:username, :email])
     |> validate_format(:email, ~r/(\w+)@([\w.]+)/)
     |> validate_length(:password, min: 6)

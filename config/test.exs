@@ -4,7 +4,7 @@ use Mix.Config
 # you can enable the server option below.
 config :high_society, HighSocietyWeb.Endpoint,
   http: [port: 4001],
-  server: false
+  server: true
 
 # Print only warnings and errors during test
 config :logger, level: :warn
@@ -17,3 +17,11 @@ config :high_society, HighSociety.Repo,
   database: "high_society_test",
   hostname: "localhost",
   pool: Ecto.Adapters.SQL.Sandbox
+
+  ## Configure Hound
+  config :hound, driver: "chrome_driver", browser: "chrome_headless"
+
+  ## Configure Argon2 for pw hashing
+  config :argon2_elixir,
+  t_cost: 1,
+  m_cost: 8

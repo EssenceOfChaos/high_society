@@ -17,8 +17,10 @@
   <body>
     <%= render "_navigation.html", conn: @conn%>
     <div id="content-wrapper" >
-      <p class="alert alert-info" role="alert"><%= get_flash(@conn, :info) %></p>
-      <p class="alert alert-danger" role="alert"><%= get_flash(@conn, :error) %></p>
+    <br>
+    <br>
+      <p class="alert mui--bg-primary-light" role="alert"><%= get_flash(@conn, :info) %></p>
+      <p class="alert mui--bg-danger" role="alert"><%= get_flash(@conn, :error) %></p>
 
       <main role="main">
         <%= render @view_module, @view_template, assigns %>

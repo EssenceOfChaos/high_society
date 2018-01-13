@@ -9,5 +9,8 @@
 
 <span><%= link "Back", to: post_path(@conn, :index) %></span>
 </div>
+
+
+
 </div>
 </div>

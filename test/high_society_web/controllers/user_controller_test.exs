@@ -2,10 +2,12 @@ defmodule HighSocietyWeb.UserControllerTest do
   use HighSocietyWeb.ConnCase
 
   alias HighSociety.Accounts
+  import HighSociety.Factory
 
-  @create_attrs %{email: "some email", password_hash: "some password_hash", username: "some username"}
-  @update_attrs %{email: "some updated email", password_hash: "some updated password_hash", username: "some updated username"}
+  @create_attrs %{email: "example@email.com", password_hash: "abc123", username: "BobMcBobberson"}
+  @update_attrs %{email: "example2@email.com", password_hash: "abcd1234", username: "CoolBobby"}
   @invalid_attrs %{email: nil, password_hash: nil, username: nil}
+
 
   def fixture(:user) do
     {:ok, user} = Accounts.create_user(@create_attrs)
@@ -85,4 +87,12 @@ defmodule HighSocietyWeb.UserControllerTest do
     user = fixture(:user)
     {:ok, user: user}
   end
+
+  test "should create and return user when data is valid", %{conn: conn} do
+    conn = post conn, user_path(conn, :create), user: build(:user)
+    json = json_response(conn, 201)["user"]
+ 
+    assert json == build(:user, username: nil, email: nil)
+  end
+
 end

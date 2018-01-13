@@ -3,6 +3,8 @@ defmodule HighSociety.SubReddit.Post do
   import Ecto.Changeset
   alias HighSociety.SubReddit.Post
 
+  @required_fields ~w(title content user_id)a
+  @optional_fields ~w()
 
   schema "posts" do
 
@@ -18,7 +20,8 @@ defmodule HighSociety.SubReddit.Post do
   @doc false
   def changeset(%Post{} = post, attrs) do
     post
-    |> cast(attrs, [:content, :title, :likes])
-    |> validate_required([:content, :title])
+    |> cast(attrs, @required_fields ++ @optional_fields)
+    |> validate_required(@required_fields)
+    |> assoc_constraint(:user)
   end
 end

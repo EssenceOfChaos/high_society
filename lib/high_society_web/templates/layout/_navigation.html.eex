@@ -7,12 +7,13 @@
         
         <td class="mui--text-right">
           <ul class="mui-list--inline mui--text-body2">
-            <li><%= link "Posts", to: post_path(@conn, :index) %></li>
+            
             <%= if logged_in?(@conn) do %>
-    <span class="badge badge-dark mr-2" id="current_user"><%= current_user(@conn).username %></span>
-    <%= link "Logout", to: session_path(@conn, :delete), method: :delete, class: "btn btn-secondary" %>
+            <span class="mui--bg-accent badge" style="height:10px;" id="current_user"><%= current_user(@conn).username %></span>
+      <li>  <%= link "Posts", to: post_path(@conn, :index), class: "mui-btn mui-btn--small" %>   </li>
+    <%= link "Logout", to: session_path(@conn, :delete), method: :delete, class: "mui-btn mui-btn--small" %>
     <% else %>
-  <li><i class="fa fa-sign-in" aria-hidden="true"></i><%= link "Login",    to: "/login" %></li>
+  <li><i class="fa fa-sign-in" aria-hidden="true"></i> <%= link "Login",    to: "/login" %></li>
     <li><i class="fa fa-user" aria-hidden="true"></i> <%= link "Register", to: user_path(@conn, :new) %></li>
     <% end %>
             

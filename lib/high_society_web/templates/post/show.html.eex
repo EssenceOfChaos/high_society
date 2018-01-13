@@ -20,15 +20,26 @@
 
 
   <li>
-    <strong>Votes:</strong>
+    <strong>Likes:</strong>
     <%= @post.likes %>
+  </li>
+
+    <li>
+    <strong>User:</strong>
+    <%= @post.user_id %>
   </li>
 
 </ul>
 
+
+
+  <span> <%= link "Like", to: post_path(@conn, :upvote, @post), method: :post, class: "mui-btn mui-btn--small mui-btn--primary"  %></span>
+  <span><%= link "Dislike",  to: post_path(@conn, :downvote, @post), method: :post, class: "mui-btn mui-btn--small mui-btn--accent"  %></span>
+
+<br>
+<br>
 <span><%= link "Edit", to: post_path(@conn, :edit, @post) %></span>
 <span><%= link "Back", to: post_path(@conn, :index) %></span>
-
 </div>
 </div>
 </div>

@@ -5,7 +5,6 @@ defmodule HighSociety.SubReddit do
 
   import Ecto.Query, warn: false
   alias HighSociety.Repo
-
   alias HighSociety.SubReddit.Post
 
   @doc """

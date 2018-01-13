@@ -3,8 +3,8 @@ defmodule HighSocietyWeb.PostControllerTest do
 
   alias HighSociety.SubReddit
 
-  @create_attrs %{content: "some content", name: "some name", votes: 42}
-  @update_attrs %{content: "some updated content", name: "some updated name", votes: 43}
+  @create_attrs %{content: "some content", title: "Good Post", votes: 42}
+  @update_attrs %{content: "some updated content", title: "some updated title", votes: 43}
   @invalid_attrs %{content: nil, name: nil, votes: nil}
 
   def fixture(:post) do
