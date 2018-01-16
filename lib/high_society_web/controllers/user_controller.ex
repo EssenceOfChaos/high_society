@@ -1,8 +1,11 @@
 defmodule HighSocietyWeb.UserController do
   use HighSocietyWeb, :controller
 
+
   alias HighSociety.Accounts
   alias HighSociety.Accounts.User
+
+  action_fallback HighSocietyWeb.FallbackController
 
   def index(conn, _params) do
     users = Accounts.list_users()

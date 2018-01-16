@@ -4,6 +4,7 @@
 <h2>Listing Posts</h2>
 <br>
 <%= button "+", to: post_path(@conn, :new), method: :get, class: "mui-btn mui-btn--fab" %>
+
 <br>
 
 

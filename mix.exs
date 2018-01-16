@@ -43,8 +43,10 @@ defmodule HighSociety.Mixfile do
       {:cowboy, "~> 1.0"},
       ## ADDED DEPS ##
       {:comeonin, "~> 4.0"},
+      {:guardian, "~> 1.0"},
       {:argon2_elixir, "~> 1.2"},
       {:ex_machina, "~> 2.0", only: :test},
+      {:credo, "~> 0.8.5", only: [:dev, :test]},
       {:hound, "~> 1.0"},
     ]
   end

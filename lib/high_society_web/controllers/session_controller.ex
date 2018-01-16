@@ -26,6 +26,8 @@ defmodule HighSocietyWeb.SessionController do
     end
   end
 
+
+
   def delete(conn, _) do
     conn
     |> delete_session(:user_id)

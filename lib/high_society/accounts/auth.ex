@@ -1,5 +1,8 @@
 defmodule HighSociety.Accounts.Auth do
+
   alias HighSociety.Accounts.{User, Encryption}
+  import Ecto.{Query, Changeset}, warn: false
+  alias HighSociety.Repo
 
   def login(params, repo) do
     user = repo.get_by(User, email: String.downcase(params["email"]))
@@ -14,6 +17,29 @@ defmodule HighSociety.Accounts.Auth do
       nil -> false
       _   -> Encryption.validate_password(password, user.password_hash)
     end
+  end 
+
+  def register(attrs \\ %{}) do
+  %User{}
+  |> User.changeset(attrs)
+  |> hash_password
+  |> Repo.insert
+  end
+
+  defp check_password(user, password) do
+  case user do
+    nil -> false
+    _ -> Encryption.validate_password(password, user.password)
+  end
+  end
+
+  defp hash_password(changeset) do
+  case changeset do
+    %Ecto.Changeset{valid?: true, changes: %{password: pass}} ->
+      put_change(changeset, :password, Encryption.hash_password(pass))
+    _ ->
+      changeset
+  end
   end
 
 
@@ -22,7 +48,7 @@ defmodule HighSociety.Accounts.Auth do
     id = Plug.Conn.get_session(conn, :user_id)
     if id, do: HighSociety.Repo.get(User, id)
   end
-  
+
   def logged_in?(conn), do: !!current_user(conn)
-  
+
 end

@@ -22,6 +22,13 @@ config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
+## Configure Guardian
+config :high_society, MyApp.Guardian,
+       issuer: "high_society",
+       secret_key: "/DJGkEBEaa16u/W17yGjEoHEMpu9lZsThhg+bn8sy20A59W64iqJT4F7X2zDT4FX",
+       serializer: HighSociety.GuardianSerializer
+
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{Mix.env}.exs"

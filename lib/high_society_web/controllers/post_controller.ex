@@ -3,8 +3,8 @@ defmodule HighSocietyWeb.PostController do
 
   alias HighSociety.SubReddit
   alias HighSociety.SubReddit.Post
-  alias HighSociety.Accounts.User
   alias HighSociety.Repo
+
 
 
 
@@ -13,70 +13,45 @@ defmodule HighSocietyWeb.PostController do
     render(conn, "index.html", posts: posts)
   end
 
-  def new(conn, _params) do
-    changeset = SubReddit.change_post(%Post{})
-    render(conn, "new.html", changeset: changeset)
-  end
-
   # def new(conn, _params) do
-  #   changeset =
-  #     conn.assigns[:current_user]
-  #     |> Ecto.build_assoc(:posts)
-  #     |> Post.changeset()
+  #   changeset = SubReddit.change_post(%Post{})
   #   render(conn, "new.html", changeset: changeset)
   # end
 
-
-
-  def create(conn, %{"post" => post_params}) do
-    
-    case SubReddit.create_post(post_params) do
-      {:ok, post} ->
-        conn
-        |> put_flash(:info, "Post created successfully.")
-        |> redirect(to: post_path(conn, :show, post))
-      {:error, %Ecto.Changeset{} = changeset} ->
-        render(conn, "new.html", changeset: changeset)
-    end
+  def new(conn, _params) do
+  changeset =
+    conn.assigns[:current_user]
+    |> Ecto.build_assoc(:posts)
+    |> SubReddit.change_post()
+  render(conn, "new.html", changeset: changeset)
   end
 
-
   # def create(conn, %{"post" => post_params}) do
-  #   changeset =
-  #   conn.assigns[:current_user]
-  #     |> Ecto.build_assoc(:posts)
-  #     |> Post.changeset(post_params)
-  
-  #   case Repo.insert(changeset) do
-  #     {:ok, _post} ->
+  #
+  #   case SubReddit.create_post(post_params) do
+  #     {:ok, post} ->
   #       conn
   #       |> put_flash(:info, "Post created successfully.")
-  #       |> redirect(to: post_path(conn, :index, conn.assigns[:current_user]))
-  #     {:error, changeset} ->
+  #       |> redirect(to: post_path(conn, :show, post))
+  #     {:error, %Ecto.Changeset{} = changeset} ->
   #       render(conn, "new.html", changeset: changeset)
   #   end
   # end
 
-  # old above
-  # new below
-
-  # def create(conn, %{"post" => post_params}) do
-  #   changeset =
-  #     %Post{}
-  #     |> Post.changeset(post_params)
-  #     |> Ecto.Changeset.put_assoc(:user, conn.assigns[:current_user])
-  #     |> Repo.insert()
-  #     |> case do
-  #       {:ok, _post} ->
-  #         conn
-  #         |> put_flash(:info, "Post created successfully.")
-  #         |> redirect(to: post_path(conn, :index, conn.assigns[:current_user]))
-  
-  #       {:error, changeset} ->
-  #         render(conn, "new.html", changeset: changeset)
-  #     end
-  # end
-
+  def create(conn, %{"post" => post_params}) do
+    changeset =
+      conn.assigns[:current_user]
+      |> Ecto.build_assoc(:posts)
+      |> Post.changeset(post_params)
+    case Repo.insert(changeset) do
+      {:ok, post} ->
+        conn
+        |> put_flash(:info, "Post created successfully.")
+        |> redirect(to: post_path(conn, :show, post))
+      {:error, changeset} ->
+        render(conn, "new.html", changeset: changeset)
+    end
+  end
 
   def show(conn, %{"id" => id}) do
     post = SubReddit.get_post!(id)
@@ -136,6 +111,8 @@ end
     |> put_flash(:info, "Post deleted successfully.")
     |> redirect(to: post_path(conn, :index))
   end
+
+
 
 
 

@@ -1,7 +1,3 @@
-#content-wrapper {
-    margin-top: 50px;
-}
-
 .badge {
     font-weight: bold;
     // border: 2px solid snow;
@@ -9,11 +5,10 @@
     margin-right: 10px;
 }
 
-.alert.alert-danger {
-    color: whitesmoke;
+.alert {
+    color: azure;
     font-size: 20px;
     text-align: center;
-    background-color: red;
 }
 
 
@@ -22,7 +17,6 @@
 .alert:empty {
     display: none;
 }
-
 
 /**
    * Body CSS
@@ -79,6 +73,7 @@ header table {
     box-sizing: border-box;
     margin-bottom: -100px;
     padding-bottom: 100px;
+    margin-top: 50px;
 }
 
 
@@ -94,6 +89,14 @@ footer {
     padding-top: 35px;
 }
 
-.mui-appbar {
-    margin-bottom: 555px;
+.mui--text-title {
+  a {
+    text-decoration: none;
+  }
+}
+
+.mui--text-right{
+  a {
+    text-decoration: none;
+  }
 }

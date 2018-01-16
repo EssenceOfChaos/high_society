@@ -4,7 +4,7 @@ defmodule HighSociety.SubReddit.Post do
   alias HighSociety.SubReddit.Post
 
   @required_fields ~w(title content user_id)a
-  @optional_fields ~w()
+  @optional_fields ~w(likes)
 
   schema "posts" do
 

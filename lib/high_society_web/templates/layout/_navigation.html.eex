@@ -1,22 +1,22 @@
 <header class="mui-appbar mui--z1">
   <div class="mui-container">
-    <table>
+    <table class="app-bar">
       <tr class="mui--appbar-height">
-      
+
         <td class="mui--text-title"><a href="/">High Society</a></td>
-        
+
         <td class="mui--text-right">
           <ul class="mui-list--inline mui--text-body2">
-            
+
             <%= if logged_in?(@conn) do %>
             <span class="mui--bg-accent badge" style="height:10px;" id="current_user"><%= current_user(@conn).username %></span>
       <li>  <%= link "Posts", to: post_path(@conn, :index), class: "mui-btn mui-btn--small" %>   </li>
     <%= link "Logout", to: session_path(@conn, :delete), method: :delete, class: "mui-btn mui-btn--small" %>
     <% else %>
-  <li><i class="fa fa-sign-in" aria-hidden="true"></i> <%= link "Login",    to: "/login" %></li>
+    <li><i class="fa fa-sign-in" aria-hidden="true"></i> <%= link "Login",    to: "/login" %></li>
     <li><i class="fa fa-user" aria-hidden="true"></i> <%= link "Register", to: user_path(@conn, :new) %></li>
     <% end %>
-            
+
           </ul>
         </td>
       </tr>
