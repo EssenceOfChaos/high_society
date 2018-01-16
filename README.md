@@ -7,7 +7,7 @@
 * Created with Phoenix v 1.3
 * Styled with MUI css
 
-Check out the [`Production Demo`](https://highsociety.herokuapp.com/).
+Check out the [`Demo on Heroku`](https://highsociety.herokuapp.com/){:target="_blank"}.
 
 
 ## Frederick John
