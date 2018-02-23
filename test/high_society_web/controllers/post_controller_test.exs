@@ -3,7 +3,7 @@ defmodule HighSocietyWeb.PostControllerTest do
 
   alias HighSociety.SubReddit
 
-  @create_attrs %{content: "some content", title: "Good Post", votes: 42}
+  @create_attrs %{content: "some content", title: "Good Post", votes: 42, user_id: 2}
   @update_attrs %{content: "some updated content", title: "some updated title", votes: 43}
   @invalid_attrs %{content: nil, name: nil, votes: nil}
 

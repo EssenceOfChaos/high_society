@@ -3,9 +3,6 @@ defmodule HighSociety.SubReddit.Post do
   import Ecto.Changeset
   alias HighSociety.SubReddit.Post
 
-  @required_fields ~w(title content user_id)a
-  @optional_fields ~w(likes)
-
   schema "posts" do
 
     field :title, :string
@@ -17,7 +14,10 @@ defmodule HighSociety.SubReddit.Post do
     timestamps()
   end
 
-  @doc false
+@required_fields ~w(title content)a
+@optional_fields ~w(likes)a
+
+
   def changeset(%Post{} = post, attrs) do
     post
     |> cast(attrs, @required_fields ++ @optional_fields)

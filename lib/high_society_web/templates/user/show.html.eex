@@ -4,6 +4,7 @@
 <br>
 
 <h2>Show User</h2>
+<%= gravatar (@user.email) %>
 
 <ul>
 
