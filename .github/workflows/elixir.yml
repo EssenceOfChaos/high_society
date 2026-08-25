@@ -60,6 +60,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
     - name: Push to Gigalixir
       env:
         GIGALIXIR_EMAIL: ${{ secrets.GIGALIXIR_EMAIL }}
