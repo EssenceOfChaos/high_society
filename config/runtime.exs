@@ -39,7 +39,7 @@ if config_env() == :prod do
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
   config :high_society, HighSociety.Repo,
-    # ssl: true,
+    ssl: true,
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     # For machines with several cores, consider starting multiple pools of `pool_size`
@@ -122,4 +122,19 @@ if config_env() == :prod do
   #     config :swoosh, :api_client, Swoosh.ApiClient.Req
   #
   # See https://swoosh.hexdocs.pm/Swoosh.html#module-installation for details.
+
+  resend_api_key =
+    System.get_env("RESEND_API_KEY") ||
+      raise """
+      environment variable RESEND_API_KEY is missing.
+      Get one from https://resend.com/api-keys
+      """
+
+  config :high_society, HighSociety.Mailer,
+    adapter: Swoosh.Adapters.Resend,
+    api_key: resend_api_key
+
+  if from_email = System.get_env("MAILER_FROM_EMAIL") do
+    config :high_society, :mailer_from_email, from_email
+  end
 end

@@ -9,7 +9,7 @@ defmodule HighSociety.Accounts.UserNotifier do
     email =
       new()
       |> to(recipient)
-      |> from({"HighSociety", "contact@example.com"})
+      |> from({"HighSociety", Application.get_env(:high_society, :mailer_from_email)})
       |> subject(subject)
       |> text_body(body)
 

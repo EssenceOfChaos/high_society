@@ -48,6 +48,7 @@ config :phoenix_live_view,
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
 config :high_society, HighSociety.Mailer, adapter: Swoosh.Adapters.Local
+config :high_society, :mailer_from_email, "onboarding@resend.dev"
 
 # Configure esbuild (the version is required)
 config :esbuild,
