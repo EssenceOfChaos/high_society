@@ -1,3 +1,5 @@
+![Build Status](https://github.com/EssenceOfChaos/high_society/actions/workflows/elixir.yml/badge.svg)
+
 # HighSociety
 
 To start your Phoenix server:
