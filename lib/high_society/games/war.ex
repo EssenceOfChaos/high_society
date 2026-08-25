@@ -1,7 +1,13 @@
 defmodule HighSociety.Games.War do
   @moduledoc """
   Pure game logic for War: build/shuffle a deck, deal it, and resolve rounds
-  (including chained "war" ties) with no dependency on persistence or web.
+  one step at a time, with no dependency on persistence or web.
+
+  A tie triggers a "war": both sides burn three cards face down immediately,
+  but the tiebreaker card is *not* flipped automatically. The war is left
+  pending (`war` is set on the struct) so the caller can reveal the
+  tiebreaker with a separate `play_round/1` call - which may itself tie
+  again, chaining into another war.
 
   Cards are represented as two-character (or three, for "10") strings like
   "AS", "10H", "KD" - rank followed by suit.
@@ -13,12 +19,14 @@ defmodule HighSociety.Games.War do
   @type card :: String.t()
   @type status :: :in_progress | :player_won | :computer_won
   @type tie :: %{player_card: card, computer_card: card}
+  @type war_state :: %{pot: [card], ties: [tie]}
   @type round_result :: %{
-          player_card: card,
-          computer_card: card,
-          winner: :player | :computer,
+          player_card: card | nil,
+          computer_card: card | nil,
+          winner: :player | :computer | nil,
           war?: boolean,
-          cards_won: non_neg_integer(),
+          pending?: boolean,
+          cards_won: non_neg_integer() | nil,
           ties: [tie]
         }
 
@@ -26,10 +34,11 @@ defmodule HighSociety.Games.War do
           player_deck: [card],
           computer_deck: [card],
           status: status,
-          last_round: round_result | nil
+          last_round: round_result | nil,
+          war: war_state | nil
         }
 
-  defstruct player_deck: [], computer_deck: [], status: :in_progress, last_round: nil
+  defstruct player_deck: [], computer_deck: [], status: :in_progress, last_round: nil, war: nil
 
   @doc "Builds a fresh, shuffled deck and deals it evenly between player and computer."
   @spec new() :: t()
@@ -43,14 +52,23 @@ defmodule HighSociety.Games.War do
   end
 
   @doc """
-  Plays a single round (flipping one card each). Ties trigger a "war": each
-  side burns cards face down and flips again until the tie is broken or a
-  player runs out of cards. Returns the updated game with `last_round` set to
-  a summary of what happened, and `status` updated when the game has ended.
+  Plays a single step.
+
+  With no war pending, this flips one card each. A mismatch resolves the
+  round immediately. A tie burns three cards face down each and leaves the
+  war `pending?: true` - nothing is awarded yet.
+
+  With a war already pending, this flips the tiebreaker cards instead,
+  awarding the accumulated pot to whichever card is higher (or chaining
+  into another war on another tie).
   """
   @spec play_round(t()) :: t()
-  def play_round(%__MODULE__{status: :in_progress} = game) do
-    resolve(game, [], false, [])
+  def play_round(%__MODULE__{status: :in_progress, war: nil} = game) do
+    flip(game, [], [])
+  end
+
+  def play_round(%__MODULE__{status: :in_progress, war: %{pot: pot, ties: ties}} = game) do
+    flip(%{game | war: nil}, pot, ties)
   end
 
   @spec build_deck() :: [card]
@@ -72,58 +90,51 @@ defmodule HighSociety.Games.War do
     {rank, suit}
   end
 
-  defp resolve(game, pot, war?, ties, reveal \\ nil) do
-    case {game.player_deck, game.computer_deck} do
-      {[], _} ->
-        finish(game, :computer, pot, war?, ties, reveal)
+  defp flip(game, pot, ties) do
+    [player_card | player_rest] = game.player_deck
+    [computer_card | computer_rest] = game.computer_deck
+    pot = pot ++ [player_card, computer_card]
+    player_value = value(player_card)
+    computer_value = value(computer_card)
 
-      {_, []} ->
-        finish(game, :player, pot, war?, ties, reveal)
+    cond do
+      player_value > computer_value ->
+        award(game, :player, player_card, computer_card, player_rest, computer_rest, pot, ties)
 
-      {[player_card | player_rest], [computer_card | computer_rest]} ->
-        pot = pot ++ [player_card, computer_card]
-        player_value = value(player_card)
-        computer_value = value(computer_card)
+      computer_value > player_value ->
+        award(game, :computer, player_card, computer_card, player_rest, computer_rest, pot, ties)
 
-        cond do
-          player_value > computer_value ->
-            award(
-              game,
-              :player,
-              player_card,
-              computer_card,
-              player_rest,
-              computer_rest,
-              pot,
-              war?,
-              ties
-            )
-
-          computer_value > player_value ->
-            award(
-              game,
-              :computer,
-              player_card,
-              computer_card,
-              player_rest,
-              computer_rest,
-              pot,
-              war?,
-              ties
-            )
-
-          true ->
-            {player_burned, player_rest} = Enum.split(player_rest, 3)
-            {computer_burned, computer_rest} = Enum.split(computer_rest, 3)
-            pot = pot ++ player_burned ++ computer_burned
-            ties = ties ++ [%{player_card: player_card, computer_card: computer_card}]
-
-            game
-            |> Map.put(:player_deck, player_rest)
-            |> Map.put(:computer_deck, computer_rest)
-            |> resolve(pot, true, ties, {player_card, computer_card})
-        end
+      true ->
+        declare_war(game, player_card, computer_card, player_rest, computer_rest, pot, ties)
     end
+  end
+
+  defp declare_war(game, player_card, computer_card, player_rest, computer_rest, pot, ties) do
+    {player_burned, player_rest} = Enum.split(player_rest, 3)
+    {computer_burned, computer_rest} = Enum.split(computer_rest, 3)
+    pot = pot ++ player_burned ++ computer_burned
+    ties = ties ++ [%{player_card: player_card, computer_card: computer_card}]
+    game = %{game | player_deck: player_rest, computer_deck: computer_rest}
+
+    cond do
+      player_rest == [] -> finish(game, :computer, pot, ties)
+      computer_rest == [] -> finish(game, :player, pot, ties)
+      true -> pend_war(game, pot, ties)
+    end
+  end
+
+  defp pend_war(game, pot, ties) do
+    last_round = %{
+      player_card: nil,
+      computer_card: nil,
+      winner: nil,
+      war?: true,
+      pending?: true,
+      cards_won: nil,
+      ties: ties
+    }
+
+    %{game | war: %{pot: pot, ties: ties}, last_round: last_round}
   end
 
   defp award(
@@ -134,7 +145,6 @@ defmodule HighSociety.Games.War do
          player_rest,
          computer_rest,
          pot,
-         war?,
          ties
        ) do
     won_pot = Enum.shuffle(pot)
@@ -149,7 +159,8 @@ defmodule HighSociety.Games.War do
       player_card: player_card,
       computer_card: computer_card,
       winner: winner,
-      war?: war?,
+      war?: ties != [],
+      pending?: false,
       cards_won: length(pot),
       ties: ties
     }
@@ -166,26 +177,21 @@ defmodule HighSociety.Games.War do
       | player_deck: player_deck,
         computer_deck: computer_deck,
         last_round: last_round,
-        status: status
+        status: status,
+        war: nil
     }
   end
 
-  defp finish(game, winner, pot, war?, ties, reveal) do
-    last_round =
-      case reveal do
-        nil ->
-          game.last_round
-
-        {player_card, computer_card} ->
-          %{
-            player_card: player_card,
-            computer_card: computer_card,
-            winner: winner,
-            war?: war?,
-            cards_won: length(pot),
-            ties: ties
-          }
-      end
+  defp finish(game, winner, pot, ties) do
+    last_round = %{
+      player_card: nil,
+      computer_card: nil,
+      winner: winner,
+      war?: true,
+      pending?: false,
+      cards_won: length(pot),
+      ties: ties
+    }
 
     status = if winner == :player, do: :player_won, else: :computer_won
     won_pot = Enum.shuffle(pot)
@@ -201,7 +207,8 @@ defmodule HighSociety.Games.War do
       | player_deck: player_deck,
         computer_deck: computer_deck,
         status: status,
-        last_round: last_round
+        last_round: last_round,
+        war: nil
     }
   end
 end

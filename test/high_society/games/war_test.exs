@@ -35,7 +35,7 @@ defmodule HighSociety.Games.WarTest do
       assert game.status == :in_progress
     end
 
-    test "a tie triggers a war, burning three cards each before the decider" do
+    test "a tie declares a war and burns three cards each, but leaves the tiebreaker pending" do
       game = %War{
         player_deck: ["5S", "1", "2", "3", "9S"],
         computer_deck: ["5H", "a", "b", "c", "2H"],
@@ -44,7 +44,23 @@ defmodule HighSociety.Games.WarTest do
 
       game = War.play_round(game)
 
+      assert game.status == :in_progress
       assert game.last_round.war? == true
+      assert game.last_round.pending? == true
+      assert game.last_round.player_card == nil
+      assert game.last_round.computer_card == nil
+      assert game.last_round.winner == nil
+      assert game.last_round.ties == [%{player_card: "5S", computer_card: "5H"}]
+      # the tied cards plus three burned each are held in the pot, awaiting the tiebreaker
+      assert game.player_deck == ["9S"]
+      assert game.computer_deck == ["2H"]
+      assert game.war.pot == ["5S", "5H", "1", "2", "3", "a", "b", "c"]
+
+      game = War.play_round(game)
+
+      assert game.war == nil
+      assert game.last_round.war? == true
+      assert game.last_round.pending? == false
       assert game.last_round.player_card == "9S"
       assert game.last_round.computer_card == "2H"
       assert game.last_round.winner == :player
@@ -54,6 +70,38 @@ defmodule HighSociety.Games.WarTest do
       assert length(game.player_deck) == 10
       assert game.computer_deck == []
       assert game.status == :player_won
+    end
+
+    test "a tiebreaker that ties again chains into a second war" do
+      game = %War{
+        player_deck: ["5S", "1", "2", "3", "5D", "4", "5", "6", "8S"],
+        computer_deck: ["5H", "a", "b", "c", "5C", "d", "e", "f", "9H"],
+        status: :in_progress
+      }
+
+      # round 1: 5S/5H tie, burns three each, leaves war #1 pending
+      game = War.play_round(game)
+      assert game.status == :in_progress
+      assert game.last_round.pending? == true
+      assert length(game.last_round.ties) == 1
+
+      # round 2: the war #1 tiebreaker (5D/5C) ties again, chaining into war #2
+      game = War.play_round(game)
+      assert game.status == :in_progress
+      assert game.last_round.pending? == true
+      assert game.last_round.war? == true
+      assert length(game.last_round.ties) == 2
+      assert game.player_deck == ["8S"]
+      assert game.computer_deck == ["9H"]
+
+      # round 3: the war #2 tiebreaker (8S/9H) finally decides it
+      game = War.play_round(game)
+
+      assert game.status == :computer_won
+      assert game.last_round.pending? == false
+      assert game.last_round.winner == :computer
+      assert game.last_round.cards_won == 18
+      assert game.player_deck == []
     end
 
     test "conserves all 52 cards and always terminates, across many full games" do

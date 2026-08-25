@@ -10,6 +10,7 @@ defmodule HighSociety.Games.WarGame do
     field :computer_deck, {:array, :string}, default: []
     field :round_number, :integer, default: 0
     field :last_round, :map
+    field :pending_war, :map
 
     belongs_to :user, HighSociety.Accounts.User
 
@@ -19,7 +20,15 @@ defmodule HighSociety.Games.WarGame do
   @doc false
   def changeset(war_game, attrs) do
     war_game
-    |> cast(attrs, [:status, :player_deck, :computer_deck, :round_number, :last_round, :user_id])
+    |> cast(attrs, [
+      :status,
+      :player_deck,
+      :computer_deck,
+      :round_number,
+      :last_round,
+      :pending_war,
+      :user_id
+    ])
     |> validate_required([:status, :player_deck, :computer_deck, :round_number, :user_id])
     |> validate_inclusion(:status, @statuses)
   end

@@ -56,7 +56,10 @@ defmodule HighSociety.GamesTest do
 
       assert updated.round_number == 1
       assert updated.last_round != nil
-      assert length(updated.player_deck) + length(updated.computer_deck) == 52
+      # a tie leaves some cards held in a pending war's pot, off both decks,
+      # until the tiebreaker is flipped - so conservation must account for it
+      pending_pot_size = (updated.pending_war && length(updated.pending_war["pot"])) || 0
+      assert length(updated.player_deck) + length(updated.computer_deck) + pending_pot_size == 52
 
       persisted = HighSociety.Repo.get!(Games.WarGame, war_game.id)
       assert persisted.player_deck == updated.player_deck

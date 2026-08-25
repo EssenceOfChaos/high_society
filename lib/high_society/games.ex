@@ -54,7 +54,8 @@ defmodule HighSociety.Games do
       player_deck: war_game.player_deck,
       computer_deck: war_game.computer_deck,
       status: String.to_existing_atom(war_game.status),
-      last_round: atomize_last_round(war_game.last_round)
+      last_round: atomize_last_round(war_game.last_round),
+      war: atomize_war(war_game.pending_war)
     }
   end
 
@@ -64,11 +65,18 @@ defmodule HighSociety.Games do
     %{
       player_card: last_round["player_card"],
       computer_card: last_round["computer_card"],
-      winner: String.to_existing_atom(last_round["winner"]),
+      winner: last_round["winner"] && String.to_existing_atom(last_round["winner"]),
       war?: last_round["war?"],
+      pending?: last_round["pending?"] || false,
       cards_won: last_round["cards_won"],
       ties: atomize_ties(last_round["ties"])
     }
+  end
+
+  defp atomize_war(nil), do: nil
+
+  defp atomize_war(%{} = war) do
+    %{pot: war["pot"], ties: atomize_ties(war["ties"])}
   end
 
   defp atomize_ties(nil), do: []
@@ -87,7 +95,8 @@ defmodule HighSociety.Games do
       player_deck: war.player_deck,
       computer_deck: war.computer_deck,
       round_number: 0,
-      last_round: stringify_last_round(war.last_round)
+      last_round: stringify_last_round(war.last_round),
+      pending_war: stringify_war(war.war)
     })
     |> Repo.insert!()
   end
@@ -99,7 +108,8 @@ defmodule HighSociety.Games do
       player_deck: war.player_deck,
       computer_deck: war.computer_deck,
       round_number: war_game.round_number + 1,
-      last_round: stringify_last_round(war.last_round)
+      last_round: stringify_last_round(war.last_round),
+      pending_war: stringify_war(war.war)
     })
     |> Repo.update!()
   end
@@ -110,11 +120,18 @@ defmodule HighSociety.Games do
     %{
       "player_card" => last_round.player_card,
       "computer_card" => last_round.computer_card,
-      "winner" => Atom.to_string(last_round.winner),
+      "winner" => last_round.winner && Atom.to_string(last_round.winner),
       "war?" => last_round.war?,
+      "pending?" => last_round.pending?,
       "cards_won" => last_round.cards_won,
       "ties" => stringify_ties(last_round.ties)
     }
+  end
+
+  defp stringify_war(nil), do: nil
+
+  defp stringify_war(%{} = war) do
+    %{"pot" => war.pot, "ties" => stringify_ties(war.ties)}
   end
 
   defp stringify_ties(ties) do

@@ -26,7 +26,7 @@ defmodule HighSocietyWeb.DashboardLive do
     %{
       slug: "poker",
       name: "Poker",
-      tagline: "Five-card draw",
+      tagline: "No-Limit Texas Hold'em",
       description: "Build the best hand and bluff your way to the pot.",
       icon: "hero-sparkles",
       accent: "from-indigo-500 to-violet-400",

@@ -57,10 +57,32 @@ defmodule HighSocietyWeb.GameLive.War do
           <span class="loading loading-spinner loading-lg" />
         </div>
 
-        <div :if={@war_game} id="war-table" class="mt-8">
+        <.status_bar
+          :if={@war_game}
+          player_count={length(@war_game.player_deck)}
+          computer_count={length(@war_game.computer_deck)}
+        />
+
+        <div
+          :if={@war_game}
+          id="war-table"
+          class={[
+            "mt-8 rounded-2xl transition-colors duration-500",
+            war_pending?(@war_game) && "-mx-4 border-4 border-error bg-error/10 p-4 shadow-lg shadow-error/20"
+          ]}
+        >
           <div class="grid grid-cols-2 gap-6">
             <.pile label="You" count={length(@war_game.player_deck)} align="left" />
             <.pile label="Computer" count={length(@war_game.computer_deck)} align="right" />
+          </div>
+
+          <div :if={war_pending?(@war_game)} class="mt-6 text-center">
+            <p class="animate-pulse text-4xl font-black uppercase tracking-widest text-error">
+              ⚔️ War! ⚔️
+            </p>
+            <p class="mt-1 text-sm font-medium text-error/80">
+              Three cards burned each. Flip the tiebreaker to see who takes the pot.
+            </p>
           </div>
 
           <div :for={tie <- ties(@war_game)} class="mt-8 grid grid-cols-2 gap-6">
@@ -86,7 +108,7 @@ defmodule HighSocietyWeb.GameLive.War do
               >
                 Tiebreaker
               </span>
-              <.card_face card={last_card(@war_game, :player_card)} />
+              <.card_face card={last_card(@war_game, :player_card)} pending={war_pending?(@war_game)} />
             </div>
             <div class="flex flex-col items-center gap-1">
               <span
@@ -95,13 +117,16 @@ defmodule HighSocietyWeb.GameLive.War do
               >
                 Tiebreaker
               </span>
-              <.card_face card={last_card(@war_game, :computer_card)} />
+              <.card_face
+                card={last_card(@war_game, :computer_card)}
+                pending={war_pending?(@war_game)}
+              />
             </div>
           </div>
 
           <div class="mt-6 text-center min-h-8">
             <p
-              :if={@war_game.last_round && @war_game.status == "in_progress"}
+              :if={@war_game.last_round && @war_game.status == "in_progress" && !war_pending?(@war_game)}
               class={[@warring? && "font-bold text-warning text-lg", !@warring? && "text-base-content/70"]}
             >
               {round_message(@war_game.last_round)}
@@ -110,12 +135,21 @@ defmodule HighSocietyWeb.GameLive.War do
 
           <div class="mt-6 flex justify-center">
             <button
-              :if={@war_game.status == "in_progress"}
+              :if={@war_game.status == "in_progress" && !war_pending?(@war_game)}
               id="flip-button"
               phx-click="flip"
               class="btn btn-primary btn-lg px-12"
             >
               Flip
+            </button>
+
+            <button
+              :if={@war_game.status == "in_progress" && war_pending?(@war_game)}
+              id="flip-tiebreaker-button"
+              phx-click="flip"
+              class="btn btn-error btn-lg animate-pulse px-12"
+            >
+              ⚔️ Flip tiebreaker
             </button>
 
             <div :if={@war_game.status != "in_progress"} id="game-result" class="text-center">
@@ -141,6 +175,43 @@ defmodule HighSocietyWeb.GameLive.War do
     """
   end
 
+  attr :player_count, :integer, required: true
+  attr :computer_count, :integer, required: true
+
+  defp status_bar(assigns) do
+    total = assigns.player_count + assigns.computer_count
+    player_pct = if total > 0, do: assigns.player_count / total * 100, else: 50.0
+
+    assigns = assign(assigns, :player_pct, player_pct)
+
+    ~H"""
+    <div id="status-bar" class="mt-6">
+      <div class="flex items-center justify-between text-xs font-medium text-base-content/60">
+        <span>You — {@player_count} cards</span>
+        <span>Computer — {@computer_count} cards</span>
+      </div>
+      <div class="mt-1.5 flex h-3 w-full overflow-hidden rounded-full bg-base-300">
+        <div
+          class="h-full bg-primary transition-all duration-500 ease-out"
+          style={"width: #{@player_pct}%"}
+        />
+        <div class="h-full flex-1 bg-error/70 transition-all duration-500 ease-out" />
+      </div>
+      <p class="mt-1.5 text-center text-xs font-semibold uppercase tracking-wide text-base-content/50">
+        {status_message(@player_pct)}
+      </p>
+    </div>
+    """
+  end
+
+  defp status_message(pct) when pct >= 90, do: "You're close to winning"
+  defp status_message(pct) when pct >= 65, do: "You're dominating"
+  defp status_message(pct) when pct >= 55, do: "You're ahead"
+  defp status_message(pct) when pct > 45, do: "It's neck and neck"
+  defp status_message(pct) when pct > 35, do: "You're behind"
+  defp status_message(pct) when pct > 10, do: "You're in trouble"
+  defp status_message(_pct), do: "You're close to losing"
+
   attr :label, :string, required: true
   attr :count, :integer, required: true
   attr :align, :string, required: true
@@ -157,6 +228,7 @@ defmodule HighSocietyWeb.GameLive.War do
 
   attr :card, :string, default: nil
   attr :dim, :boolean, default: false
+  attr :pending, :boolean, default: false
 
   defp card_face(assigns) do
     {rank, suit} = if assigns.card, do: War.split(assigns.card), else: {nil, nil}
@@ -170,7 +242,9 @@ defmodule HighSocietyWeb.GameLive.War do
     ~H"""
     <div class={[
       "flex h-40 w-28 flex-col items-center justify-center rounded-xl border-2 shadow-md",
-      if(@card, do: "bg-white border-base-300", else: "border-dashed border-base-300 bg-base-200"),
+      @card && "bg-white border-base-300",
+      !@card && @pending && "border-error bg-error text-error-content animate-pulse",
+      !@card && !@pending && "border-dashed border-base-300 bg-base-200",
       @dim && "opacity-40 scale-90"
     ]}>
       <div
@@ -180,7 +254,16 @@ defmodule HighSocietyWeb.GameLive.War do
         <span class="text-3xl font-bold">{@rank}</span>
         <span class="text-4xl leading-none">{@suit_symbol}</span>
       </div>
-      <.icon :if={!@card} name="hero-question-mark-circle" class="size-8 text-base-content/20" />
+      <.icon
+        :if={!@card && @pending}
+        name="hero-question-mark-circle"
+        class="size-10 text-error-content"
+      />
+      <.icon
+        :if={!@card && !@pending}
+        name="hero-question-mark-circle"
+        class="size-8 text-base-content/20"
+      />
     </div>
     """
   end
@@ -199,6 +282,9 @@ defmodule HighSocietyWeb.GameLive.War do
 
   defp war_round?(%{last_round: nil}), do: false
   defp war_round?(%{last_round: last_round}), do: Map.get(last_round, "war?") || false
+
+  defp war_pending?(%{last_round: nil}), do: false
+  defp war_pending?(%{last_round: last_round}), do: Map.get(last_round, "pending?") || false
 
   defp round_message(%{"winner" => "player", "cards_won" => n, "war?" => true}),
     do: "WAR! Your tiebreaker won — you took #{n} cards total."
