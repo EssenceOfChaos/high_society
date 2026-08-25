@@ -8,8 +8,9 @@ import Config
 # The block below contains prod specific runtime configuration.
 
 require Logger
-DotenvParser.load_file(".env")
-Logger.debug("Parsing Dotenv file, secret value is #{System.get_env("SECRET_VALUE")}")
+# DotenvParser.load_file(".env")
+# Logger.debug("Parsing Dotenv file, secret value is #{System.get_env("SECRET_VALUE")}")
+Logger.debug("Spinning up runtime.exs")
 
 # ## Using releases
 #
