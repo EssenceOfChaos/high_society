@@ -23,12 +23,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Set up Elixir
-      uses: erlef/setup-beam@61e01a43a562a89bfc54c7f9a378ff67b03e4a21 # v1.16.0
+      uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
       with:
         elixir-version: '1.20.3' # [Required] Define the Elixir version
         otp-version: '29.0'      # [Required] Define the Erlang/OTP version
     - name: Restore dependencies cache
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: deps
         key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
@@ -37,3 +37,20 @@ jobs:
       run: mix deps.get
     - name: Run tests
       run: mix test
+
+  deploy:
+    name: Deploy to Gigalixir
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Push to Gigalixir
+      env:
+        GIGALIXIR_EMAIL: ${{ secrets.GIGALIXIR_EMAIL }}
+        GIGALIXIR_API_KEY: ${{ secrets.GIGALIXIR_API_KEY }}
+      run: |
+        encoded_email=$(jq -rn --arg v "$GIGALIXIR_EMAIL" '$v|@uri')
+        git remote add gigalixir "https://${encoded_email}:${GIGALIXIR_API_KEY}@git.gigalixir.com/high-society.git"
+        git push -f gigalixir HEAD:refs/heads/main
