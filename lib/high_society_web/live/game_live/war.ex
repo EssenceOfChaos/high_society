@@ -22,8 +22,21 @@ defmodule HighSocietyWeb.GameLive.War do
   def handle_event("flip", _params, socket) do
     war_game = Games.play_round(socket.assigns.war_game)
     warring? = war_game.last_round["war?"] || false
+    war_declared? = war_game.last_round["pending?"] || false
 
-    {:noreply, assign(socket, war_game: war_game, warring?: warring?)}
+    socket =
+      socket
+      |> assign(war_game: war_game, warring?: warring?)
+      |> push_event("play_sound", %{sound: "deal"})
+
+    socket =
+      if war_declared? do
+        push_event(socket, "play_sound", %{sound: "war"})
+      else
+        socket
+      end
+
+    {:noreply, socket}
   end
 
   def handle_event("new_game", _params, socket) do
@@ -35,7 +48,7 @@ defmodule HighSocietyWeb.GameLive.War do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-3xl">
+      <div id="war-screen" class="mx-auto max-w-3xl" phx-hook=".SoundEffects">
         <div class="flex items-center justify-between">
           <div>
             <.link navigate={~p"/"} class="text-sm text-base-content/60 hover:text-base-content">
@@ -43,14 +56,27 @@ defmodule HighSocietyWeb.GameLive.War do
             </.link>
             <h1 class="mt-1 text-3xl font-bold tracking-tight">War</h1>
           </div>
-          <button
-            :if={@war_game}
-            id="new-game-button"
-            phx-click="new_game"
-            class="btn btn-ghost btn-sm"
-          >
-            <.icon name="hero-arrow-path" class="size-4" /> New game
-          </button>
+          <div class="flex items-center gap-2">
+            <button
+              id="sound-toggle-button"
+              type="button"
+              phx-hook=".SoundToggle"
+              class="btn btn-ghost btn-sm"
+              aria-label="Toggle sound"
+              aria-pressed="true"
+            >
+              <.icon name="hero-speaker-wave" class="size-4 sound-on-icon" />
+              <.icon name="hero-speaker-x-mark" class="size-4 sound-off-icon hidden" />
+            </button>
+            <button
+              :if={@war_game}
+              id="new-game-button"
+              phx-click="new_game"
+              class="btn btn-ghost btn-sm"
+            >
+              <.icon name="hero-arrow-path" class="size-4" /> New game
+            </button>
+          </div>
         </div>
 
         <div :if={!@war_game} class="mt-16 flex justify-center">
@@ -68,7 +94,8 @@ defmodule HighSocietyWeb.GameLive.War do
           id="war-table"
           class={[
             "mt-8 rounded-2xl transition-colors duration-500",
-            war_pending?(@war_game) && "-mx-4 border-4 border-error bg-error/10 p-4 shadow-lg shadow-error/20"
+            war_pending?(@war_game) &&
+              "-mx-4 border-4 border-error bg-error/10 p-4 shadow-lg shadow-error/20"
           ]}
         >
           <div class="grid grid-cols-2 gap-6">
@@ -126,8 +153,13 @@ defmodule HighSocietyWeb.GameLive.War do
 
           <div class="mt-6 text-center min-h-8">
             <p
-              :if={@war_game.last_round && @war_game.status == "in_progress" && !war_pending?(@war_game)}
-              class={[@warring? && "font-bold text-warning text-lg", !@warring? && "text-base-content/70"]}
+              :if={
+                @war_game.last_round && @war_game.status == "in_progress" && !war_pending?(@war_game)
+              }
+              class={[
+                @warring? && "font-bold text-warning text-lg",
+                !@warring? && "text-base-content/70"
+              ]}
             >
               {round_message(@war_game.last_round)}
             </p>
@@ -171,6 +203,52 @@ defmodule HighSocietyWeb.GameLive.War do
           </div>
         </div>
       </div>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".SoundToggle">
+        export default {
+          mounted() {
+            this.storageKey = "high_society:sound_muted"
+            this.onIcon = this.el.querySelector(".sound-on-icon")
+            this.offIcon = this.el.querySelector(".sound-off-icon")
+            this.applyState(this.isMuted())
+
+            this.el.addEventListener("click", () => {
+              const muted = !this.isMuted()
+              localStorage.setItem(this.storageKey, muted ? "true" : "false")
+              this.applyState(muted)
+            })
+          },
+          isMuted() {
+            return localStorage.getItem(this.storageKey) === "true"
+          },
+          applyState(muted) {
+            this.onIcon.classList.toggle("hidden", muted)
+            this.offIcon.classList.toggle("hidden", !muted)
+            this.el.setAttribute("aria-pressed", muted ? "false" : "true")
+          }
+        }
+      </script>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".SoundEffects">
+        export default {
+          mounted() {
+            this.sounds = {
+              deal: new Audio("/audio/card-deal.mp3"),
+              war: new Audio("/audio/war-drums.wav")
+            }
+
+            this.handleEvent("play_sound", ({sound}) => {
+              if (localStorage.getItem("high_society:sound_muted") === "true") return
+
+              const audio = this.sounds[sound]
+              if (!audio) return
+
+              audio.currentTime = 0
+              audio.play().catch(() => {})
+            })
+          }
+        }
+      </script>
     </Layouts.app>
     """
   end
@@ -204,12 +282,14 @@ defmodule HighSocietyWeb.GameLive.War do
     """
   end
 
+  defp status_message(pct) when pct == 100, do: "You've won the game!"
   defp status_message(pct) when pct >= 90, do: "You're close to winning"
   defp status_message(pct) when pct >= 65, do: "You're dominating"
   defp status_message(pct) when pct >= 55, do: "You're ahead"
   defp status_message(pct) when pct > 45, do: "It's neck and neck"
   defp status_message(pct) when pct > 35, do: "You're behind"
   defp status_message(pct) when pct > 10, do: "You're in trouble"
+  defp status_message(pct) when pct == 0, do: "You've lost the game"
   defp status_message(_pct), do: "You're close to losing"
 
   attr :label, :string, required: true

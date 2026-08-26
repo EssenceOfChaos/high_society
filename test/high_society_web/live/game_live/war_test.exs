@@ -20,6 +20,45 @@ defmodule HighSocietyWeb.GameLive.WarTest do
     assert has_element?(view, "#flip-button")
   end
 
+  test "renders the sound toggle button and audio hook", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/games/war")
+
+    assert has_element?(
+             view,
+             "#war-screen[phx-hook='HighSocietyWeb.GameLive.War.SoundEffects']"
+           )
+
+    assert has_element?(
+             view,
+             "#sound-toggle-button[phx-hook='HighSocietyWeb.GameLive.War.SoundToggle']"
+           )
+  end
+
+  test "flipping a card pushes the deal sound effect", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/games/war")
+
+    view |> element("#flip-button") |> render_click()
+
+    assert_push_event(view, "play_sound", %{sound: "deal"})
+  end
+
+  test "a tie declares war and pushes the dramatic war sound", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/games/war")
+
+    Enum.reduce_while(1..500, nil, fn _, _ ->
+      view |> element("#flip-button") |> render_click()
+
+      if has_element?(view, "#flip-tiebreaker-button") do
+        {:halt, nil}
+      else
+        {:cont, nil}
+      end
+    end)
+
+    assert has_element?(view, "#flip-tiebreaker-button")
+    assert_push_event(view, "play_sound", %{sound: "war"})
+  end
+
   test "shows a status bar reflecting each side's share of the deck", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/games/war")
 
