@@ -70,3 +70,21 @@ jobs:
         encoded_email=$(jq -rn --arg v "$GIGALIXIR_EMAIL" '$v|@uri')
         git remote add gigalixir "https://${encoded_email}:${GIGALIXIR_API_KEY}@git.gigalixir.com/high-society.git"
         git push -f gigalixir HEAD:refs/heads/main
+
+  migrate:
+    name: Run Gigalixir migrations
+    needs: deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: "Gigalixir Prod"
+
+    steps:
+    - name: Install Gigalixir CLI
+      run: pip install gigalixir
+    - name: Run database migrations
+      env:
+        GIGALIXIR_EMAIL: ${{ secrets.GIGALIXIR_EMAIL }}
+        GIGALIXIR_API_KEY: ${{ secrets.GIGALIXIR_API_KEY }}
+      run: |
+        yes | gigalixir login -e "$GIGALIXIR_EMAIL" -p "$GIGALIXIR_API_KEY"
+        gigalixir ps:migrate -a high-society
