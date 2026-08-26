@@ -452,6 +452,84 @@ defmodule HighSocietyWeb.CoreComponents do
     """
   end
 
+  @doc """
+  Renders a single playing card, given a two/three-character card string like
+  `"AS"` or `"10H"` (rank followed by suit). Used by both the War and
+  Blackjack games.
+
+  ## Examples
+
+      <.card_face card="AS" />
+      <.card_face card={nil} pending />
+      <.card_face card="10H" face_down />
+  """
+  attr :card, :string, default: nil
+  attr :dim, :boolean, default: false, doc: "shrinks and fades the card, e.g. for burned cards"
+
+  attr :pending, :boolean,
+    default: false,
+    doc: "pulsing placeholder for a card yet to be revealed"
+
+  attr :face_down, :boolean,
+    default: false,
+    doc: "renders a face-down card back instead of the card"
+
+  def card_face(assigns) do
+    {rank, suit} = if assigns.card, do: card_split(assigns.card), else: {nil, nil}
+
+    assigns =
+      assigns
+      |> assign(:rank, rank)
+      |> assign(:suit_symbol, card_suit_symbol(suit))
+      |> assign(:red?, suit in ["H", "D"])
+
+    ~H"""
+    <div class={[
+      "@container flex aspect-[7/10] min-w-0 flex-[0_1_7rem] flex-col items-center justify-center rounded-xl border-2 shadow-md",
+      @card && !@face_down && "bg-white border-base-300",
+      @face_down && "bg-primary border-primary-content/20",
+      !@card && @pending && "border-error bg-error text-error-content animate-pulse",
+      !@card && !@pending && !@face_down && "border-dashed border-base-300 bg-base-200",
+      @dim && "opacity-40 scale-90"
+    ]}>
+      <div
+        :if={@card && !@face_down}
+        class={["flex flex-col items-center", @red? && "text-red-600", !@red? && "text-neutral-900"]}
+      >
+        <span class="text-[27cqw] font-bold">{@rank}</span>
+        <span class="text-[32cqw] leading-none">{@suit_symbol}</span>
+      </div>
+      <.icon
+        :if={@face_down}
+        name="hero-question-mark-circle"
+        class="size-[36cqw] text-primary-content/40"
+      />
+      <.icon
+        :if={!@card && !@face_down && @pending}
+        name="hero-question-mark-circle"
+        class="size-[36cqw] text-error-content"
+      />
+      <.icon
+        :if={!@card && !@face_down && !@pending}
+        name="hero-question-mark-circle"
+        class="size-[29cqw] text-base-content/20"
+      />
+    </div>
+    """
+  end
+
+  defp card_split(card) do
+    suit = String.last(card)
+    rank = String.slice(card, 0, String.length(card) - 1)
+    {rank, suit}
+  end
+
+  defp card_suit_symbol("S"), do: "♠"
+  defp card_suit_symbol("H"), do: "♥"
+  defp card_suit_symbol("D"), do: "♦"
+  defp card_suit_symbol("C"), do: "♣"
+  defp card_suit_symbol(_), do: nil
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do

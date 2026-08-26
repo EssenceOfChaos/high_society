@@ -20,8 +20,8 @@ defmodule HighSocietyWeb.DashboardLive do
       description: "Get as close to 21 as you can without going bust.",
       icon: "hero-currency-dollar",
       accent: "from-emerald-500 to-teal-400",
-      path: nil,
-      available: false
+      path: "/games/blackjack",
+      available: true
     },
     %{
       slug: "poker",

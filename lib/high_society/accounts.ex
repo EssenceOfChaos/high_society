@@ -60,6 +60,68 @@ defmodule HighSociety.Accounts do
   """
   def get_user!(id), do: Repo.get!(User, id)
 
+  ## Balance
+
+  @starting_chip_amount 25_000
+
+  @doc "The one-time starting chip grant amount."
+  @spec starting_chip_amount() :: pos_integer()
+  def starting_chip_amount, do: @starting_chip_amount
+
+  @doc """
+  Grants the user's one-time starting balance of `#{@starting_chip_amount}`
+  play money. Atomic and idempotent: the update only matches a row that
+  hasn't claimed yet, so two concurrent requests for the same user can't
+  both succeed.
+
+  ## Examples
+
+      iex> claim_starting_chips(user)
+      {:ok, %User{balance: 25_000}}
+
+      iex> claim_starting_chips(already_claimed_user)
+      {:error, :already_claimed}
+
+  """
+  @spec claim_starting_chips(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
+  def claim_starting_chips(%User{} = user) do
+    now = DateTime.utc_now(:second)
+
+    {count, _} =
+      Repo.update_all(
+        from(u in User, where: u.id == ^user.id and is_nil(u.claimed_starting_chips_at)),
+        inc: [balance: @starting_chip_amount],
+        set: [claimed_starting_chips_at: now]
+      )
+
+    if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :already_claimed}
+  end
+
+  @doc """
+  Atomically adjusts `user`'s balance by `delta` (negative to debit, positive
+  to credit). The update is guarded at the database level so the balance can
+  never go negative, even under concurrent requests for the same user.
+
+  ## Examples
+
+      iex> adjust_balance(user, -500)
+      {:ok, %User{balance: 24_500}}
+
+      iex> adjust_balance(broke_user, -500)
+      {:error, :insufficient_funds}
+
+  """
+  @spec adjust_balance(User.t(), integer()) :: {:ok, User.t()} | {:error, :insufficient_funds}
+  def adjust_balance(%User{} = user, delta) when is_integer(delta) do
+    {count, _} =
+      Repo.update_all(
+        from(u in User, where: u.id == ^user.id and u.balance + ^delta >= 0),
+        inc: [balance: delta]
+      )
+
+    if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :insufficient_funds}
+  end
+
   ## User registration
 
   @doc """

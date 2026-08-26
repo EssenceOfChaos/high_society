@@ -7,8 +7,12 @@ defmodule HighSociety.Games do
 
   import Ecto.Query, warn: false
 
+  alias HighSociety.Accounts
   alias HighSociety.Accounts.Scope
+  alias HighSociety.Accounts.User
   alias HighSociety.Repo
+  alias HighSociety.Games.Blackjack
+  alias HighSociety.Games.BlackjackGame
   alias HighSociety.Games.War
   alias HighSociety.Games.WarGame
 
@@ -138,5 +142,150 @@ defmodule HighSociety.Games do
     Enum.map(ties, fn tie ->
       %{"player_card" => tie.player_card, "computer_card" => tie.computer_card}
     end)
+  end
+
+  ## Blackjack
+
+  @doc """
+  Returns the current user's most recent Blackjack round, or `nil` if
+  they've never played one. Unlike `get_active_war_game/1`, this returns
+  the latest row regardless of status (including `"round_over"`): because
+  real money is debited the moment a round is dealt, a mid-round or
+  just-finished round must be resumable on remount, not silently discarded.
+  """
+  @spec get_active_blackjack_game(Scope.t()) :: BlackjackGame.t() | nil
+  def get_active_blackjack_game(%Scope{user: user}) do
+    Repo.one(
+      from bg in BlackjackGame,
+        where: bg.user_id == ^user.id,
+        order_by: [desc: bg.id],
+        limit: 1
+    )
+  end
+
+  @doc """
+  Places bets on 1 or 2 boxes and deals a fresh Blackjack round, debiting
+  the total bet from the user's balance. `bets` is a map of box (`0` and/or
+  `1`) to a positive bet amount. Enforces the per-box max bet and available
+  balance server-side, independent of anything the client sends. Discards
+  any previous round for the user.
+  """
+  @spec start_blackjack_round(Scope.t(), %{optional(0) => pos_integer, optional(1) => pos_integer}) ::
+          {:ok, BlackjackGame.t()} | {:error, :no_bets | :bet_too_large | :insufficient_funds}
+  def start_blackjack_round(%Scope{user: user}, bets) do
+    bets = bets |> Enum.reject(fn {_box, amount} -> amount <= 0 end) |> Map.new()
+
+    cond do
+      bets == %{} ->
+        {:error, :no_bets}
+
+      Enum.any?(bets, fn {_box, amount} -> amount > Blackjack.max_bet() end) ->
+        {:error, :bet_too_large}
+
+      true ->
+        total = bets |> Map.values() |> Enum.sum()
+
+        Repo.transact(fn ->
+          with {:ok, _user} <- Accounts.adjust_balance(user, -total) do
+            Repo.delete_all(from bg in BlackjackGame, where: bg.user_id == ^user.id)
+            {:ok, persist_blackjack(user, Blackjack.new(bets))}
+          end
+        end)
+    end
+  end
+
+  @doc """
+  Hits the active hand of a persisted Blackjack round, saves the result, and
+  - if the round resolved - credits any winnings to the user's balance.
+  Returns the updated game alongside the (possibly credited) user.
+  """
+  @spec hit(Scope.t(), BlackjackGame.t()) :: {BlackjackGame.t(), User.t()}
+  def hit(%Scope{user: user}, %BlackjackGame{} = game) do
+    game |> to_blackjack() |> Blackjack.hit(game.active_hand) |> settle_and_persist(user, game)
+  end
+
+  @doc "Stands the active hand of a persisted Blackjack round. See `hit/2`."
+  @spec stand(Scope.t(), BlackjackGame.t()) :: {BlackjackGame.t(), User.t()}
+  def stand(%Scope{user: user}, %BlackjackGame{} = game) do
+    game |> to_blackjack() |> Blackjack.stand(game.active_hand) |> settle_and_persist(user, game)
+  end
+
+  defp to_blackjack(%BlackjackGame{} = game) do
+    %Blackjack{
+      shoe: game.shoe,
+      hands: Enum.map(game.hands, &atomize_hand/1),
+      active_hand: game.active_hand,
+      dealer_hand: game.dealer_hand,
+      status: String.to_existing_atom(game.status)
+    }
+  end
+
+  defp atomize_hand(%{} = hand) do
+    %{
+      box: hand["box"],
+      bet: hand["bet"],
+      cards: hand["cards"],
+      status: String.to_existing_atom(hand["status"]),
+      outcome: hand["outcome"] && String.to_existing_atom(hand["outcome"]),
+      payout: hand["payout"]
+    }
+  end
+
+  defp stringify_hand(%{} = hand) do
+    %{
+      "box" => hand.box,
+      "bet" => hand.bet,
+      "cards" => hand.cards,
+      "status" => Atom.to_string(hand.status),
+      "outcome" => hand.outcome && Atom.to_string(hand.outcome),
+      "payout" => hand.payout
+    }
+  end
+
+  defp persist_blackjack(user, %Blackjack{} = bj) do
+    %BlackjackGame{}
+    |> BlackjackGame.changeset(%{
+      user_id: user.id,
+      status: Atom.to_string(bj.status),
+      shoe: bj.shoe,
+      hands: Enum.map(bj.hands, &stringify_hand/1),
+      active_hand: bj.active_hand,
+      dealer_hand: bj.dealer_hand,
+      round_number: 0
+    })
+    |> Repo.insert!()
+  end
+
+  defp save_blackjack_round(%BlackjackGame{} = game, %Blackjack{} = bj) do
+    game
+    |> BlackjackGame.changeset(%{
+      status: Atom.to_string(bj.status),
+      shoe: bj.shoe,
+      hands: Enum.map(bj.hands, &stringify_hand/1),
+      active_hand: bj.active_hand,
+      dealer_hand: bj.dealer_hand,
+      round_number: game.round_number + 1
+    })
+    |> Repo.update!()
+  end
+
+  defp settle_and_persist(%Blackjack{} = bj, user, %BlackjackGame{} = game) do
+    {:ok, result} =
+      Repo.transact(fn ->
+        game = save_blackjack_round(game, bj)
+
+        user =
+          if bj.status == :round_over do
+            total_payout = bj.hands |> Enum.map(& &1.payout) |> Enum.sum()
+            {:ok, user} = Accounts.adjust_balance(user, total_payout)
+            user
+          else
+            user
+          end
+
+        {:ok, {game, user}}
+      end)
+
+    result
   end
 end

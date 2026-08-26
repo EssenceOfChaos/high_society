@@ -48,6 +48,51 @@ defmodule HighSociety.AccountsTest do
     end
   end
 
+  describe "claim_starting_chips/1" do
+    test "grants the starting chip amount and records when it was claimed" do
+      user = user_fixture()
+      assert user.balance == 0
+      assert user.claimed_starting_chips_at == nil
+
+      assert {:ok, updated} = Accounts.claim_starting_chips(user)
+
+      assert updated.balance == Accounts.starting_chip_amount()
+      assert updated.claimed_starting_chips_at != nil
+    end
+
+    test "cannot be claimed a second time" do
+      user = user_fixture()
+      {:ok, updated} = Accounts.claim_starting_chips(user)
+
+      assert {:error, :already_claimed} = Accounts.claim_starting_chips(updated)
+      assert Accounts.get_user!(user.id).balance == Accounts.starting_chip_amount()
+    end
+  end
+
+  describe "adjust_balance/2" do
+    test "credits the user's balance" do
+      user = user_fixture()
+      assert {:ok, updated} = Accounts.adjust_balance(user, 500)
+      assert updated.balance == 500
+    end
+
+    test "debits the user's balance when funds are sufficient" do
+      user = user_fixture()
+      {:ok, user} = Accounts.adjust_balance(user, 1_000)
+
+      assert {:ok, updated} = Accounts.adjust_balance(user, -400)
+      assert updated.balance == 600
+    end
+
+    test "rejects a debit that would overdraw the balance, leaving it unchanged" do
+      user = user_fixture()
+      {:ok, user} = Accounts.adjust_balance(user, 100)
+
+      assert {:error, :insufficient_funds} = Accounts.adjust_balance(user, -101)
+      assert Accounts.get_user!(user.id).balance == 100
+    end
+  end
+
   describe "register_user/1" do
     test "requires email to be set" do
       {:error, changeset} = Accounts.register_user(%{})

@@ -126,7 +126,11 @@ defmodule HighSocietyWeb.GameLive.WarTest do
 
     html =
       Enum.reduce_while(1..3000, nil, fn _, _ ->
-        button = if has_element?(view, "#flip-tiebreaker-button"), do: "#flip-tiebreaker-button", else: "#flip-button"
+        button =
+          if has_element?(view, "#flip-tiebreaker-button"),
+            do: "#flip-tiebreaker-button",
+            else: "#flip-button"
+
         html = view |> element(button) |> render_click()
 
         if has_element?(view, "#game-result") do

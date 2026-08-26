@@ -2,7 +2,6 @@ defmodule HighSocietyWeb.GameLive.War do
   use HighSocietyWeb, :live_view
 
   alias HighSociety.Games
-  alias HighSociety.Games.War
 
   @impl true
   def mount(_params, _session, socket) do
@@ -305,54 +304,6 @@ defmodule HighSocietyWeb.GameLive.War do
     </div>
     """
   end
-
-  attr :card, :string, default: nil
-  attr :dim, :boolean, default: false
-  attr :pending, :boolean, default: false
-
-  defp card_face(assigns) do
-    {rank, suit} = if assigns.card, do: War.split(assigns.card), else: {nil, nil}
-
-    assigns =
-      assigns
-      |> assign(:rank, rank)
-      |> assign(:suit_symbol, suit_symbol(suit))
-      |> assign(:red?, suit in ["H", "D"])
-
-    ~H"""
-    <div class={[
-      "flex h-40 w-28 flex-col items-center justify-center rounded-xl border-2 shadow-md",
-      @card && "bg-white border-base-300",
-      !@card && @pending && "border-error bg-error text-error-content animate-pulse",
-      !@card && !@pending && "border-dashed border-base-300 bg-base-200",
-      @dim && "opacity-40 scale-90"
-    ]}>
-      <div
-        :if={@card}
-        class={["flex flex-col items-center", @red? && "text-red-600", !@red? && "text-neutral-900"]}
-      >
-        <span class="text-3xl font-bold">{@rank}</span>
-        <span class="text-4xl leading-none">{@suit_symbol}</span>
-      </div>
-      <.icon
-        :if={!@card && @pending}
-        name="hero-question-mark-circle"
-        class="size-10 text-error-content"
-      />
-      <.icon
-        :if={!@card && !@pending}
-        name="hero-question-mark-circle"
-        class="size-8 text-base-content/20"
-      />
-    </div>
-    """
-  end
-
-  defp suit_symbol("S"), do: "♠"
-  defp suit_symbol("H"), do: "♥"
-  defp suit_symbol("D"), do: "♦"
-  defp suit_symbol("C"), do: "♣"
-  defp suit_symbol(_), do: nil
 
   defp last_card(%{last_round: nil}, _key), do: nil
   defp last_card(%{last_round: last_round}, key), do: Map.get(last_round, Atom.to_string(key))
