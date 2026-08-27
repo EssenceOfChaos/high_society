@@ -85,6 +85,23 @@ jobs:
       env:
         GIGALIXIR_EMAIL: ${{ secrets.GIGALIXIR_EMAIL }}
         GIGALIXIR_API_KEY: ${{ secrets.GIGALIXIR_API_KEY }}
+        GIGALIXIR_IDENTITY_FILE: /tmp/gigalixir_deploy_key
       run: |
-        yes | gigalixir login -e "$GIGALIXIR_EMAIL" -p "$GIGALIXIR_API_KEY"
-        gigalixir ps:migrate -a high-society
+        # `gigalixir login` authenticates with the account password, not the
+        # API key, so write ~/.netrc directly with the API key instead (the
+        # same credential already used for the git push in the deploy job).
+        cat > ~/.netrc <<EOF
+        machine api.gigalixir.com
+          login ${GIGALIXIR_EMAIL}
+          password ${GIGALIXIR_API_KEY}
+        machine git.gigalixir.com
+          login ${GIGALIXIR_EMAIL}
+          password ${GIGALIXIR_API_KEY}
+        EOF
+        chmod 600 ~/.netrc
+
+        install -m 600 /dev/null "$GIGALIXIR_IDENTITY_FILE"
+        echo "${{ secrets.GIGALIXIR_SSH_PRIVATE_KEY }}" > "$GIGALIXIR_IDENTITY_FILE"
+
+        gigalixir ps:migrate -a high-society \
+          --ssh_opts "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
