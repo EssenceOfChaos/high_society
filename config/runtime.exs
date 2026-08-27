@@ -31,8 +31,7 @@ config :high_society, HighSocietyWeb.Endpoint,
   check_origin: [
     "https://highsociety.cc",
     "https://high-society.gigalixirapp.com"
-  ],
-  force_ssl: [rewrite_on: [:x_forwarded_proto]]
+  ]
 
 if config_env() == :prod do
   database_url =
@@ -64,7 +63,7 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
+  host = System.get_env("PHX_HOST") || "https://high-society.gigalixirapp.com"
 
   config :high_society, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
