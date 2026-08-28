@@ -1,4 +1,18 @@
 defmodule HighSociety.Accounts.User do
+  @moduledoc """
+  The User schema. Represents a single user of the application, and is used
+  to authenticate and authorize access to the application.
+  """
+  @type t :: %__MODULE__{
+          email: String.t(),
+          password: String.t() | nil,
+          hashed_password: String.t() | nil,
+          confirmed_at: DateTime.t() | nil,
+          authenticated_at: DateTime.t() | nil,
+          balance: integer(),
+          claimed_starting_chips_at: DateTime.t() | nil
+        }
+
   use Ecto.Schema
   import Ecto.Changeset
 

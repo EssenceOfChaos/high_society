@@ -106,3 +106,15 @@
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
 /* This file is for your main application CSS */
+
+/* Plays once when a card is dealt/drawn (i.e. whenever a new .card-deal-in
+   element is inserted into the DOM - LiveView appends new cards as new
+   nodes, so this fires naturally without any JS wiring). */
+@keyframes card-deal-in {
+  from { opacity: 0; transform: translateY(-10px) scale(0.85); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.card-deal-in {
+  animation: card-deal-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}

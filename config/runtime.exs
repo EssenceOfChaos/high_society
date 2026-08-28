@@ -27,11 +27,7 @@ if System.get_env("PHX_SERVER") do
 end
 
 config :high_society, HighSocietyWeb.Endpoint,
-  http: [port: String.to_integer(System.get_env("PORT", "4000"))],
-  check_origin: [
-    "https://highsociety.cc",
-    "https://high-society.gigalixirapp.com"
-  ]
+  http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
 if config_env() == :prod do
   database_url =
@@ -75,6 +71,10 @@ if config_env() == :prod do
       # See the documentation on https://bandit.hexdocs.pm/Bandit.html#t:options/0
       # for details about using IPv6 vs IPv4 and loopback vs public addresses.
       ip: {0, 0, 0, 0, 0, 0, 0, 0}
+    ],
+    check_origin: [
+      "https://highsociety.cc",
+      "https://high-society.gigalixirapp.com"
     ],
     secret_key_base: secret_key_base
 

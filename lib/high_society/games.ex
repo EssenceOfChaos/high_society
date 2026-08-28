@@ -144,7 +144,9 @@ defmodule HighSociety.Games do
     end)
   end
 
-  ## Blackjack
+  ####################################
+  ############# Blackjack ############
+  ####################################
 
   @doc """
   Returns the current user's most recent Blackjack round, or `nil` if
@@ -210,6 +212,82 @@ defmodule HighSociety.Games do
     game |> to_blackjack() |> Blackjack.stand(game.active_hand) |> settle_and_persist(user, game)
   end
 
+  @doc """
+  Advances the dealer by one step (one card drawn, or the final settlement)
+  for a persisted Blackjack round in `:dealer_turn`, saves the result, and -
+  if that step settled the round - credits any winnings. Meant to be called
+  once per tick of a LiveView-driven pace so the dealer's play-out is
+  visible one card at a time. See `hit/2`.
+  """
+  @spec dealer_step(Scope.t(), BlackjackGame.t()) :: {BlackjackGame.t(), User.t()}
+  def dealer_step(%Scope{user: user}, %BlackjackGame{} = game) do
+    game |> to_blackjack() |> Blackjack.dealer_step() |> settle_and_persist(user, game)
+  end
+
+  @doc """
+  Doubles the active hand's bet, debiting the matching additional amount
+  from the user's balance, then draws its single extra card and saves the
+  result (crediting any winnings if that ended the round). Fails without
+  touching the game if the active hand isn't eligible (see
+  `can_double_down?/1`) or the user can't cover the extra bet.
+  """
+  @spec double_down(Scope.t(), BlackjackGame.t()) ::
+          {:ok, BlackjackGame.t(), User.t()} | {:error, :invalid_action | :insufficient_funds}
+  def double_down(%Scope{user: user}, %BlackjackGame{} = game) do
+    bj = to_blackjack(game)
+
+    if Blackjack.can_double_down?(bj, game.active_hand) do
+      hand = Enum.find(bj.hands, &(&1.id == game.active_hand))
+      updated_bj = Blackjack.double_down(bj, game.active_hand)
+
+      case debit_and_settle(updated_bj, user, game, hand.bet) do
+        {:ok, {game, user}} -> {:ok, game, user}
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      {:error, :invalid_action}
+    end
+  end
+
+  @doc """
+  Splits the active hand into two, debiting a matching additional bet from
+  the user's balance, deals each resulting hand its extra card, and saves
+  the result (crediting any winnings if splitting Aces ended the round on
+  the spot). Fails without touching the game if the active hand isn't
+  eligible (see `can_split?/1`) or the user can't cover the extra bet.
+  """
+  @spec split(Scope.t(), BlackjackGame.t()) ::
+          {:ok, BlackjackGame.t(), User.t()} | {:error, :invalid_action | :insufficient_funds}
+  def split(%Scope{user: user}, %BlackjackGame{} = game) do
+    bj = to_blackjack(game)
+
+    if Blackjack.can_split?(bj, game.active_hand) do
+      hand = Enum.find(bj.hands, &(&1.id == game.active_hand))
+      updated_bj = Blackjack.split(bj, game.active_hand)
+
+      case debit_and_settle(updated_bj, user, game, hand.bet) do
+        {:ok, {game, user}} -> {:ok, game, user}
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      {:error, :invalid_action}
+    end
+  end
+
+  @doc "Whether the active hand of a persisted round is eligible for a double down."
+  @spec can_double_down?(BlackjackGame.t() | nil) :: boolean()
+  def can_double_down?(nil), do: false
+
+  def can_double_down?(%BlackjackGame{} = game),
+    do: game |> to_blackjack() |> Blackjack.can_double_down?(game.active_hand)
+
+  @doc "Whether the active hand of a persisted round is eligible to split."
+  @spec can_split?(BlackjackGame.t() | nil) :: boolean()
+  def can_split?(nil), do: false
+
+  def can_split?(%BlackjackGame{} = game),
+    do: game |> to_blackjack() |> Blackjack.can_split?(game.active_hand)
+
   defp to_blackjack(%BlackjackGame{} = game) do
     %Blackjack{
       shoe: game.shoe,
@@ -222,23 +300,29 @@ defmodule HighSociety.Games do
 
   defp atomize_hand(%{} = hand) do
     %{
+      id: hand["id"],
       box: hand["box"],
       bet: hand["bet"],
       cards: hand["cards"],
       status: String.to_existing_atom(hand["status"]),
       outcome: hand["outcome"] && String.to_existing_atom(hand["outcome"]),
-      payout: hand["payout"]
+      payout: hand["payout"],
+      split?: hand["split"],
+      doubled?: hand["doubled"]
     }
   end
 
   defp stringify_hand(%{} = hand) do
     %{
+      "id" => hand.id,
       "box" => hand.box,
       "bet" => hand.bet,
       "cards" => hand.cards,
       "status" => Atom.to_string(hand.status),
       "outcome" => hand.outcome && Atom.to_string(hand.outcome),
-      "payout" => hand.payout
+      "payout" => hand.payout,
+      "split" => hand.split?,
+      "doubled" => hand.doubled?
     }
   end
 
@@ -270,8 +354,13 @@ defmodule HighSociety.Games do
   end
 
   defp settle_and_persist(%Blackjack{} = bj, user, %BlackjackGame{} = game) do
-    {:ok, result} =
-      Repo.transact(fn ->
+    {:ok, result} = debit_and_settle(bj, user, game, 0)
+    result
+  end
+
+  defp debit_and_settle(%Blackjack{} = bj, user, %BlackjackGame{} = game, debit_amount) do
+    Repo.transact(fn ->
+      with {:ok, user} <- maybe_debit(user, debit_amount) do
         game = save_blackjack_round(game, bj)
 
         user =
@@ -284,8 +373,10 @@ defmodule HighSociety.Games do
           end
 
         {:ok, {game, user}}
-      end)
-
-    result
+      end
+    end)
   end
+
+  defp maybe_debit(user, 0), do: {:ok, user}
+  defp maybe_debit(user, amount), do: Accounts.adjust_balance(user, -amount)
 end

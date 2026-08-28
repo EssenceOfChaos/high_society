@@ -18,6 +18,10 @@ defmodule HighSociety.Accounts.Scope do
 
   alias HighSociety.Accounts.User
 
+  @type t :: %__MODULE__{
+          user: User.t() | nil
+        }
+
   defstruct user: nil
 
   @doc """

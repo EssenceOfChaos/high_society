@@ -38,4 +38,7 @@ npm-debug.log
 # Environment files, which may contain sensitive data.
 .env
 
+# Ignore the Elixir Language Server files.
 .elixir_ls/
+
+.claude/

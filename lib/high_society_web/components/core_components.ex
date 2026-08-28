@@ -485,9 +485,9 @@ defmodule HighSocietyWeb.CoreComponents do
 
     ~H"""
     <div class={[
-      "@container flex aspect-[7/10] min-w-0 flex-[0_1_7rem] flex-col items-center justify-center rounded-xl border-2 shadow-md",
+      "@container card-deal-in flex aspect-[7/10] min-w-0 flex-[0_1_7rem] flex-col items-center justify-center rounded-xl border-2 shadow-md transition-colors duration-300",
       @card && !@face_down && "bg-white border-base-300",
-      @face_down && "bg-primary border-primary-content/20",
+      @face_down && "border-amber-400/50 bg-emerald-800",
       !@card && @pending && "border-error bg-error text-error-content animate-pulse",
       !@card && !@pending && !@face_down && "border-dashed border-base-300 bg-base-200",
       @dim && "opacity-40 scale-90"
@@ -499,11 +499,12 @@ defmodule HighSocietyWeb.CoreComponents do
         <span class="text-[27cqw] font-bold">{@rank}</span>
         <span class="text-[32cqw] leading-none">{@suit_symbol}</span>
       </div>
-      <.icon
+      <span
         :if={@face_down}
-        name="hero-question-mark-circle"
-        class="size-[36cqw] text-primary-content/40"
-      />
+        class="rounded-full border border-amber-400/40 px-[10cqw] py-[6cqw] font-serif text-[22cqw] font-bold text-amber-400/80"
+      >
+        HS
+      </span>
       <.icon
         :if={!@card && !@face_down && @pending}
         name="hero-question-mark-circle"

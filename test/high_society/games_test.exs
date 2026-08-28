@@ -171,9 +171,11 @@ defmodule HighSociety.GamesTest do
       game =
         game
         |> Games.BlackjackGame.changeset(%{
+          status: "player_turn",
           shoe: ["KS"],
           hands: [
             %{
+              "id" => 0,
               "box" => 0,
               "bet" => 25,
               "cards" => ["10H", "9D"],
@@ -188,6 +190,13 @@ defmodule HighSociety.GamesTest do
         |> HighSociety.Repo.update!()
 
       {updated_game, updated_user} = Games.stand(scope, game)
+      assert updated_game.status == "dealer_turn"
+
+      {updated_game, updated_user} =
+        Stream.iterate({updated_game, updated_user}, fn {game, _user} ->
+          Games.dealer_step(scope, game)
+        end)
+        |> Enum.find(fn {game, _user} -> game.status == "round_over" end)
 
       assert updated_game.status == "round_over"
       hand = hd(updated_game.hands)
@@ -212,9 +221,11 @@ defmodule HighSociety.GamesTest do
       game =
         game
         |> Games.BlackjackGame.changeset(%{
+          status: "player_turn",
           shoe: ["2S"],
           hands: [
             %{
+              "id" => 0,
               "box" => 0,
               "bet" => 25,
               "cards" => ["5H", "5D"],
@@ -234,6 +245,226 @@ defmodule HighSociety.GamesTest do
       assert updated_game.status == "player_turn"
       assert hd(updated_game.hands)["cards"] == ["5H", "5D", "2S"]
       assert updated_user.balance == balance_before
+    end
+  end
+
+  describe "double_down/2" do
+    test "debits the matching extra bet, doubles the hand, and draws one card", %{scope: scope} do
+      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      scope = %{scope | user: user}
+      {:ok, game} = Games.start_blackjack_round(scope, %{0 => 25})
+      scope = %{scope | user: Accounts.get_user!(user.id)}
+
+      game =
+        game
+        |> Games.BlackjackGame.changeset(%{
+          status: "player_turn",
+          shoe: ["2S"],
+          hands: [
+            %{
+              "id" => 0,
+              "box" => 0,
+              "bet" => 25,
+              "cards" => ["6H", "5D"],
+              "status" => "active",
+              "outcome" => nil,
+              "payout" => nil
+            }
+          ],
+          active_hand: 0,
+          dealer_hand: ["7H", "7D"]
+        })
+        |> HighSociety.Repo.update!()
+
+      balance_before_double = Accounts.starting_chip_amount() - 25
+      assert {:ok, updated_game, updated_user} = Games.double_down(scope, game)
+
+      hand = hd(updated_game.hands)
+      assert hand["cards"] == ["6H", "5D", "2S"]
+      assert hand["bet"] == 50
+      assert hand["doubled"] == true
+      assert updated_game.status == "dealer_turn"
+      assert updated_user.balance == balance_before_double - 25
+
+      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).balance ==
+               updated_user.balance
+    end
+
+    test "rejects doubling down without enough balance to match the bet, leaving the game untouched",
+         %{scope: scope} do
+      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      scope = %{scope | user: user}
+      {:ok, game} = Games.start_blackjack_round(scope, %{0 => 25})
+      scope = %{scope | user: Accounts.get_user!(user.id)}
+
+      # rig a plain 2-card active hand deterministically - the random deal
+      # would otherwise occasionally land a natural blackjack instead
+      game =
+        game
+        |> Games.BlackjackGame.changeset(%{
+          status: "player_turn",
+          hands: [
+            %{
+              "id" => 0,
+              "box" => 0,
+              "bet" => 25,
+              "cards" => ["6H", "5D"],
+              "status" => "active",
+              "outcome" => nil,
+              "payout" => nil
+            }
+          ],
+          active_hand: 0
+        })
+        |> HighSociety.Repo.update!()
+
+      # drain the user down to less than the bet, so the matching extra bet
+      # required to double down can't be covered
+      {:ok, poor_user} = Accounts.adjust_balance(scope.user, -(scope.user.balance - 10))
+      scope = %{scope | user: poor_user}
+
+      assert {:error, :insufficient_funds} = Games.double_down(scope, game)
+      assert Games.get_active_blackjack_game(scope).active_hand == game.active_hand
+      assert Accounts.get_user!(user.id).balance == poor_user.balance
+    end
+
+    test "rejects doubling down once the hand has already been hit", %{scope: scope} do
+      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      scope = %{scope | user: user}
+      {:ok, game} = Games.start_blackjack_round(scope, %{0 => 25})
+      scope = %{scope | user: Accounts.get_user!(user.id)}
+
+      game =
+        game
+        |> Games.BlackjackGame.changeset(%{
+          status: "player_turn",
+          shoe: ["2S"],
+          hands: [
+            %{
+              "id" => 0,
+              "box" => 0,
+              "bet" => 25,
+              "cards" => ["6H", "5D", "2S"],
+              "status" => "active",
+              "outcome" => nil,
+              "payout" => nil
+            }
+          ],
+          active_hand: 0,
+          dealer_hand: ["7H", "7D"]
+        })
+        |> HighSociety.Repo.update!()
+
+      assert {:error, :invalid_action} = Games.double_down(scope, game)
+      assert Accounts.get_user!(user.id).balance == scope.user.balance
+    end
+  end
+
+  describe "split/2" do
+    test "debits a matching bet and deals each resulting hand one card", %{scope: scope} do
+      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      scope = %{scope | user: user}
+      {:ok, game} = Games.start_blackjack_round(scope, %{0 => 25})
+      scope = %{scope | user: Accounts.get_user!(user.id)}
+
+      game =
+        game
+        |> Games.BlackjackGame.changeset(%{
+          status: "player_turn",
+          shoe: ["2S", "3H"],
+          hands: [
+            %{
+              "id" => 0,
+              "box" => 0,
+              "bet" => 25,
+              "cards" => ["8H", "8D"],
+              "status" => "active",
+              "outcome" => nil,
+              "payout" => nil
+            }
+          ],
+          active_hand: 0,
+          dealer_hand: ["7H", "7D"]
+        })
+        |> HighSociety.Repo.update!()
+
+      balance_before_split = Accounts.starting_chip_amount() - 25
+      assert {:ok, updated_game, updated_user} = Games.split(scope, game)
+
+      assert length(updated_game.hands) == 2
+      assert Enum.map(updated_game.hands, & &1["bet"]) == [25, 25]
+      assert Enum.map(updated_game.hands, & &1["cards"]) == [["8H", "2S"], ["8D", "3H"]]
+      assert updated_user.balance == balance_before_split - 25
+
+      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).balance ==
+               updated_user.balance
+    end
+
+    test "rejects splitting without enough balance to match the bet, leaving the game untouched",
+         %{scope: scope} do
+      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      scope = %{scope | user: user}
+      {:ok, game} = Games.start_blackjack_round(scope, %{0 => 25})
+      scope = %{scope | user: Accounts.get_user!(user.id)}
+
+      # rig a splittable pair deterministically - the random deal would
+      # otherwise only rarely land a same-value pair
+      game =
+        game
+        |> Games.BlackjackGame.changeset(%{
+          status: "player_turn",
+          hands: [
+            %{
+              "id" => 0,
+              "box" => 0,
+              "bet" => 25,
+              "cards" => ["8H", "8D"],
+              "status" => "active",
+              "outcome" => nil,
+              "payout" => nil
+            }
+          ],
+          active_hand: 0
+        })
+        |> HighSociety.Repo.update!()
+
+      {:ok, poor_user} = Accounts.adjust_balance(scope.user, -(scope.user.balance - 10))
+      scope = %{scope | user: poor_user}
+
+      assert {:error, :insufficient_funds} = Games.split(scope, game)
+      assert length(Games.get_active_blackjack_game(scope).hands) == 1
+      assert Accounts.get_user!(user.id).balance == poor_user.balance
+    end
+
+    test "rejects splitting two cards of different value", %{scope: scope} do
+      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      scope = %{scope | user: user}
+      {:ok, game} = Games.start_blackjack_round(scope, %{0 => 25})
+      scope = %{scope | user: Accounts.get_user!(user.id)}
+
+      game =
+        game
+        |> Games.BlackjackGame.changeset(%{
+          status: "player_turn",
+          shoe: ["2S", "3H"],
+          hands: [
+            %{
+              "id" => 0,
+              "box" => 0,
+              "bet" => 25,
+              "cards" => ["8H", "9D"],
+              "status" => "active",
+              "outcome" => nil,
+              "payout" => nil
+            }
+          ],
+          active_hand: 0,
+          dealer_hand: ["7H", "7D"]
+        })
+        |> HighSociety.Repo.update!()
+
+      assert {:error, :invalid_action} = Games.split(scope, game)
+      assert Accounts.get_user!(user.id).balance == scope.user.balance
     end
   end
 end

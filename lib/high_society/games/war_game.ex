@@ -1,4 +1,17 @@
 defmodule HighSociety.Games.WarGame do
+  @moduledoc """
+  Ecto schema for persisting the state of a War game in Postgres.
+  """
+  @type t :: %__MODULE__{
+          status: String.t(),
+          player_deck: [String.t()],
+          computer_deck: [String.t()],
+          round_number: integer(),
+          last_round: map() | nil,
+          pending_war: map() | nil,
+          user_id: integer() | nil
+        }
+
   use Ecto.Schema
   import Ecto.Changeset
 

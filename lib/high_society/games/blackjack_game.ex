@@ -2,6 +2,24 @@ defmodule HighSociety.Games.BlackjackGame do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @type t :: %__MODULE__{
+          status: String.t(),
+          shoe: [String.t()],
+          hands: [
+            %{
+              cards: [String.t()],
+              bet: integer(),
+              status: String.t(),
+              outcome: String.t() | nil,
+              payout: integer() | nil
+            }
+          ],
+          active_hand: integer() | nil,
+          dealer_hand: [String.t()],
+          round_number: integer(),
+          user_id: integer() | nil
+        }
+
   @statuses ~w(player_turn dealer_turn round_over)
 
   schema "blackjack_games" do
