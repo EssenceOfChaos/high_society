@@ -295,9 +295,13 @@ defmodule HighSociety.Accounts do
         """
 
       {%User{confirmed_at: nil} = user, _token} ->
-        user
-        |> User.confirm_changeset()
-        |> update_user_and_delete_all_tokens()
+        with {:ok, {confirmed_user, _expired_tokens}} = result <-
+               user
+               |> User.confirm_changeset()
+               |> update_user_and_delete_all_tokens() do
+          UserNotifier.deliver_welcome_email(confirmed_user)
+          result
+        end
 
       {user, token} ->
         Repo.delete!(token)

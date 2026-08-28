@@ -39,6 +39,22 @@ defmodule HighSociety.Accounts.UserNotifier do
   end
 
   @doc """
+  Deliver a welcome email after a user confirms their account for the first time.
+  """
+  def deliver_welcome_email(user) do
+    deliver(user.email, "Welcome to HighSociety!", """
+
+    ==============================
+
+    Hi #{user.email},
+
+    Welcome to HighSociety! Your account is confirmed and ready to go.
+
+    ==============================
+    """)
+  end
+
+  @doc """
   Deliver instructions to log in with a magic link.
   """
   def deliver_login_instructions(user, url) do
