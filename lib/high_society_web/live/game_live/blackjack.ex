@@ -10,14 +10,39 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
   def mount(_params, _session, socket) do
     blackjack_game = Games.get_active_blackjack_game(socket.assigns.current_scope)
 
-    {:ok,
-     assign(socket,
-       blackjack_game: blackjack_game,
-       pending_bets: %{0 => 0, 1 => 0},
-       second_hand?: false,
-       round_dismissed?: false,
-       bet_error: nil
-     )}
+    socket =
+      assign(socket,
+        blackjack_game: blackjack_game,
+        pending_bets: %{0 => 0, 1 => 0},
+        second_hand?: false,
+        round_dismissed?: false,
+        bet_error: nil
+      )
+
+    socket =
+      cond do
+        not connected?(socket) ->
+          socket
+
+        betting?(socket.assigns) ->
+          push_event(socket, "play_sounds", %{sounds: ["place-your-bets"]})
+
+        # A LiveView process can restart (a deploy, a crash, a code reload
+        # while iterating in dev) while a round is mid-`dealer_turn`, which
+        # is normally paced along by a self-scheduled `:dealer_step`
+        # message. That timer dies with the old process, so without this
+        # the round would be stuck forever with no further sound, card, or
+        # button to move it along - resuming it here re-arms that pacing
+        # for whatever round was left mid-flight.
+        blackjack_game.status == "dealer_turn" ->
+          Process.send_after(self(), :dealer_step, dealer_step_delay())
+          socket
+
+        true ->
+          socket
+      end
+
+    {:ok, socket}
   end
 
   @impl true
@@ -42,7 +67,12 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
     pending_bets =
       Map.update!(socket.assigns.pending_bets, box, &min(&1 + amount, Blackjack.max_bet()))
 
-    {:noreply, assign(socket, pending_bets: pending_bets)}
+    socket =
+      socket
+      |> assign(pending_bets: pending_bets)
+      |> push_event("play_sounds", %{sounds: ["placing-chips"]})
+
+    {:noreply, socket}
   end
 
   def handle_event("clear_bet", %{"box" => box}, socket) do
@@ -60,7 +90,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
         socket =
           socket
           |> assign(pending_bets: %{0 => 0, 1 => 0}, round_dismissed?: false, bet_error: nil)
-          |> update_blackjack_game(blackjack_game, user)
+          |> update_blackjack_game(blackjack_game, user, deal_sounds(blackjack_game))
 
         {:noreply, socket}
 
@@ -70,23 +100,40 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
   end
 
   def handle_event("hit", _params, socket) do
+    hand_id = socket.assigns.blackjack_game.active_hand
+
     {blackjack_game, user} =
       Games.hit(socket.assigns.current_scope, socket.assigns.blackjack_game)
 
-    {:noreply, update_blackjack_game(socket, blackjack_game, user)}
+    hand = Enum.find(blackjack_game.hands, &(&1["id"] == hand_id))
+    sounds = hit_result_sounds(hand) ++ turn_advance_sounds(blackjack_game, hand_id)
+
+    {:noreply, update_blackjack_game(socket, blackjack_game, user, sounds)}
   end
 
   def handle_event("stand", _params, socket) do
+    hand_id = socket.assigns.blackjack_game.active_hand
+
     {blackjack_game, user} =
       Games.stand(socket.assigns.current_scope, socket.assigns.blackjack_game)
 
-    {:noreply, update_blackjack_game(socket, blackjack_game, user)}
+    sounds = ["player-stand"] ++ turn_advance_sounds(blackjack_game, hand_id)
+
+    {:noreply, update_blackjack_game(socket, blackjack_game, user, sounds)}
   end
 
   def handle_event("double_down", _params, socket) do
+    hand_id = socket.assigns.blackjack_game.active_hand
+
     case Games.double_down(socket.assigns.current_scope, socket.assigns.blackjack_game) do
       {:ok, blackjack_game, user} ->
-        {:noreply, update_blackjack_game(socket, blackjack_game, user)}
+        hand = Enum.find(blackjack_game.hands, &(&1["id"] == hand_id))
+
+        sounds =
+          ["double-down"] ++
+            hit_result_sounds(hand) ++ turn_advance_sounds(blackjack_game, hand_id)
+
+        {:noreply, update_blackjack_game(socket, blackjack_game, user, sounds)}
 
       {:error, :insufficient_funds} ->
         {:noreply, put_flash(socket, :error, "You don't have enough chips to double down.")}
@@ -99,7 +146,13 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
   def handle_event("split", _params, socket) do
     case Games.split(socket.assigns.current_scope, socket.assigns.blackjack_game) do
       {:ok, blackjack_game, user} ->
-        {:noreply, update_blackjack_game(socket, blackjack_game, user)}
+        sounds =
+          case Enum.find(blackjack_game.hands, &(&1["id"] == blackjack_game.active_hand)) do
+            nil -> ["player-split"]
+            hand -> ["player-split"] ++ hand_value_sounds(hand["cards"])
+          end
+
+        {:noreply, update_blackjack_game(socket, blackjack_game, user, sounds)}
 
       {:error, :insufficient_funds} ->
         {:noreply, put_flash(socket, :error, "You don't have enough chips to split.")}
@@ -109,8 +162,42 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
     end
   end
 
-  def handle_event("new_round", _params, socket) do
-    {:noreply, assign(socket, round_dismissed?: true)}
+  def handle_event("change_bet", _params, socket) do
+    socket =
+      socket
+      |> assign(round_dismissed?: true)
+      |> push_event("play_sounds", %{sounds: ["place-your-bets"]})
+
+    {:noreply, socket}
+  end
+
+  def handle_event("rebet", _params, socket) do
+    bets = rebet_amounts(socket.assigns.blackjack_game)
+
+    case Games.start_blackjack_round(socket.assigns.current_scope, bets) do
+      {:ok, blackjack_game} ->
+        user = Accounts.get_user!(socket.assigns.current_scope.user.id)
+
+        socket =
+          socket
+          |> assign(pending_bets: %{0 => 0, 1 => 0}, round_dismissed?: false, bet_error: nil)
+          |> update_blackjack_game(blackjack_game, user, deal_sounds(blackjack_game))
+
+        {:noreply, socket}
+
+      {:error, reason} ->
+        socket =
+          socket
+          |> assign(
+            pending_bets: Map.merge(%{0 => 0, 1 => 0}, bets),
+            second_hand?: map_size(bets) > 1,
+            round_dismissed?: true,
+            bet_error: bet_error_message(reason)
+          )
+          |> push_event("play_sounds", %{sounds: ["place-your-bets"]})
+
+        {:noreply, socket}
+    end
   end
 
   def handle_event("claim_starting_chips", _params, socket) do
@@ -129,25 +216,158 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
   end
 
   # Applies a freshly-persisted game (and possibly-credited user) to the
-  # socket. When the game has just entered (or is still in) the dealer's
-  # turn, plays the matching reveal/hit sound and schedules the next paced
-  # step, so the dealer's hole-card reveal and subsequent hits/busts play
-  # out one card at a time instead of resolving instantly.
-  defp update_blackjack_game(socket, %{status: "dealer_turn"} = blackjack_game, user) do
+  # socket, queuing `extra_sounds` (the sound(s) for whatever action just
+  # happened) via the narration queue, alongside whatever the game's new
+  # status calls for on its own: when the game has just entered (or is still
+  # in) the dealer's turn, that's the matching reveal/hit sound - fired on
+  # its own independent channel (`play_sound`, not the `play_sounds` queue)
+  # so it plays right away in sync with the hole card flipping over in this
+  # same render, rather than waiting behind any narration for the action
+  # that ended the player's turn - plus scheduling the next paced step so
+  # the dealer's hole-card reveal and subsequent hits/busts play out one
+  # card at a time instead of resolving instantly; when the round has just
+  # settled, it's each hand's outcome sound.
+  defp update_blackjack_game(socket, blackjack_game, user, extra_sounds \\ [])
+
+  defp update_blackjack_game(
+         socket,
+         %{status: "dealer_turn"} = blackjack_game,
+         user,
+         extra_sounds
+       ) do
     sound = if length(blackjack_game.dealer_hand) == 2, do: "flip", else: "deal"
     Process.send_after(self(), :dealer_step, dealer_step_delay())
 
-    socket
-    |> assign(blackjack_game: blackjack_game, current_scope: Scope.for_user(user))
-    |> push_event("play_sound", %{sound: sound})
+    socket =
+      socket
+      |> assign(blackjack_game: blackjack_game, current_scope: Scope.for_user(user))
+      |> push_event("play_sound", %{sound: sound})
+
+    if extra_sounds == [],
+      do: socket,
+      else: push_event(socket, "play_sounds", %{sounds: extra_sounds})
   end
 
-  defp update_blackjack_game(socket, blackjack_game, user) do
-    assign(socket, blackjack_game: blackjack_game, current_scope: Scope.for_user(user))
+  defp update_blackjack_game(socket, %{status: "round_over"} = blackjack_game, user, extra_sounds) do
+    sounds = extra_sounds ++ round_over_sounds(blackjack_game)
+
+    socket = assign(socket, blackjack_game: blackjack_game, current_scope: Scope.for_user(user))
+    if sounds == [], do: socket, else: push_event(socket, "play_sounds", %{sounds: sounds})
+  end
+
+  defp update_blackjack_game(socket, blackjack_game, user, extra_sounds) do
+    socket = assign(socket, blackjack_game: blackjack_game, current_scope: Scope.for_user(user))
+
+    if extra_sounds == [],
+      do: socket,
+      else: push_event(socket, "play_sounds", %{sounds: extra_sounds})
   end
 
   defp dealer_step_delay,
     do: Application.get_env(:high_society, :blackjack_dealer_step_delay_ms, 900)
+
+  # The sound(s) for a hand right after it took a card (hit or double down):
+  # a bust gets its own reaction; otherwise the hand's new value is read out.
+  defp hit_result_sounds(%{"status" => "busted"}), do: ["player-bust"]
+  defp hit_result_sounds(hand), do: hand_value_sounds(hand["cards"])
+
+  # Announces the hand the turn just moved on to - e.g. box 0 finishes and
+  # box 1 becomes active - but only when it's genuinely a different hand
+  # than the one the action was just taken on (a still-player_turn status
+  # after acting on the same hand id would mean nothing advanced, which
+  # doesn't happen here but is guarded against for safety).
+  defp turn_advance_sounds(
+         %{status: "player_turn", active_hand: active_hand} = game,
+         prior_hand_id
+       )
+       when active_hand != prior_hand_id do
+    case Enum.find(game.hands, &(&1["id"] == active_hand)) do
+      nil -> []
+      hand -> hand_value_sounds(hand["cards"])
+    end
+  end
+
+  defp turn_advance_sounds(_game, _prior_hand_id), do: []
+
+  # Announces the hand the player is about to act on first - not every
+  # dealt hand at once, since the second box hasn't come up yet and will
+  # get its own announcement via `turn_advance_sounds/2` once play reaches
+  # it. A natural blackjack (dealer or player) never becomes the active
+  # hand, so both cases fall through to no announcement on their own: the
+  # round-over outcome sound covers a player natural, and a dealer natural
+  # skips narration entirely by virtue of there being no active hand to
+  # find.
+  defp deal_sounds(%{hands: hands, active_hand: active_hand}) do
+    case Enum.find(hands, &(&1["id"] == active_hand)) do
+      nil -> []
+      hand -> hand_value_sounds(hand["cards"])
+    end
+  end
+
+  # A dealer natural blackjack ends the round for every hand at once, so it
+  # gets a single "dealer has blackjack" instead of one per hand.
+  # Otherwise, each hand gets its own outcome sound.
+  defp round_over_sounds(%{hands: hands, dealer_hand: dealer_hand}) do
+    if Blackjack.blackjack?(dealer_hand) do
+      ["dealer-blackjack"]
+    else
+      hands |> Enum.map(&outcome_sound/1) |> Enum.reject(&is_nil/1)
+    end
+  end
+
+  # A bust was already announced live in `hit_result_sounds/1`, so it stays
+  # silent here. A push has no dedicated clip of its own (the dealer
+  # natural blackjack push is handled up in `round_over_sounds/1` instead).
+  defp outcome_sound(%{"status" => "busted"}), do: nil
+  defp outcome_sound(%{"outcome" => "push"}), do: nil
+  defp outcome_sound(%{"outcome" => "blackjack_win"}), do: "player-blackjack"
+  defp outcome_sound(%{"outcome" => "win"}), do: "player-wins"
+  defp outcome_sound(%{"outcome" => "loss"}), do: "dealer-wins"
+
+  # The audio clips for a hand's total: e.g. "6H"+"5D" -> ["eleven"], but a
+  # hand with an ace still counted as 11 (a "soft" hand) is genuinely
+  # ambiguous - e.g. "AS"+"5H" is both 6 and 16 - so it reads out both
+  # separated by "or", same as a dealer would call it at the table.
+  defp hand_value_sounds(cards) do
+    high = Blackjack.value(cards)
+    low = hard_total(cards)
+
+    if high == low + 10,
+      do: [number_word(low), "or", number_word(high)],
+      else: [number_word(high)]
+  end
+
+  defp hard_total(cards) do
+    Enum.reduce(cards, 0, fn card, total ->
+      {rank, _suit} = Blackjack.split_card(card)
+      total + hard_rank_value(rank)
+    end)
+  end
+
+  defp hard_rank_value("A"), do: 1
+  defp hard_rank_value(rank) when rank in ~w(J Q K), do: 10
+  defp hard_rank_value(rank), do: String.to_integer(rank)
+
+  defp number_word(2), do: "two"
+  defp number_word(3), do: "three"
+  defp number_word(4), do: "four"
+  defp number_word(5), do: "five"
+  defp number_word(6), do: "six"
+  defp number_word(7), do: "seven"
+  defp number_word(8), do: "eight"
+  defp number_word(9), do: "nine"
+  defp number_word(10), do: "ten"
+  defp number_word(11), do: "eleven"
+  defp number_word(12), do: "twelve"
+  defp number_word(13), do: "thirteen"
+  defp number_word(14), do: "fourteen"
+  defp number_word(15), do: "fifteen"
+  defp number_word(16), do: "sixteen"
+  defp number_word(17), do: "seventeen"
+  defp number_word(18), do: "eighteen"
+  defp number_word(19), do: "nineteen"
+  defp number_word(20), do: "twenty"
+  defp number_word(21), do: "twenty-one"
 
   @impl true
   def render(assigns) do
@@ -175,7 +395,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
               id="claim-chips-button"
               type="button"
               phx-click="claim_starting_chips"
-              class="btn btn-success btn-sm"
+              class="btn btn-success btn-sm animate-pulse"
             >
               Claim ${format_money(Accounts.starting_chip_amount())}
             </button>
@@ -227,7 +447,10 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
               type="button"
               phx-click="deal"
               disabled={total_bet(@pending_bets) == 0}
-              class="btn btn-primary btn-lg px-12"
+              class={[
+                "btn btn-primary btn-lg px-12",
+                total_bet(@pending_bets) > 0 && "animate-pulse"
+              ]}
             >
               Deal
             </button>
@@ -239,10 +462,15 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
             class="relative flex flex-col items-center gap-2 rounded-t-2xl bg-cover bg-top px-4 pb-6 pt-6 shadow-xl"
             style="background-image: url(/images/blackjack-felt.png);"
           >
-            <span class="rounded-full bg-black/55 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-100 shadow">
+            <span class="flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-100 shadow">
               Dealer<span :if={@blackjack_game.status != "player_turn"}>
                 — {Blackjack.value(@blackjack_game.dealer_hand)}
               </span>
+              <.icon
+                :if={@blackjack_game.status == "dealer_turn"}
+                name="hero-arrow-path"
+                class="size-3 motion-safe:animate-spin"
+              />
             </span>
             <div id="dealer-cards" class="flex w-full justify-center gap-2">
               <.card_face
@@ -270,14 +498,22 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
               />
             </div>
 
-            <div :if={@blackjack_game.status == "round_over"} class="mt-8 flex justify-center">
+            <div :if={@blackjack_game.status == "round_over"} class="mt-8 flex justify-center gap-3">
               <button
-                id="new-round-button"
+                id="rebet-button"
                 type="button"
-                phx-click="new_round"
-                class="btn btn-lg border-none bg-amber-500 px-12 text-amber-950 hover:bg-amber-400"
+                phx-click="rebet"
+                class="btn btn-lg animate-pulse border-none bg-amber-500 px-12 text-amber-950 hover:bg-amber-400"
               >
-                New round
+                Rebet
+              </button>
+              <button
+                id="change-bet-button"
+                type="button"
+                phx-click="change_bet"
+                class="btn btn-lg btn-outline px-12"
+              >
+                Change bet
               </button>
             </div>
           </div>
@@ -312,20 +548,50 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
       <script :type={Phoenix.LiveView.ColocatedHook} name=".SoundEffects">
         export default {
           mounted() {
-            this.sounds = {
-              deal: new Audio("/audio/card-deal.mp3"),
-              flip: new Audio("/audio/card-flip.mp3")
+            this.specialSrc = {
+              deal: "/audio/card-deal.mp3",
+              flip: "/audio/card-flip.mp3"
             }
+            this.queue = []
+            this.playing = false
 
+            // Fires a sound immediately on its own channel, independent of
+            // the narration queue below - used for the dealer's card
+            // reveal/hit SFX so it stays in sync with the card flipping
+            // over in the same render, instead of waiting behind whatever
+            // narration the player's own action queued up first.
             this.handleEvent("play_sound", ({sound}) => {
               if (localStorage.getItem("high_society:sound_muted") === "true") return
 
-              const audio = this.sounds[sound]
-              if (!audio) return
-
-              audio.currentTime = 0
-              audio.play().catch(() => {})
+              const src = this.specialSrc[sound] || `/audio/${sound}.aac`
+              new Audio(src).play().catch(() => {})
             })
+
+            this.handleEvent("play_sounds", ({sounds}) => {
+              if (localStorage.getItem("high_society:sound_muted") === "true") return
+
+              this.queue.push(...sounds)
+              this.playNext()
+            })
+          },
+          playNext() {
+            if (this.playing) return
+
+            const name = this.queue.shift()
+            if (!name) return
+
+            const src = this.specialSrc[name] || `/audio/${name}.aac`
+            const audio = new Audio(src)
+            this.playing = true
+
+            const advance = () => {
+              this.playing = false
+              this.playNext()
+            }
+
+            audio.addEventListener("ended", advance)
+            audio.addEventListener("error", advance)
+            audio.play().catch(advance)
           }
         }
       </script>
@@ -345,7 +611,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
     >
       <button
         :if={@closable?}
-        id={"remove-second-hand-button"}
+        id="remove-second-hand-button"
         type="button"
         phx-click="remove_second_hand"
         class="btn btn-ghost btn-xs btn-circle absolute right-2 top-2"
@@ -408,7 +674,15 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
         @active? && "bg-amber-400/10 ring-2 ring-amber-400"
       ]}
     >
-      <span class="text-xs font-semibold uppercase tracking-wide text-amber-100/60">
+      <span class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-100/60">
+        <span
+          :if={@active? && @status == "player_turn"}
+          class="relative flex size-2"
+          title="Your turn"
+        >
+          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
+          <span class="relative inline-flex size-2 rounded-full bg-amber-500"></span>
+        </span>
         {@label} — Bet ${format_money(@hand["bet"])}{if @hand["doubled"], do: " (doubled)"} — {Blackjack.value(
           @hand["cards"]
         )}
@@ -420,7 +694,8 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
         :if={@hand["outcome"]}
         class={[
           "text-sm font-semibold",
-          @hand["outcome"] in ["win", "blackjack_win"] && "text-emerald-400",
+          @hand["outcome"] in ["win", "blackjack_win"] &&
+            "animate-bounce text-emerald-400 [animation-iteration-count:2]",
           @hand["outcome"] == "push" && "text-amber-100/70",
           @hand["outcome"] == "loss" && "text-red-400"
         ]}
@@ -479,12 +754,28 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
         "Hand #{hand["box"] + 1}"
 
       _multiple ->
-        letter = Enum.find_index(siblings, &(&1["id"] == hand["id"])) |> then(&Enum.at(["A", "B"], &1))
+        letter =
+          Enum.find_index(siblings, &(&1["id"] == hand["id"])) |> then(&Enum.at(["A", "B"], &1))
+
         "Hand #{hand["box"] + 1}#{letter}"
     end
   end
 
   defp betting?(assigns), do: is_nil(assigns.blackjack_game) or assigns.round_dismissed?
+
+  # Recovers each box's original wager from the just-finished round, so
+  # "Rebet" can re-deal without the player re-selecting chips. Splits don't
+  # change the per-box stake (both resulting hands share the original bet),
+  # but doubling does, so a doubled hand's bet is halved back to what was
+  # originally placed on that box.
+  defp rebet_amounts(%{hands: hands}) do
+    hands
+    |> Enum.uniq_by(& &1["box"])
+    |> Map.new(fn hand -> {hand["box"], original_bet(hand)} end)
+  end
+
+  defp original_bet(%{"doubled" => true, "bet" => bet}), do: div(bet, 2)
+  defp original_bet(%{"bet" => bet}), do: bet
 
   defp chip_values, do: [5, 25, 100, 500]
 

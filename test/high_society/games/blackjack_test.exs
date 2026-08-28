@@ -90,7 +90,15 @@ defmodule HighSociety.Games.BlackjackTest do
       game = %Blackjack{
         shoe: ["2S", "9S"],
         hands: [
-          %{id: 0, box: 0, bet: 25, cards: ["5H", "5D"], status: :active, outcome: nil, payout: nil}
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["5H", "5D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
         ],
         active_hand: 0,
         dealer_hand: ["7H", "7D"],
@@ -111,7 +119,15 @@ defmodule HighSociety.Games.BlackjackTest do
       game = %Blackjack{
         shoe: ["KS"],
         hands: [
-          %{id: 0, box: 0, bet: 25, cards: ["10H", "5D"], status: :active, outcome: nil, payout: nil}
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["10H", "5D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
         ],
         active_hand: 0,
         dealer_hand: ["10H", "7D"],
@@ -135,7 +151,15 @@ defmodule HighSociety.Games.BlackjackTest do
       game = %Blackjack{
         shoe: ["AS"],
         hands: [
-          %{id: 0, box: 0, bet: 25, cards: ["10H", "10D"], status: :active, outcome: nil, payout: nil}
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["10H", "10D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
         ],
         active_hand: 0,
         dealer_hand: ["10H", "7D"],
@@ -153,8 +177,24 @@ defmodule HighSociety.Games.BlackjackTest do
       game = %Blackjack{
         shoe: ["KS", "2H"],
         hands: [
-          %{id: 0, box: 0, bet: 25, cards: ["10H", "5D"], status: :active, outcome: nil, payout: nil},
-          %{id: 1, box: 1, bet: 25, cards: ["6H", "6D"], status: :active, outcome: nil, payout: nil}
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["10H", "5D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          },
+          %{
+            id: 1,
+            box: 1,
+            bet: 25,
+            cards: ["6H", "6D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
         ],
         active_hand: 0,
         dealer_hand: ["7H", "6C"],
@@ -483,7 +523,15 @@ defmodule HighSociety.Games.BlackjackTest do
       game = %Blackjack{
         shoe: ["6H"],
         hands: [
-          %{id: 0, box: 0, bet: 25, cards: ["10H", "8D"], status: :active, outcome: nil, payout: nil}
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["10H", "8D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
         ],
         active_hand: 0,
         # dealer starts on a soft 17 (A + 6) and must stand, not hit
@@ -505,7 +553,15 @@ defmodule HighSociety.Games.BlackjackTest do
       game = %Blackjack{
         shoe: ["5S", "9S"],
         hands: [
-          %{id: 0, box: 0, bet: 25, cards: ["10H", "8D"], status: :active, outcome: nil, payout: nil}
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["10H", "8D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
         ],
         active_hand: 0,
         dealer_hand: ["2S", "3S"],
@@ -526,7 +582,15 @@ defmodule HighSociety.Games.BlackjackTest do
       game = %Blackjack{
         shoe: ["KS"],
         hands: [
-          %{id: 0, box: 0, bet: 25, cards: ["10H", "8D"], status: :active, outcome: nil, payout: nil}
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["10H", "8D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
         ],
         active_hand: 0,
         dealer_hand: ["10S", "6C"],
@@ -545,7 +609,15 @@ defmodule HighSociety.Games.BlackjackTest do
       game = %Blackjack{
         shoe: [],
         hands: [
-          %{id: 0, box: 0, bet: 25, cards: ["10H", "9D"], status: :active, outcome: nil, payout: nil}
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["10H", "9D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
         ],
         active_hand: 0,
         dealer_hand: ["10S", "8C"],
@@ -563,7 +635,15 @@ defmodule HighSociety.Games.BlackjackTest do
       game = %Blackjack{
         shoe: [],
         hands: [
-          %{id: 0, box: 0, bet: 25, cards: ["10H", "9D"], status: :active, outcome: nil, payout: nil}
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["10H", "9D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
         ],
         active_hand: 0,
         dealer_hand: ["10S", "9C"],
@@ -581,7 +661,15 @@ defmodule HighSociety.Games.BlackjackTest do
       game = %Blackjack{
         shoe: [],
         hands: [
-          %{id: 0, box: 0, bet: 25, cards: ["10H", "7D"], status: :active, outcome: nil, payout: nil}
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["10H", "7D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
         ],
         active_hand: 0,
         dealer_hand: ["10S", "9C"],
@@ -602,8 +690,24 @@ defmodule HighSociety.Games.BlackjackTest do
       game = %Blackjack{
         shoe: [],
         hands: [
-          %{id: 0, box: 0, bet: 100, cards: ["AS", "KH"], status: :blackjack, outcome: nil, payout: nil},
-          %{id: 1, box: 1, bet: 25, cards: ["9S", "5H"], status: :active, outcome: nil, payout: nil}
+          %{
+            id: 0,
+            box: 0,
+            bet: 100,
+            cards: ["AS", "KH"],
+            status: :blackjack,
+            outcome: nil,
+            payout: nil
+          },
+          %{
+            id: 1,
+            box: 1,
+            bet: 25,
+            cards: ["9S", "5H"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
         ],
         active_hand: 1,
         dealer_hand: ["10S", "7C"],
@@ -622,8 +726,24 @@ defmodule HighSociety.Games.BlackjackTest do
       game = %Blackjack{
         shoe: [],
         hands: [
-          %{id: 0, box: 0, bet: 25, cards: ["AS", "KH"], status: :blackjack, outcome: nil, payout: nil},
-          %{id: 1, box: 1, bet: 25, cards: ["9S", "5H"], status: :active, outcome: nil, payout: nil}
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["AS", "KH"],
+            status: :blackjack,
+            outcome: nil,
+            payout: nil
+          },
+          %{
+            id: 1,
+            box: 1,
+            bet: 25,
+            cards: ["9S", "5H"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
         ],
         active_hand: 1,
         dealer_hand: ["10S", "7C"],
@@ -642,8 +762,24 @@ defmodule HighSociety.Games.BlackjackTest do
       game = %Blackjack{
         shoe: [],
         hands: [
-          %{id: 0, box: 0, bet: 100, cards: ["AS", "KH"], status: :blackjack, outcome: nil, payout: nil},
-          %{id: 1, box: 1, bet: 25, cards: ["9S", "5H"], status: :active, outcome: nil, payout: nil}
+          %{
+            id: 0,
+            box: 0,
+            bet: 100,
+            cards: ["AS", "KH"],
+            status: :blackjack,
+            outcome: nil,
+            payout: nil
+          },
+          %{
+            id: 1,
+            box: 1,
+            bet: 25,
+            cards: ["9S", "5H"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
         ],
         active_hand: 1,
         dealer_hand: ["AH", "KD"],

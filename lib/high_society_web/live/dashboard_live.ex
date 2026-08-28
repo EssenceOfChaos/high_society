@@ -47,7 +47,7 @@ defmodule HighSocietyWeb.DashboardLive do
       <div class="mx-auto max-w-5xl">
         <div class="text-center">
           <h1 class="text-4xl font-bold tracking-tight sm:text-5xl">High Society</h1>
-          <p class="mt-3 text-base-content/70 text-lg">
+          <p class="mt-3 text-base-content/70 text-xl">
             Pick a table. Every game here is ready when you are.
           </p>
         </div>
@@ -67,9 +67,9 @@ defmodule HighSocietyWeb.DashboardLive do
                 <.icon name={game.icon} class="size-6" />
               </div>
 
-              <h2 class="mt-4 text-xl font-semibold">{game.name}</h2>
+              <h2 class="mt-4 text-2xl font-semibold">{game.name}</h2>
               <p class="text-sm font-medium text-base-content/50">{game.tagline}</p>
-              <p class="mt-2 flex-1 text-sm text-base-content/70">{game.description}</p>
+              <p class="mt-2 flex-1 text-base text-base-content/70">{game.description}</p>
 
               <div class="mt-6">
                 <%= if game.available do %>
