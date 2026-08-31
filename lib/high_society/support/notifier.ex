@@ -1,5 +1,6 @@
 defmodule HighSociety.Support.Notifier do
   import Swoosh.Email
+  require Logger
 
   alias HighSociety.Mailer
   alias HighSociety.Support.Report
@@ -25,8 +26,13 @@ defmodule HighSociety.Support.Notifier do
       #{report.message}
       """)
 
-    with {:ok, _metadata} <- Mailer.deliver(email) do
-      {:ok, report}
+    case Mailer.deliver(email) do
+      {:ok, _metadata} ->
+        {:ok, report}
+
+      {:error, reason} = error ->
+        Logger.error("Failed to deliver support report from #{report.email}: #{inspect(reason)}")
+        error
     end
   end
 end

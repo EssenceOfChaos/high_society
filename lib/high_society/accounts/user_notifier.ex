@@ -1,5 +1,6 @@
 defmodule HighSociety.Accounts.UserNotifier do
   import Swoosh.Email
+  require Logger
 
   alias HighSociety.Mailer
   alias HighSociety.Accounts.User
@@ -13,8 +14,16 @@ defmodule HighSociety.Accounts.UserNotifier do
       |> subject(subject)
       |> text_body(body)
 
-    with {:ok, _metadata} <- Mailer.deliver(email) do
-      {:ok, email}
+    case Mailer.deliver(email) do
+      {:ok, _metadata} ->
+        {:ok, email}
+
+      {:error, reason} = error ->
+        Logger.error(
+          "Failed to deliver email #{inspect(subject)} to #{inspect(recipient)}: #{inspect(reason)}"
+        )
+
+        error
     end
   end
 

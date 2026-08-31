@@ -147,9 +147,16 @@ if config_env() == :prod do
     adapter: Swoosh.Adapters.Resend,
     api_key: resend_api_key
 
-  if from_email = System.get_env("MAILER_FROM_EMAIL") do
-    config :high_society, :mailer_from_email, from_email
-  end
+  mailer_from_email =
+    System.get_env("MAILER_FROM_EMAIL") ||
+      raise """
+      environment variable MAILER_FROM_EMAIL is missing.
+      Without it, prod silently falls back to Resend's shared sandbox
+      address, which Resend only lets deliver to the Resend account's
+      own email.
+      """
+
+  config :high_society, :mailer_from_email, mailer_from_email
 
   if support_email = System.get_env("SUPPORT_EMAIL") do
     config :high_society, :support_email, support_email
