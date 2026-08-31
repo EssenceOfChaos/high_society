@@ -47,6 +47,14 @@ if config_env() == :prod do
     # pool_count: 4,
     socket_options: maybe_ipv6
 
+  # Gigalixir has no separate release/pre-boot phase: a `git push` replaces
+  # and restarts the web dynos immediately, before the CI workflow's later
+  # `ps:migrate` step runs. That race left the app booting against a schema
+  # missing the new migration's table. Running migrations here, before the
+  # rest of the supervision tree (including anything that queries the DB on
+  # init) starts, closes the gap.
+  config :high_society, run_migrations_on_boot: true
+
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
   # want to use a different value for prod and you most likely don't want

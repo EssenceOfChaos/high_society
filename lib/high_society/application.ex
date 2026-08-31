@@ -7,6 +7,10 @@ defmodule HighSociety.Application do
 
   @impl true
   def start(_type, _args) do
+    if Application.get_env(:high_society, :run_migrations_on_boot, false) do
+      HighSociety.Release.migrate()
+    end
+
     children = [
       HighSocietyWeb.Telemetry,
       HighSociety.Repo,
