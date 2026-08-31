@@ -142,4 +142,8 @@ if config_env() == :prod do
   if from_email = System.get_env("MAILER_FROM_EMAIL") do
     config :high_society, :mailer_from_email, from_email
   end
+
+  if support_email = System.get_env("SUPPORT_EMAIL") do
+    config :high_society, :support_email, support_email
+  end
 end

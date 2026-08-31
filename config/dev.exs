@@ -70,6 +70,11 @@ config :high_society, HighSocietyWeb.Endpoint,
 # Enable dev routes for dashboard and mailbox
 config :high_society, dev_routes: true
 
+# Seats two bot accounts at the New York poker table and has them play on
+# their own (see `HighSociety.Games.PokerBots`), so there's always a live
+# game to look at locally without needing a second real browser session.
+config :high_society, :poker_bots_enabled, true
+
 # Do not include metadata nor timestamps in development logs
 config :logger, :default_formatter, format: "[$level] $message\n"
 

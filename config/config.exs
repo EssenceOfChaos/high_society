@@ -24,6 +24,10 @@ config :high_society,
   ecto_repos: [HighSociety.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+# Off everywhere except :dev (see config/dev.exs) - see
+# `HighSociety.Games.PokerBots` for what this turns on.
+config :high_society, :poker_bots_enabled, false
+
 # Configure the endpoint
 config :high_society, HighSocietyWeb.Endpoint,
   url: [host: "localhost"],
@@ -49,6 +53,7 @@ config :phoenix_live_view,
 # at the `config/runtime.exs`.
 config :high_society, HighSociety.Mailer, adapter: Swoosh.Adapters.Local
 config :high_society, :mailer_from_email, "onboarding@resend.dev"
+config :high_society, :support_email, "support@highsociety.cc"
 
 # Configure esbuild (the version is required)
 config :esbuild,

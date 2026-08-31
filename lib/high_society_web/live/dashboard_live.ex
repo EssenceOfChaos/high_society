@@ -30,6 +30,36 @@ defmodule HighSocietyWeb.DashboardLive do
       description: "Build the best hand and bluff your way to the pot.",
       icon: "hero-sparkles",
       accent: "from-indigo-500 to-violet-400",
+      path: "/games/poker",
+      available: true
+    },
+    %{
+      slug: "battleship",
+      name: "Battleship",
+      tagline: "Sink the fleet",
+      description: "Call your shots and hunt down the enemy fleet before they find yours.",
+      icon: "hero-viewfinder-circle",
+      accent: "from-sky-500 to-cyan-400",
+      path: nil,
+      available: false
+    },
+    %{
+      slug: "slots",
+      name: "Slots",
+      tagline: "Pull the lever",
+      description: "Line up the reels and chase the jackpot.",
+      icon: "hero-squares-2x2",
+      accent: "from-amber-500 to-yellow-400",
+      path: nil,
+      available: false
+    },
+    %{
+      slug: "roulette",
+      name: "Roulette",
+      tagline: "Place your bets",
+      description: "Red or black, odd or even — let the wheel decide.",
+      icon: "hero-adjustments-horizontal",
+      accent: "from-red-500 to-rose-400",
       path: nil,
       available: false
     }

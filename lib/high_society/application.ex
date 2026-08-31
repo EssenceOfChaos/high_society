@@ -12,8 +12,9 @@ defmodule HighSociety.Application do
       HighSociety.Repo,
       {DNSCluster, query: Application.get_env(:high_society, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: HighSociety.PubSub},
-      # Start a worker by calling: HighSociety.Worker.start_link(arg)
-      # {HighSociety.Worker, arg},
+      HighSocietyWeb.Presence,
+      {Registry, keys: :unique, name: HighSociety.Games.PokerRegistry},
+      HighSociety.Games.PokerTablesSupervisor,
       # Start to serve requests, typically the last entry
       HighSocietyWeb.Endpoint
     ]
@@ -21,7 +22,17 @@ defmodule HighSociety.Application do
     # See https://elixir.hexdocs.pm/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: HighSociety.Supervisor]
-    Supervisor.start_link(children, opts)
+
+    with {:ok, _pid} = ok <- Supervisor.start_link(children, opts) do
+      # Dev-only (see `HighSociety.Games.PokerBots`): seat the two bot
+      # accounts once everything, including the poker tables, is up. Run
+      # off a separate process since seating calls back into a table
+      # GenServer that's a sibling in this same tree, not an ancestor.
+      if HighSociety.Games.PokerBots.enabled?(),
+        do: Task.start(&HighSociety.Games.PokerBots.maintain!/0)
+
+      ok
+    end
   end
 
   # Tell Phoenix to update the endpoint configuration

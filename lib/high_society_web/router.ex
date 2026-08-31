@@ -50,6 +50,8 @@ defmodule HighSocietyWeb.Router do
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
       live "/games/war", GameLive.War, :show
       live "/games/blackjack", GameLive.Blackjack, :show
+      live "/games/poker", GameLive.PokerLobby, :index
+      live "/games/poker/:slug", GameLive.PokerTable, :show
     end
 
     post "/users/update-password", UserSessionController, :update_password
@@ -61,6 +63,7 @@ defmodule HighSocietyWeb.Router do
     live_session :current_user,
       on_mount: [{HighSocietyWeb.UserAuth, :mount_current_scope}] do
       live "/", DashboardLive, :index
+      live "/support", SupportLive, :new
       live "/users/register", UserLive.Registration, :new
       live "/users/log-in", UserLive.Login, :new
       live "/users/log-in/:token", UserLive.Confirmation, :new

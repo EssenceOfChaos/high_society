@@ -122,6 +122,41 @@ defmodule HighSociety.Accounts do
     if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :insufficient_funds}
   end
 
+  @poker_starting_chip_amount 10_000
+
+  @doc "The one-time starting chip grant amount for Poker."
+  @spec poker_starting_chip_amount() :: pos_integer()
+  def poker_starting_chip_amount, do: @poker_starting_chip_amount
+
+  @doc """
+  Grants the user's one-time Poker starting balance of
+  `#{@poker_starting_chip_amount}` play money. Atomic and idempotent, and
+  tracked separately from `claim_starting_chips/1` (Blackjack's claim) since
+  each game offers its own one-time grant.
+
+  ## Examples
+
+      iex> claim_poker_chips(user)
+      {:ok, %User{balance: 10_000}}
+
+      iex> claim_poker_chips(already_claimed_user)
+      {:error, :already_claimed}
+
+  """
+  @spec claim_poker_chips(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
+  def claim_poker_chips(%User{} = user) do
+    now = DateTime.utc_now(:second)
+
+    {count, _} =
+      Repo.update_all(
+        from(u in User, where: u.id == ^user.id and is_nil(u.claimed_poker_chips_at)),
+        inc: [balance: @poker_starting_chip_amount],
+        set: [claimed_poker_chips_at: now]
+      )
+
+    if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :already_claimed}
+  end
+
   ## User registration
 
   @doc """

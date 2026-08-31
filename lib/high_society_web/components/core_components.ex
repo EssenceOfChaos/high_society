@@ -454,8 +454,8 @@ defmodule HighSocietyWeb.CoreComponents do
 
   @doc """
   Renders a single playing card, given a two/three-character card string like
-  `"AS"` or `"10H"` (rank followed by suit). Used by both the War and
-  Blackjack games.
+  `"AS"` or `"10H"` (rank followed by suit), as an SVG from
+  `priv/static/images/cards/`. Used by War, Blackjack, and Poker.
 
   ## Examples
 
@@ -475,36 +475,27 @@ defmodule HighSocietyWeb.CoreComponents do
     doc: "renders a face-down card back instead of the card"
 
   def card_face(assigns) do
-    {rank, suit} = if assigns.card, do: card_split(assigns.card), else: {nil, nil}
-
-    assigns =
-      assigns
-      |> assign(:rank, rank)
-      |> assign(:suit_symbol, card_suit_symbol(suit))
-      |> assign(:red?, suit in ["H", "D"])
+    assigns = assign(assigns, :image_name, assigns.card && card_image_name(assigns.card))
 
     ~H"""
     <div class={[
-      "@container card-deal-in flex aspect-[7/10] min-w-0 flex-[0_1_7rem] flex-col items-center justify-center rounded-xl border-2 shadow-md transition-colors duration-300",
-      @card && !@face_down && "bg-white border-base-300",
-      @face_down && "border-amber-400/50 bg-emerald-800",
-      !@card && @pending && "border-error bg-error text-error-content animate-pulse",
-      !@card && !@pending && !@face_down && "border-dashed border-base-300 bg-base-200",
+      "@container [contain-intrinsic-width:7rem] card-deal-in flex aspect-[7/10] min-w-0 flex-[0_1_7rem] items-center justify-center overflow-hidden rounded-xl shadow-md transition-transform duration-300",
+      !@card && @pending && "border-2 border-error bg-error text-error-content animate-pulse",
+      !@card && !@pending && !@face_down && "border-2 border-dashed border-base-300 bg-base-200",
       @dim && "opacity-40 scale-90"
     ]}>
-      <div
+      <img
         :if={@card && !@face_down}
-        class={["flex flex-col items-center", @red? && "text-red-600", !@red? && "text-neutral-900"]}
-      >
-        <span class="text-[27cqw] font-bold">{@rank}</span>
-        <span class="text-[32cqw] leading-none">{@suit_symbol}</span>
-      </div>
-      <span
+        src={"/images/cards/#{@image_name}.svg"}
+        alt={@card}
+        class="size-full object-contain"
+      />
+      <img
         :if={@face_down}
-        class="rounded-full border border-amber-400/40 px-[10cqw] py-[6cqw] font-serif text-[22cqw] font-bold text-amber-400/80"
-      >
-        HS
-      </span>
+        src="/images/cards/card_back.svg"
+        alt="Face-down card"
+        class="size-full object-contain"
+      />
       <.icon
         :if={!@card && !@face_down && @pending}
         name="hero-question-mark-circle"
@@ -525,11 +516,23 @@ defmodule HighSocietyWeb.CoreComponents do
     {rank, suit}
   end
 
-  defp card_suit_symbol("S"), do: "♠"
-  defp card_suit_symbol("H"), do: "♥"
-  defp card_suit_symbol("D"), do: "♦"
-  defp card_suit_symbol("C"), do: "♣"
-  defp card_suit_symbol(_), do: nil
+  # Maps a card string like "AS"/"10H"/"2D" to the `<rank>_of_<suit>` asset
+  # name used by the SVG deck in `priv/static/images/cards/`.
+  defp card_image_name(card) do
+    {rank, suit} = card_split(card)
+    "#{card_rank_word(rank)}_of_#{card_suit_word(suit)}"
+  end
+
+  defp card_rank_word("A"), do: "ace"
+  defp card_rank_word("K"), do: "king"
+  defp card_rank_word("Q"), do: "queen"
+  defp card_rank_word("J"), do: "jack"
+  defp card_rank_word(rank), do: rank
+
+  defp card_suit_word("S"), do: "spades"
+  defp card_suit_word("H"), do: "hearts"
+  defp card_suit_word("D"), do: "diamonds"
+  defp card_suit_word("C"), do: "clubs"
 
   ## JS Commands
 
