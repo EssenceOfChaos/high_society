@@ -47,6 +47,11 @@ defmodule HighSocietyWeb.GameLive.BattleshipTest do
 
     assert has_element?(view, "#my-board")
     assert has_element?(view, "#enemy-board")
+
+    # Ships render as bow/hull/stern SVG segments, not a flat color block.
+    html = render(view)
+    assert html =~ "M64,8 L24,8"
+    assert html =~ "M0,8 L48,8"
   end
 
   test "clearing placement empties the board so ships can be re-placed", %{conn: conn, user: user} do

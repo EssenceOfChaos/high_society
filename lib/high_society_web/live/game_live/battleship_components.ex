@@ -5,8 +5,14 @@ defmodule HighSocietyWeb.GameLive.BattleshipComponents do
   (`HighSocietyWeb.GameLive.BattleshipMatch`) screens - the same 10x10
   grid renders either a player's own fleet (every ship visible) or a
   tracking grid of shots fired at an opponent (`reveal_only_sunk: true`
-  keeps anything but a fully-sunk ship hidden), with plain Tailwind
-  cells rather than any image asset - there's no per-cell art needed.
+  keeps anything but a fully-sunk ship hidden).
+
+  Ships render as inline SVG bow/hull/stern segments (one shape per
+  occupied cell, based on that cell's position within the ship) rather
+  than a flat color block, so a placed ship reads as an actual boat
+  silhouette instead of a gray rectangle. There's still no external
+  image asset - these are small, hand-drawn paths that stay legible at
+  the board's actual cell size.
   """
   use Phoenix.Component
 
@@ -14,6 +20,9 @@ defmodule HighSocietyWeb.GameLive.BattleshipComponents do
 
   @columns ~w(A B C D E F G H I J)
   @board_size Battleship.board_size()
+
+  @hull_color "#778da9"
+  @sunk_color "#4a5568"
 
   attr :id, :string, required: true
   attr :fleet, :list, default: []
@@ -29,7 +38,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipComponents do
     ~H"""
     <div
       id={@id}
-      class="inline-grid gap-0.5"
+      class="inline-grid"
       style={"grid-template-columns: 1.25rem repeat(#{board_size()}, 1.75rem);"}
       phx-hook=".PlacementPreview"
       data-preview-length={@preview_length}
@@ -57,20 +66,15 @@ defmodule HighSocietyWeb.GameLive.BattleshipComponents do
           phx-value-coord={"#{column_letter(col)}#{row + 1}"}
           disabled={!cell_clickable?(assigns, col, row)}
           class={[
-            "size-7 rounded-sm border border-base-300/30 transition-colors",
-            cell_class(assigns, col, row)
+            "relative size-7 overflow-hidden border border-base-300/30 bg-sky-800 transition-colors",
+            cell_clickable?(assigns, col, row) && "cursor-pointer hover:bg-sky-600",
+            !cell_clickable?(assigns, col, row) && "cursor-default"
           ]}
         >
-          <span
-            :if={cell_shot(assigns, col, row) == "miss"}
-            class="mx-auto block size-1.5 rounded-full bg-base-100/70"
-          />
-          <span
-            :if={cell_shot(assigns, col, row) in ["hit", "sunk"]}
-            class="block text-[10px] font-black text-base-100"
-          >
-            ×
-          </span>
+          <% segment = ship_segment(assigns, col, row) %>
+          <.ship_segment :if={segment} segment={segment} />
+          <.miss_marker :if={cell_shot(assigns, col, row) == "miss"} />
+          <.hit_marker :if={cell_shot(assigns, col, row) in ["hit", "sunk"]} />
         </button>
       <% end %>
     </div>
@@ -115,6 +119,69 @@ defmodule HighSocietyWeb.GameLive.BattleshipComponents do
     """
   end
 
+  attr :segment, :map, required: true
+
+  defp ship_segment(assigns) do
+    ~H"""
+    <svg
+      viewBox="0 0 64 64"
+      class="pointer-events-none absolute inset-0"
+      style={
+        if @segment.horizontal?,
+          do: "",
+          else: "transform: rotate(90deg); transform-origin: 50% 50%;"
+      }
+    >
+      <g :if={@segment.part == :bow}>
+        <path
+          d="M64,8 L24,8 C12,8 4,20 4,32 C4,44 12,56 24,56 L64,56 Z"
+          fill={@segment.color}
+        />
+        <path d="M64,32 L16,32" stroke="#415a77" stroke-width="2" stroke-dasharray="6 4" />
+        <circle cx="44" cy="20" r="2" fill="#e0e1dd" opacity="0.5" />
+        <circle cx="44" cy="44" r="2" fill="#e0e1dd" opacity="0.5" />
+      </g>
+
+      <g :if={@segment.part == :hull}>
+        <rect x="0" y="8" width="64" height="48" fill={@segment.color} />
+        <line x1="0" y1="32" x2="64" y2="32" stroke="#415a77" stroke-width="2" stroke-dasharray="8 4" />
+        <rect x="16" y="12" width="32" height="4" fill="#e0e1dd" opacity="0.3" />
+        <rect x="16" y="48" width="32" height="4" fill="#e0e1dd" opacity="0.3" />
+      </g>
+
+      <g :if={@segment.part == :stern}>
+        <path
+          d="M0,8 L48,8 C56,8 60,16 60,32 C60,48 56,56 48,56 L0,56 Z"
+          fill={@segment.color}
+        />
+        <line x1="0" y1="32" x2="48" y2="32" stroke="#415a77" stroke-width="2" stroke-dasharray="6 4" />
+        <line x1="48" y1="16" x2="48" y2="48" stroke="#1b263b" stroke-width="3" />
+      </g>
+    </svg>
+    """
+  end
+
+  defp hit_marker(assigns) do
+    ~H"""
+    <svg viewBox="0 0 64 64" class="pointer-events-none absolute inset-0">
+      <circle cx="32" cy="32" r="8" fill="#e63946" />
+      <line x1="32" y1="8" x2="32" y2="20" stroke="#e63946" stroke-width="3" stroke-linecap="round" />
+      <line x1="32" y1="44" x2="32" y2="56" stroke="#e63946" stroke-width="3" stroke-linecap="round" />
+      <line x1="8" y1="32" x2="20" y2="32" stroke="#e63946" stroke-width="3" stroke-linecap="round" />
+      <line x1="44" y1="32" x2="56" y2="32" stroke="#e63946" stroke-width="3" stroke-linecap="round" />
+    </svg>
+    """
+  end
+
+  defp miss_marker(assigns) do
+    ~H"""
+    <svg viewBox="0 0 64 64" class="pointer-events-none absolute inset-0">
+      <circle cx="32" cy="32" r="12" fill="none" stroke="#a8dadc" stroke-width="2.5" stroke-dasharray="4 2" />
+      <circle cx="32" cy="32" r="3" fill="#a8dadc" />
+    </svg>
+    """
+  end
+
   defp board_size, do: @board_size
 
   defp column_letter(col), do: Enum.at(@columns, col)
@@ -123,31 +190,33 @@ defmodule HighSocietyWeb.GameLive.BattleshipComponents do
 
   defp cell_shot(assigns, col, row), do: Map.get(assigns.shots, cell_coord(col, row))
 
-  defp cell_ship?(assigns, col, row) do
+  # Returns `%{part: :bow | :hull | :stern, horizontal?: boolean, color: String.t()}`
+  # for the ship occupying this cell (if any, and if it should be visible -
+  # `reveal_only_sunk` hides anything but a fully-sunk ship), or `nil`.
+  defp ship_segment(assigns, col, row) do
     coord = {col, row}
 
-    Enum.any?(assigns.fleet, fn ship ->
-      coord in ship.cells and (not assigns.reveal_only_sunk or ship_sunk?(ship))
-    end)
+    ship =
+      Enum.find(assigns.fleet, fn ship ->
+        coord in ship.cells and (not assigns.reveal_only_sunk or ship_sunk?(ship))
+      end)
+
+    ship &&
+      %{
+        part: ship_part(Enum.find_index(ship.cells, &(&1 == coord)), length(ship.cells)),
+        horizontal?: ship_horizontal?(ship),
+        color: (ship_sunk?(ship) && @sunk_color) || @hull_color
+      }
   end
+
+  defp ship_part(0, _length), do: :bow
+  defp ship_part(index, length) when index == length - 1, do: :stern
+  defp ship_part(_index, _length), do: :hull
+
+  defp ship_horizontal?(%{cells: [{_c0, row0}, {_c1, row1} | _]}), do: row0 == row1
 
   defp cell_clickable?(assigns, col, row),
     do: assigns.clickable and not assigns.disabled and is_nil(cell_shot(assigns, col, row))
-
-  defp cell_class(assigns, col, row) do
-    shot = cell_shot(assigns, col, row)
-    clickable? = cell_clickable?(assigns, col, row)
-
-    bg =
-      cond do
-        shot in ["hit", "sunk"] -> "bg-error"
-        shot == "miss" -> "bg-sky-950"
-        cell_ship?(assigns, col, row) -> "bg-slate-500"
-        true -> "bg-sky-800"
-      end
-
-    [bg, (clickable? && "cursor-pointer hover:bg-sky-600") || "cursor-default"]
-  end
 
   defp ship_sunk?(ship), do: MapSet.size(ship.hits) == length(ship.cells)
 end
