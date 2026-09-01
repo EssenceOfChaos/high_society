@@ -46,6 +46,12 @@ liveSocket.connect()
 // >> liveSocket.disableLatencySim()
 window.liveSocket = liveSocket
 
+// Register the service worker so the app is installable on iOS/Android
+// and static assets (js/css/images/audio) load instantly on repeat visits.
+if ("serviceWorker" in navigator && process.env.NODE_ENV !== "development") {
+  window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js"))
+}
+
 // The lines below enable quality of life phoenix_live_reload
 // development features:
 //
