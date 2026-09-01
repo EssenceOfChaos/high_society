@@ -82,6 +82,7 @@ if config_env() == :prod do
     ],
     check_origin: [
       "https://highsociety.cc",
+      "https://www.highsociety.cc",
       "https://high-society.gigalixirapp.com"
     ],
     secret_key_base: secret_key_base
