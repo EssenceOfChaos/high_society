@@ -40,8 +40,8 @@ defmodule HighSocietyWeb.DashboardLive do
       description: "Call your shots and hunt down the enemy fleet before they find yours.",
       icon: "hero-viewfinder-circle",
       accent: "from-sky-500 to-cyan-400",
-      path: nil,
-      available: false
+      path: "/games/battleship",
+      available: true
     },
     %{
       slug: "slots",

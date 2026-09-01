@@ -11,7 +11,8 @@ defmodule HighSociety.Accounts.User do
           authenticated_at: DateTime.t() | nil,
           balance: integer(),
           claimed_starting_chips_at: DateTime.t() | nil,
-          claimed_poker_chips_at: DateTime.t() | nil
+          claimed_poker_chips_at: DateTime.t() | nil,
+          claimed_battleship_chips_at: DateTime.t() | nil
         }
 
   use Ecto.Schema
@@ -26,6 +27,7 @@ defmodule HighSociety.Accounts.User do
     field :balance, :integer, default: 0
     field :claimed_starting_chips_at, :utc_datetime
     field :claimed_poker_chips_at, :utc_datetime
+    field :claimed_battleship_chips_at, :utc_datetime
 
     timestamps(type: :utc_datetime)
   end

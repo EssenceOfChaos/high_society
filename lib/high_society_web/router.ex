@@ -52,6 +52,9 @@ defmodule HighSocietyWeb.Router do
       live "/games/blackjack", GameLive.Blackjack, :show
       live "/games/poker", GameLive.PokerLobby, :index
       live "/games/poker/:slug", GameLive.PokerTable, :show
+      live "/games/battleship", GameLive.Battleship, :show
+      live "/games/battleship/lobby", GameLive.BattleshipLobby, :index
+      live "/games/battleship/lobby/:slug", GameLive.BattleshipMatch, :show
     end
 
     post "/users/update-password", UserSessionController, :update_password

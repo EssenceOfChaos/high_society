@@ -19,6 +19,8 @@ defmodule HighSociety.Application do
       HighSocietyWeb.Presence,
       {Registry, keys: :unique, name: HighSociety.Games.PokerRegistry},
       HighSociety.Games.PokerTablesSupervisor,
+      {Registry, keys: :unique, name: HighSociety.Games.BattleshipRegistry},
+      HighSociety.Games.BattleshipMatchesSupervisor,
       # Start to serve requests, typically the last entry
       HighSocietyWeb.Endpoint
     ]
@@ -34,6 +36,13 @@ defmodule HighSociety.Application do
       # GenServer that's a sibling in this same tree, not an ancestor.
       if HighSociety.Games.PokerBots.enabled?(),
         do: Task.start(&HighSociety.Games.PokerBots.maintain!/0)
+
+      # Unlike Poker's fixed tables, a dynamically-supervised Battleship
+      # match isn't restarted automatically by the supervision tree - see
+      # `HighSociety.Games.BattleshipMatchesSupervisor`. Off a separate
+      # process for the same non-blocking-boot reason as the bot seeding
+      # above.
+      Task.start(&HighSociety.Games.BattleshipMatchesSupervisor.rehydrate_in_flight_matches!/0)
 
       ok
     end
