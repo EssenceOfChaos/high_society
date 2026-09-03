@@ -8,6 +8,8 @@ on:
 
 permissions:
   contents: read
+  # Required to upload findings to the GitHub Security tab
+  security-events: write
 
 jobs:
   sobelow:
@@ -21,8 +23,8 @@ jobs:
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: "1.20.3" # Match your Elixir version
-          otp-version: "29.0" # Match your OTP version
+          elixir-version: "1.20.3"
+          otp-version: "29"
 
       - name: Restore dependencies cache
         uses: actions/cache@v4
@@ -35,7 +37,12 @@ jobs:
       - name: Install dependencies
         run: mix deps.get
 
-      - name: Run Sobelow Scan
-        # --exit low: Fails the build on Low, Medium, or High findings
-        # --private: Skips checking Hex for newer Sobelow versions (safer for CI)
-        run: mix sobelow --exit low --private
+      - name: Run Sobelow Scan & Export SARIF
+        # Note: We remove "--exit low" here so the workflow doesn't fail
+        # before the next step has a chance to upload the SARIF report.
+        run: mix sobelow --format sarif --out results.sarif --private
+
+      - name: Upload SARIF report
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: results.sarif
