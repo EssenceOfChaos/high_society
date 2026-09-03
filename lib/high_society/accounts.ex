@@ -192,6 +192,40 @@ defmodule HighSociety.Accounts do
     if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :already_claimed}
   end
 
+  @doc """
+  Records that the user was active today, for badge progression. Atomic and
+  idempotent - calling it more than once on the same UTC day is a no-op, so
+  it's safe to call on every authenticated page load.
+
+  ## Examples
+
+      iex> record_activity(user)
+      %User{active_days_count: 4, last_active_on: ~D[2026-09-03]}
+
+  """
+  @spec record_activity(User.t()) :: User.t()
+  def record_activity(%User{} = user) do
+    today = Date.utc_today()
+
+    {count, _} =
+      Repo.update_all(
+        from(u in User,
+          where: u.id == ^user.id and (is_nil(u.last_active_on) or u.last_active_on != ^today)
+        ),
+        inc: [active_days_count: 1],
+        set: [last_active_on: today]
+      )
+
+    # Patch the struct in place rather than reloading from the database:
+    # a reload would drop virtual fields like `authenticated_at` that the
+    # caller's session-token lookup set, which `sudo_mode?/2` depends on.
+    if count == 1 do
+      %{user | active_days_count: user.active_days_count + 1, last_active_on: today}
+    else
+      user
+    end
+  end
+
   ## User registration
 
   @doc """

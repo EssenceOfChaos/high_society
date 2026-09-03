@@ -48,6 +48,7 @@ defmodule HighSocietyWeb.Router do
       on_mount: [{HighSocietyWeb.UserAuth, :require_authenticated}] do
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
+      live "/badges", BadgesLive, :index
       live "/games/war", GameLive.War, :show
       live "/games/blackjack", GameLive.Blackjack, :show
       live "/games/poker", GameLive.PokerLobby, :index

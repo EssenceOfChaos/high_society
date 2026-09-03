@@ -93,6 +93,42 @@ defmodule HighSociety.AccountsTest do
     end
   end
 
+  describe "record_activity/1" do
+    test "starts a brand new user at zero active days" do
+      user = user_fixture()
+      assert user.active_days_count == 0
+      assert user.last_active_on == nil
+    end
+
+    test "counts the first active day" do
+      user = user_fixture()
+      updated = Accounts.record_activity(user)
+
+      assert updated.active_days_count == 1
+      assert updated.last_active_on == Date.utc_today()
+    end
+
+    test "is idempotent within the same day" do
+      user = user_fixture()
+      Accounts.record_activity(user)
+      Accounts.record_activity(user)
+
+      assert Accounts.get_user!(user.id).active_days_count == 1
+    end
+
+    test "counts a new day again once last_active_on has moved on" do
+      user = user_fixture()
+
+      user
+      |> Ecto.Changeset.change(active_days_count: 1, last_active_on: ~D[2000-01-01])
+      |> HighSociety.Repo.update!()
+
+      updated = Accounts.record_activity(Accounts.get_user!(user.id))
+      assert updated.active_days_count == 2
+      assert updated.last_active_on == Date.utc_today()
+    end
+  end
+
   describe "register_user/1" do
     test "requires email to be set" do
       {:error, changeset} = Accounts.register_user(%{})

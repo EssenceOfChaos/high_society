@@ -49,7 +49,10 @@
   <body>
     <ul class="menu menu-horizontal w-full relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end">
       <%= if @current_scope do %>
-        <li>
+        <li class="flex flex-row items-center gap-2">
+          <.link navigate={~p"/badges"} class="flex">
+            <.player_badge active_days_count={@current_scope.user.active_days_count} />
+          </.link>
           {@current_scope.user.email}
         </li>
         <li>

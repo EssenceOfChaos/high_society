@@ -247,7 +247,8 @@ defmodule HighSocietyWeb.UserAuth do
   end
 
   defp mount_current_scope(socket, session) do
-    Phoenix.Component.assign_new(socket, :current_scope, fn ->
+    socket
+    |> Phoenix.Component.assign_new(:current_scope, fn ->
       {user, _} =
         if user_token = session["user_token"] do
           Accounts.get_user_by_session_token(user_token)
@@ -255,6 +256,25 @@ defmodule HighSocietyWeb.UserAuth do
 
       Scope.for_user(user)
     end)
+    |> maybe_record_activity()
+  end
+
+  # Bumps the user's active-days streak (used for badge progression) once
+  # the LiveView has actually connected, so a disconnected/connected mount
+  # pair doesn't double-count and every authenticated page - present and
+  # future - tracks activity without needing its own instrumentation.
+  defp maybe_record_activity(socket) do
+    if Phoenix.LiveView.connected?(socket) do
+      case socket.assigns.current_scope do
+        %Scope{user: %Accounts.User{} = user} ->
+          Phoenix.Component.assign(socket, :current_scope, Scope.for_user(Accounts.record_activity(user)))
+
+        _ ->
+          socket
+      end
+    else
+      socket
+    end
   end
 
   @doc "Returns the path to redirect to after log in."

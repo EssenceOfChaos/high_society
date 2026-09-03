@@ -7,3 +7,4 @@ alias HighSociety.Games.Blackjack
 alias HighSociety.Games.BlackjackGame
 alias HighSociety.Games.War
 alias HighSociety.Games.WarGame
+alias HighSociety.Badges

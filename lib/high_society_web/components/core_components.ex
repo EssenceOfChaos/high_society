@@ -510,6 +510,37 @@ defmodule HighSocietyWeb.CoreComponents do
     """
   end
 
+  @doc """
+  Renders a player's badge icon, resolved from their `active_days_count`,
+  with a tooltip revealing the badge name on hover.
+
+  `tooltip_position` picks which daisyUI tooltip side to open - the default
+  `"tooltip-bottom"` suits the top navbar (an upward tooltip there would
+  open off the top of the viewport); pass `"tooltip-top"` for a badge
+  placed lower on the page.
+
+  ## Examples
+
+      <.player_badge active_days_count={@current_scope.user.active_days_count} />
+  """
+  attr :active_days_count, :integer, required: true
+  attr :class, :string, default: "size-8"
+  attr :tooltip_position, :string, default: "tooltip-bottom"
+
+  def player_badge(assigns) do
+    assigns = assign(assigns, :badge, HighSociety.Badges.for_active_days(assigns.active_days_count))
+
+    ~H"""
+    <span class={["tooltip", @tooltip_position]} data-tip={@badge.name}>
+      <img
+        src={"/images/badges/#{@badge.slug}.png"}
+        alt={@badge.name}
+        class={["inline-block object-contain align-middle", @class]}
+      />
+    </span>
+    """
+  end
+
   defp card_split(card) do
     suit = String.last(card)
     rank = String.slice(card, 0, String.length(card) - 1)
