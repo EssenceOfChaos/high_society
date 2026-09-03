@@ -1,41 +1,41 @@
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
-#
-# Sobelow is a security-focused static analysis tool for the Phoenix framework. https://sobelow.io/
-#
-# To use this workflow, you must have GitHub Advanced Security (GHAS) enabled for your repository.
-#
-# Instructions:
-# 2. Follow the annotated workflow below and make any necessary modifications then save the workflow to your repository
-#    and review the "Security" tab once the action has run.
-name: Sobelow
+name: Security Scan
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
-  schedule:
-    - cron: '40 18 * * 2'
+    branches: ["main"]
 
 permissions:
   contents: read
 
 jobs:
-  security-scan:
-    permissions:
-      contents: read # for actions/checkout to fetch code
-      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
-      actions: read # only required for a private repository by github/codeql-action/upload-sarif to get the Action run status
+  sobelow:
+    name: Run Sobelow
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-      - id: run-action
-        uses: sobelow/action@1afd6d2cae70ae8bd900b58506f54487ed863912
-      - name: Upload report
-        uses: github/codeql-action/upload-sarif@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
         with:
-          sarif_file: results.sarif
+          elixir-version: "1.20.3" # Match your Elixir version
+          otp-version: "29.0" # Match your OTP version
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run Sobelow Scan
+        # --exit low: Fails the build on Low, Medium, or High findings
+        # --private: Skips checking Hex for newer Sobelow versions (safer for CI)
+        run: mix sobelow --exit low --private
