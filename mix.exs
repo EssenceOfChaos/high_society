@@ -67,7 +67,8 @@ defmodule HighSociety.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
-      {:dotenv_parser, "~> 2.0"}
+      {:dotenv_parser, "~> 2.0"},
+      {:sobelow, "~> 0.15", only: [:dev], runtime: false}
     ]
   end
 
