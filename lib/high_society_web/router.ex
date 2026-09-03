@@ -9,8 +9,11 @@ defmodule HighSocietyWeb.Router do
     plug :fetch_live_flash
     plug :put_root_layout, html: {HighSocietyWeb.Layouts, :root}
     plug :protect_from_forgery
-    plug :put_secure_browser_headers
     plug :fetch_current_scope_for_user
+    # Update this plug to include your Content-Security-Policy
+    plug :put_secure_browser_headers, %{
+      "content-security-policy" => "default-src 'self'; script-src 'self'; style-src 'self';"
+    }
   end
 
   pipeline :api do
