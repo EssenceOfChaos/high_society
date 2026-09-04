@@ -85,8 +85,8 @@ defmodule HighSocietyWeb.DashboardLive do
         <div class="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <div :for={game <- @games} id={"game-card-#{game.slug}"} class="group relative">
             <div class={[
-              "absolute inset-0 rounded-box bg-gradient-to-br opacity-0 blur transition-opacity duration-300",
-              game.available && "group-hover:opacity-20",
+              "absolute -inset-1 rounded-box bg-gradient-to-br opacity-0 blur-lg transition-opacity duration-300",
+              game.available && "group-hover:opacity-40",
               game.accent
             ]} />
             <div class="relative flex h-full flex-col rounded-box border border-base-300 bg-base-100 p-6 shadow-sm transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-lg">

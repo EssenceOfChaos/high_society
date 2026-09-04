@@ -500,15 +500,16 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
                 id="rebet-button"
                 type="button"
                 phx-click="rebet"
-                class="btn btn-lg animate-pulse border-none bg-amber-500 px-12 text-amber-950 hover:bg-amber-400"
+                class="btn btn-lg animate-pulse gap-2 border-none bg-amber-500 px-12 text-amber-950 hover:bg-amber-400"
               >
+                <span class="blackjack-action-icon blackjack-action-icon-rebet size-5"></span>
                 Rebet
               </button>
               <button
                 id="change-bet-button"
                 type="button"
                 phx-click="change_bet"
-                class="btn btn-lg btn-outline px-12"
+                class="btn btn-lg border border-amber-100/50 bg-transparent px-12 text-amber-100 hover:bg-amber-100/10 hover:text-amber-50"
               >
                 Change bet
               </button>
@@ -699,21 +700,23 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
       >
         {outcome_message(@hand)}
       </p>
-      <div :if={@active? && @status == "player_turn"} class="mt-2 flex gap-2">
+      <div :if={@active? && @status == "player_turn"} class="mt-3 flex flex-wrap justify-center gap-3">
         <button
           id={"hit-button-#{@hand["id"]}"}
           type="button"
           phx-click="hit"
-          class="btn btn-sm border-none bg-emerald-600 text-white hover:bg-emerald-500"
+          class="btn btn-md gap-2 border-none bg-emerald-600 text-white hover:bg-emerald-500"
         >
+          <span class="blackjack-action-icon blackjack-action-icon-hit size-5"></span>
           Hit
         </button>
         <button
           id={"stand-button-#{@hand["id"]}"}
           type="button"
           phx-click="stand"
-          class="btn btn-sm border-none bg-red-700 text-white hover:bg-red-600"
+          class="btn btn-md gap-2 border-none bg-red-700 text-white hover:bg-red-600"
         >
+          <span class="blackjack-action-icon blackjack-action-icon-stand size-5"></span>
           Stand
         </button>
         <button
@@ -721,8 +724,9 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
           id={"double-button-#{@hand["id"]}"}
           type="button"
           phx-click="double_down"
-          class="btn btn-sm border-none bg-indigo-600 text-white hover:bg-indigo-500"
+          class="btn btn-md gap-2 border-none bg-indigo-600 text-white hover:bg-indigo-500"
         >
+          <span class="blackjack-action-icon blackjack-action-icon-double size-5"></span>
           Double
         </button>
         <button
@@ -730,8 +734,9 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
           id={"split-button-#{@hand["id"]}"}
           type="button"
           phx-click="split"
-          class="btn btn-sm border-none bg-amber-600 text-white hover:bg-amber-500"
+          class="btn btn-md gap-2 border-none bg-amber-600 text-white hover:bg-amber-500"
         >
+          <span class="blackjack-action-icon blackjack-action-icon-split size-5"></span>
           Split
         </button>
       </div>

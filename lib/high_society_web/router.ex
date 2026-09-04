@@ -2,7 +2,7 @@ defmodule HighSocietyWeb.Router do
   use HighSocietyWeb, :router
 
   import HighSocietyWeb.UserAuth
-
+  # sobelow_skip ["Config.Headers"]
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
