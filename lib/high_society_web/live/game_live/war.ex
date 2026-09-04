@@ -269,8 +269,10 @@ defmodule HighSocietyWeb.GameLive.War do
       </div>
       <div class="mt-1.5 flex h-3 w-full overflow-hidden rounded-full bg-base-300">
         <div
+          id="status-bar-fill"
           class="h-full bg-primary transition-all duration-500 ease-out"
-          style={"width: #{@player_pct}%"}
+          phx-hook=".InlineStyle"
+          data-style={"width: #{@player_pct}%"}
         />
         <div class="h-full flex-1 bg-error/70 transition-all duration-500 ease-out" />
       </div>
@@ -278,6 +280,13 @@ defmodule HighSocietyWeb.GameLive.War do
         {status_message(@player_pct)}
       </p>
     </div>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".InlineStyle">
+      export default {
+        mounted() { this.el.style.cssText = this.el.dataset.style },
+        updated() { this.el.style.cssText = this.el.dataset.style }
+      }
+    </script>
     """
   end
 

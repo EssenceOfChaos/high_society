@@ -160,6 +160,44 @@ defmodule HighSocietyWeb.GameLive.BlackjackTest do
     refute has_element?(view, "#split-button-0")
   end
 
+  test "the dealer's hole card is never sent to the client during the player's turn", %{
+    conn: conn,
+    scope: scope
+  } do
+    {:ok, user} = Accounts.claim_starting_chips(scope.user)
+    scope = %{scope | user: user}
+    {:ok, game} = Games.start_blackjack_round(scope, %{0 => 25})
+
+    # rig a deterministic dealer hand - the up card ("10H") should be
+    # visible, the hole card ("7D") must not appear anywhere in the
+    # rendered HTML (and therefore not in the LiveView diff sent over the
+    # socket) while it's still face-down.
+    game
+    |> Games.BlackjackGame.changeset(%{
+      status: "player_turn",
+      hands: [
+        %{
+          "id" => 0,
+          "box" => 0,
+          "bet" => 25,
+          "cards" => ["6H", "5D"],
+          "status" => "active",
+          "outcome" => nil,
+          "payout" => nil
+        }
+      ],
+      active_hand: 0,
+      dealer_hand: ["10H", "7D"]
+    })
+    |> HighSociety.Repo.update!()
+
+    {:ok, view, _html} = live(conn, ~p"/games/blackjack")
+
+    html = render(view)
+    assert html =~ ~s(alt="10H")
+    refute html =~ ~s(alt="7D")
+  end
+
   test "double down doubles the bet, draws exactly one card, and ends the hand's turn", %{
     conn: conn,
     scope: scope

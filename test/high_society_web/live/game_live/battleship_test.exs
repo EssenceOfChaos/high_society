@@ -54,6 +54,26 @@ defmodule HighSocietyWeb.GameLive.BattleshipTest do
     assert html =~ "M0,8 L48,8"
   end
 
+  test "the computer's unsunk ships are never sent to the client", %{conn: conn, user: user} do
+    {:ok, _user} = Accounts.adjust_balance(user, 1000)
+    {:ok, view, _html} = live(conn, ~p"/games/battleship")
+
+    view |> element("form[phx-submit='start_game']") |> render_submit(%{"wager" => "100"})
+    view |> element("button", "Randomize") |> render_click()
+    view |> element("button", "Ready") |> render_click()
+
+    # No shots have landed yet, so none of the computer's ships are sunk -
+    # the unsunk-ship hull color ("#778da9", see battleship_components.ex)
+    # must not appear anywhere under #enemy-board. It legitimately appears
+    # under #my-board, which proves this isn't a vacuous assertion (e.g.
+    # broken color/selector).
+    my_board_html = view |> element("#my-board") |> render()
+    enemy_board_html = view |> element("#enemy-board") |> render()
+
+    assert my_board_html =~ "#778da9"
+    refute enemy_board_html =~ "#778da9"
+  end
+
   test "clearing placement empties the board so ships can be re-placed", %{conn: conn, user: user} do
     {:ok, _user} = Accounts.adjust_balance(user, 1000)
     {:ok, view, _html} = live(conn, ~p"/games/battleship")

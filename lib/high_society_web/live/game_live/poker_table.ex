@@ -291,9 +291,10 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
             :if={pot_total(@state.hand) > 0}
             id="pot-chips"
             class="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 transition-all duration-700 ease-out"
-            style={"top: #{pot_chip_position(@state.hand).top}%; left: #{pot_chip_position(@state.hand).left}%;"}
+            phx-hook=".InlineStyle"
+            data-style={"top: #{pot_chip_position(@state.hand).top}%; left: #{pot_chip_position(@state.hand).left}%;"}
           >
-            <.chip_stack amount={pot_total(@state.hand)} chip_size="size-7" />
+            <.chip_stack id="pot-chips-stack" amount={pot_total(@state.hand)} chip_size="size-7" />
             <div class="rounded-full bg-black/50 px-4 py-1 text-sm font-semibold text-amber-200">
               Pot: ${format_money(pot_total(@state.hand))}
             </div>
@@ -314,6 +315,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
 
           <.bet_chips
             :for={{seat_index, amount} <- active_bets(@state.hand)}
+            id={"bet-chips-#{seat_index}"}
             position={bet_chip_position(seat_index)}
             amount={amount}
           />
@@ -584,6 +586,13 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
           }
         }
       </script>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".InlineStyle">
+        export default {
+          mounted() { this.el.style.cssText = this.el.dataset.style },
+          updated() { this.el.style.cssText = this.el.dataset.style }
+        }
+      </script>
     </Layouts.app>
     """
   end
@@ -603,7 +612,8 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     <div
       id={"seat-#{@seat_index}"}
       class="absolute flex w-28 -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
-      style={"top: #{@position.top}%; left: #{@position.left}%;"}
+      phx-hook=".InlineStyle"
+      data-style={"top: #{@position.top}%; left: #{@position.left}%;"}
     >
       <button
         :if={!@my_seat_taken?}
@@ -656,7 +666,8 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
         @acting? && "bg-amber-400/10 ring-2 ring-amber-400",
         @folded? && "opacity-40"
       ]}
-      style={"top: #{@position.top}%; left: #{@position.left}%;"}
+      phx-hook=".InlineStyle"
+      data-style={"top: #{@position.top}%; left: #{@position.left}%;"}
     >
       <div class="flex items-center gap-1 text-xs font-semibold text-white">
         <span
@@ -690,6 +701,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     """
   end
 
+  attr :id, :string, required: true
   attr :position, :map, required: true
   attr :amount, :integer, required: true
 
@@ -700,10 +712,12 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   defp bet_chips(assigns) do
     ~H"""
     <div
+      id={@id}
       class="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
-      style={"top: #{@position.top}%; left: #{@position.left}%;"}
+      phx-hook=".InlineStyle"
+      data-style={"top: #{@position.top}%; left: #{@position.left}%;"}
     >
-      <.chip_stack amount={@amount} chip_size="size-5" />
+      <.chip_stack id={"#{@id}-stack"} amount={@amount} chip_size="size-5" />
       <span class="rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
         ${format_money(@amount)}
       </span>
@@ -711,6 +725,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     """
   end
 
+  attr :id, :string, required: true
   attr :amount, :integer, required: true
   attr :chip_size, :string, required: true
 
@@ -722,12 +737,14 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     <div class="relative flex h-8 w-8 items-end justify-center">
       <div
         :for={i <- 0..(chip_count(@amount) - 1)}
+        id={"#{@id}-chip-#{i}"}
         class={[
           "absolute rounded-full border-2 border-dashed shadow",
           @chip_size,
           chip_tier_color(@amount)
         ]}
-        style={"bottom: #{i * 4}px;"}
+        phx-hook=".InlineStyle"
+        data-style={"bottom: #{i * 4}px;"}
       />
     </div>
     """

@@ -10,14 +10,25 @@ defmodule HighSocietyWeb.Router do
     plug :put_root_layout, html: {HighSocietyWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :fetch_current_scope_for_user
-    # Update this plug to include your Content-Security-Policy
-    plug :put_secure_browser_headers, %{
-      "content-security-policy" => "default-src 'self'; script-src 'self'; style-src 'self';"
-    }
+    plug :put_csp_headers
   end
 
   pipeline :api do
     plug :accepts, ["json"]
+  end
+
+  # heroicons are compiled into app.css as CSS `mask-image` data: URIs, which the
+  # `img-src` directive governs; the inline theme script in root.html.heex needs a
+  # per-request nonce since `script-src` has no 'unsafe-inline'.
+  defp put_csp_headers(conn, _opts) do
+    nonce = Base.encode64(:crypto.strong_rand_bytes(16))
+
+    conn
+    |> assign(:csp_nonce, nonce)
+    |> put_secure_browser_headers(%{
+      "content-security-policy" =>
+        "default-src 'self'; script-src 'self' 'nonce-#{nonce}'; style-src 'self'; img-src 'self' data:;"
+    })
   end
 
   # Other scopes may use custom stacks.

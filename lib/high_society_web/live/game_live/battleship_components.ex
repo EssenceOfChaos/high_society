@@ -19,6 +19,8 @@ defmodule HighSocietyWeb.GameLive.BattleshipComponents do
   alias HighSociety.Games.Battleship
 
   @columns ~w(A B C D E F G H I J)
+  # Kept in sync by hand with the `grid-cols-[...]` literal below - Tailwind's
+  # class scanner needs the literal utility name, so it can't read this value.
   @board_size Battleship.board_size()
 
   @hull_color "#778da9"
@@ -38,8 +40,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipComponents do
     ~H"""
     <div
       id={@id}
-      class="inline-grid"
-      style={"grid-template-columns: 1.25rem repeat(#{board_size()}, 1.75rem);"}
+      class="inline-grid grid-cols-[1.25rem_repeat(10,1.75rem)]"
       phx-hook=".PlacementPreview"
       data-preview-length={@preview_length}
       data-orientation={@preview_orientation}
@@ -125,12 +126,10 @@ defmodule HighSocietyWeb.GameLive.BattleshipComponents do
     ~H"""
     <svg
       viewBox="0 0 64 64"
-      class="pointer-events-none absolute inset-0"
-      style={
-        if @segment.horizontal?,
-          do: "",
-          else: "transform: rotate(90deg); transform-origin: 50% 50%;"
-      }
+      class={[
+        "pointer-events-none absolute inset-0",
+        !@segment.horizontal? && "rotate-90"
+      ]}
     >
       <g :if={@segment.part == :bow}>
         <path

@@ -119,6 +119,48 @@ defmodule HighSocietyWeb.GameLive.PokerTableLiveTest do
     assert has_element?(view1, "#pot-chips")
   end
 
+  test "a player never receives an opponent's hole cards while a hand is in progress", %{
+    conn: conn,
+    user: user1
+  } do
+    {:ok, _} = Accounts.adjust_balance(user1, 1000)
+    {:ok, view1, _html} = live(conn, ~p"/games/poker/#{@slug}")
+    view1 |> element("#seat-0 button", "Join") |> render_click()
+    view1 |> element("#buy-in-slider") |> render_change(%{"amount" => "100"})
+    view1 |> element("#join-modal form") |> render_submit()
+
+    user2 = HighSociety.AccountsFixtures.user_fixture()
+    {:ok, _} = Accounts.adjust_balance(user2, 1000)
+    conn2 = Phoenix.ConnTest.build_conn() |> log_in_user(user2)
+    {:ok, view2, _html} = live(conn2, ~p"/games/poker/#{@slug}")
+    view2 |> element("#seat-1 button", "Join") |> render_click()
+    view2 |> element("#buy-in-slider") |> render_change(%{"amount" => "100"})
+    view2 |> element("#join-modal form") |> render_submit()
+
+    hand = HighSociety.Games.PokerTable.get_state(@slug).hand
+    assert hand.status == :in_progress
+
+    seat0_cards = hand.seats[0].hole_cards
+    seat1_cards = hand.seats[1].hole_cards
+    assert length(seat0_cards) == 2
+    assert length(seat1_cards) == 2
+
+    html1 = render(view1)
+    html2 = render(view2)
+
+    # Each player sees their own hole cards...
+    for card <- seat0_cards, do: assert(html1 =~ ~s(alt="#{card}"))
+    for card <- seat1_cards, do: assert(html2 =~ ~s(alt="#{card}"))
+
+    # ...but never the raw value of an opponent's face-down cards - the
+    # server must omit them from that viewer's render entirely rather than
+    # relying on CSS to hide them, since the rendered HTML (and the
+    # LiveView diffs sent over the socket) are visible in the browser's
+    # Network tab regardless of what's painted on screen.
+    for card <- seat1_cards, do: refute(html1 =~ ~s(alt="#{card}"))
+    for card <- seat0_cards, do: refute(html2 =~ ~s(alt="#{card}"))
+  end
+
   test "leaving the table cashes the stack back out", %{conn: conn, user: user} do
     {:ok, _user} = Accounts.adjust_balance(user, 1000)
     {:ok, view, _html} = live(conn, ~p"/games/poker/#{@slug}")

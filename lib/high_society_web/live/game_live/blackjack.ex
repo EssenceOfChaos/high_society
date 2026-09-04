@@ -458,10 +458,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
         </div>
 
         <div :if={!betting?(assigns)} id="blackjack-table" class="mt-8">
-          <div
-            class="relative flex flex-col items-center gap-2 rounded-t-2xl bg-cover bg-top px-4 pb-6 pt-6 shadow-xl"
-            style="background-image: url(/images/blackjack-felt.png);"
-          >
+          <div class="relative flex flex-col items-center gap-2 rounded-t-2xl bg-cover bg-top bg-[url(/images/blackjack-felt.png)] px-4 pb-6 pt-6 shadow-xl">
             <span class="flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-100 shadow">
               Dealer<span :if={@blackjack_game.status != "player_turn"}>
                 — {Blackjack.value(@blackjack_game.dealer_hand)}
