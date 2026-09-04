@@ -1,4 +1,5 @@
 ![Build Status](https://github.com/EssenceOfChaos/high_society/actions/workflows/elixir.yml/badge.svg)
+![Sobelow Checked](https://github.com/EssenceOfChaos/high_society/actions/workflows/sobelow.yml/badge.svg)
 
 # HighSociety
 
