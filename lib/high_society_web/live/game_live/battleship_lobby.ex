@@ -5,8 +5,9 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobby do
   alias HighSociety.Accounts.Scope
   alias HighSociety.Games.BattleshipMatch
   alias HighSociety.Games.BattleshipMatches
+  alias HighSociety.Money
 
-  @wager_options [50, 100, 250, 500]
+  @wager_options [5_000, 10_000, 25_000, 50_000]
 
   @impl true
   def mount(_params, _session, socket) do
@@ -83,7 +84,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobby do
                 Balance
               </div>
               <div id="balance" class="text-lg font-bold">
-                ${format_money(@current_scope.user.balance)}
+                ${Money.format(@current_scope.user.balance)}
               </div>
             </div>
             <button
@@ -93,7 +94,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobby do
               phx-click="claim_starting_chips"
               class="btn btn-success btn-sm animate-pulse"
             >
-              Claim {Accounts.battleship_starting_chip_amount()} chips
+              Claim ${Money.format(Accounts.battleship_starting_chip_amount())} chips
             </button>
           </div>
         </div>
@@ -111,7 +112,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobby do
 
         <form phx-submit="create_match" class="mt-6 flex items-center gap-2">
           <select name="wager" class="select select-bordered">
-            <option :for={amount <- @wager_options} value={amount}>${amount}</option>
+            <option :for={amount <- @wager_options} value={amount}>${Money.format(amount)}</option>
           </select>
           <button type="submit" class="btn btn-primary">Create match</button>
         </form>
@@ -128,7 +129,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobby do
             class="flex items-center justify-between rounded-box border border-base-300 bg-base-100 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
           >
             <div>
-              <p class="font-semibold">${match.wager} wager</p>
+              <p class="font-semibold">${Money.format(match.wager)} wager</p>
               <p class="text-sm text-base-content/60">{status_label(match.status)}</p>
             </div>
             <span class="flex items-center gap-1.5 rounded-full bg-base-200 px-3 py-1 text-sm font-semibold">
@@ -145,12 +146,4 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobby do
   defp status_label("placing_fleets"), do: "Placing fleets"
   defp status_label(status) when status in ["player_turn", "opponent_turn"], do: "In progress"
   defp status_label(status), do: status
-
-  defp format_money(amount) when is_integer(amount) do
-    amount
-    |> Integer.to_string()
-    |> String.reverse()
-    |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
-    |> String.reverse()
-  end
 end

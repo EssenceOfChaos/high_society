@@ -19,7 +19,7 @@ defmodule HighSocietyWeb.GameLive.PokerLobbyTest do
     {:ok, view, _html} = live(conn, ~p"/games/poker")
 
     assert has_element?(view, "#poker-table-new-york", "New York")
-    assert has_element?(view, "#poker-table-new-york", "Blinds $1 / $2")
+    assert has_element?(view, "#poker-table-new-york", "Blinds $1.00 / $2.00")
     assert has_element?(view, "#poker-table-new-york", "0 / 8 seated")
     assert has_element?(view, "#poker-table-paris", "Paris")
     assert has_element?(view, "#poker-table-london", "London")

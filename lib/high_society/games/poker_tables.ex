@@ -7,10 +7,11 @@ defmodule HighSociety.Games.PokerTables do
   stakes and its buy-in range can never drift apart.
   """
 
+  # blinds (and everything derived from them) are integer cents ($1.00 = 100)
   @tables [
-    %{slug: "new-york", name: "New York", small_blind: 1, big_blind: 2},
-    %{slug: "paris", name: "Paris", small_blind: 2, big_blind: 4},
-    %{slug: "london", name: "London", small_blind: 5, big_blind: 10}
+    %{slug: "new-york", name: "New York", small_blind: 100, big_blind: 200},
+    %{slug: "paris", name: "Paris", small_blind: 200, big_blind: 400},
+    %{slug: "london", name: "London", small_blind: 500, big_blind: 1_000}
   ]
 
   @seats 8

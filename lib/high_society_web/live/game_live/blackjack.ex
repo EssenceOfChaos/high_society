@@ -5,6 +5,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
   alias HighSociety.Accounts.Scope
   alias HighSociety.Games
   alias HighSociety.Games.Blackjack
+  alias HighSociety.Money
 
   @impl true
   def mount(_params, _session, socket) do
@@ -387,7 +388,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
                 Balance
               </div>
               <div id="balance" class="text-lg font-bold">
-                ${format_money(@current_scope.user.balance)}
+                ${Money.format(@current_scope.user.balance)}
               </div>
             </div>
             <button
@@ -397,7 +398,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
               phx-click="claim_starting_chips"
               class="btn btn-success btn-sm animate-pulse"
             >
-              Claim ${format_money(Accounts.starting_chip_amount())}
+              Claim ${Money.format(Accounts.starting_chip_amount())}
             </button>
             <button
               id="sound-toggle-button"
@@ -435,7 +436,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
           </div>
 
           <p class="mt-4 text-center text-xs text-base-content/50">
-            Max ${format_money(Blackjack.max_bet())} per hand.
+            Max ${Money.format(Blackjack.max_bet())} per hand.
           </p>
 
           <div class="mt-6 flex flex-col items-center gap-2">
@@ -502,8 +503,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
                 phx-click="rebet"
                 class="btn btn-lg animate-pulse gap-2 border-none bg-amber-500 px-12 text-amber-950 hover:bg-amber-400"
               >
-                <span class="blackjack-action-icon blackjack-action-icon-rebet size-5"></span>
-                Rebet
+                <span class="blackjack-action-icon blackjack-action-icon-rebet size-5"></span> Rebet
               </button>
               <button
                 id="change-bet-button"
@@ -620,7 +620,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
       <span class="text-xs font-semibold uppercase tracking-wide text-base-content/50">
         Hand {@box + 1}
       </span>
-      <div id={"bet-amount-#{@box}"} class="text-2xl font-bold">${format_money(@amount)}</div>
+      <div id={"bet-amount-#{@box}"} class="text-2xl font-bold">${Money.format(@amount)}</div>
       <div class="flex flex-wrap justify-center gap-2">
         <button
           :for={chip <- chip_values()}
@@ -634,7 +634,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
             chip_color(chip)
           ]}
         >
-          ${chip}
+          ${Money.format(chip)}
         </button>
       </div>
       <button
@@ -651,10 +651,10 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
     """
   end
 
-  defp chip_color(5), do: "border-neutral-400 bg-neutral-100 text-neutral-900"
-  defp chip_color(25), do: "border-red-300 bg-red-600 text-white"
-  defp chip_color(100), do: "border-neutral-600 bg-neutral-900 text-white"
-  defp chip_color(500), do: "border-amber-300 bg-amber-500 text-amber-950"
+  defp chip_color(500), do: "border-neutral-400 bg-neutral-100 text-neutral-900"
+  defp chip_color(2_500), do: "border-red-300 bg-red-600 text-white"
+  defp chip_color(10_000), do: "border-neutral-600 bg-neutral-900 text-white"
+  defp chip_color(50_000), do: "border-amber-300 bg-amber-500 text-amber-950"
 
   attr :hand, :map, required: true
   attr :label, :string, required: true
@@ -681,7 +681,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
           <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
           <span class="relative inline-flex size-2 rounded-full bg-amber-500"></span>
         </span>
-        {@label} — Bet ${format_money(@hand["bet"])}{if @hand["doubled"], do: " (doubled)"} — {Blackjack.value(
+        {@label} — Bet ${Money.format(@hand["bet"])}{if @hand["doubled"], do: " (doubled)"} — {Blackjack.value(
           @hand["cards"]
         )}
       </span>
@@ -707,8 +707,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
           phx-click="hit"
           class="btn btn-md gap-2 border-none bg-emerald-600 text-white hover:bg-emerald-500"
         >
-          <span class="blackjack-action-icon blackjack-action-icon-hit size-5"></span>
-          Hit
+          <span class="blackjack-action-icon blackjack-action-icon-hit size-5"></span> Hit
         </button>
         <button
           id={"stand-button-#{@hand["id"]}"}
@@ -716,8 +715,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
           phx-click="stand"
           class="btn btn-md gap-2 border-none bg-red-700 text-white hover:bg-red-600"
         >
-          <span class="blackjack-action-icon blackjack-action-icon-stand size-5"></span>
-          Stand
+          <span class="blackjack-action-icon blackjack-action-icon-stand size-5"></span> Stand
         </button>
         <button
           :if={@can_double_down?}
@@ -726,8 +724,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
           phx-click="double_down"
           class="btn btn-md gap-2 border-none bg-indigo-600 text-white hover:bg-indigo-500"
         >
-          <span class="blackjack-action-icon blackjack-action-icon-double size-5"></span>
-          Double
+          <span class="blackjack-action-icon blackjack-action-icon-double size-5"></span> Double
         </button>
         <button
           :if={@can_split?}
@@ -736,8 +733,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
           phx-click="split"
           class="btn btn-md gap-2 border-none bg-amber-600 text-white hover:bg-amber-500"
         >
-          <span class="blackjack-action-icon blackjack-action-icon-split size-5"></span>
-          Split
+          <span class="blackjack-action-icon blackjack-action-icon-split size-5"></span> Split
         </button>
       </div>
     </div>
@@ -779,34 +775,26 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
   defp original_bet(%{"doubled" => true, "bet" => bet}), do: div(bet, 2)
   defp original_bet(%{"bet" => bet}), do: bet
 
-  defp chip_values, do: [5, 25, 100, 500]
+  defp chip_values, do: [500, 2_500, 10_000, 50_000]
 
   defp total_bet(pending_bets), do: pending_bets |> Map.values() |> Enum.sum()
 
   defp bet_error_message(:no_bets), do: "Place a bet on at least one box before dealing."
 
   defp bet_error_message(:bet_too_large),
-    do: "Max bet is $#{format_money(Blackjack.max_bet())} per box."
+    do: "Max bet is $#{Money.format(Blackjack.max_bet())} per box."
 
   defp bet_error_message(:insufficient_funds), do: "You don't have enough chips for that bet."
 
   defp outcome_message(%{"outcome" => "blackjack_win", "payout" => payout}),
-    do: "Blackjack! +$#{format_money(payout)}"
+    do: "Blackjack! +$#{Money.format(payout)}"
 
   defp outcome_message(%{"outcome" => "win", "payout" => payout}),
-    do: "Win +$#{format_money(payout)}"
+    do: "Win +$#{Money.format(payout)}"
 
   defp outcome_message(%{"outcome" => "push", "payout" => payout}),
-    do: "Push — $#{format_money(payout)} returned"
+    do: "Push — $#{Money.format(payout)} returned"
 
   defp outcome_message(%{"outcome" => "loss"}), do: "Loss"
   defp outcome_message(_hand), do: nil
-
-  defp format_money(amount) when is_integer(amount) do
-    amount
-    |> Integer.to_string()
-    |> String.reverse()
-    |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
-    |> String.reverse()
-  end
 end

@@ -44,13 +44,13 @@ defmodule HighSocietyWeb.GameLive.PokerTableLiveTest do
   end
 
   test "sitting down debits the balance and shows the seated player", %{conn: conn, user: user} do
-    {:ok, _user} = Accounts.adjust_balance(user, 1000)
+    {:ok, _user} = Accounts.adjust_balance(user, 100_000)
     {:ok, view, _html} = live(conn, ~p"/games/poker/#{@slug}")
 
     view |> element("#seat-0 button", "Join") |> render_click()
     assert has_element?(view, "#join-modal")
 
-    view |> element("#buy-in-slider") |> render_change(%{"amount" => "100"})
+    view |> element("#buy-in-slider") |> render_change(%{"amount" => "10000"})
     view |> element("#join-modal form") |> render_submit()
 
     refute has_element?(view, "#join-modal")
@@ -66,18 +66,18 @@ defmodule HighSocietyWeb.GameLive.PokerTableLiveTest do
     conn: conn,
     user: user1
   } do
-    {:ok, _} = Accounts.adjust_balance(user1, 1000)
+    {:ok, _} = Accounts.adjust_balance(user1, 100_000)
     {:ok, view1, _html} = live(conn, ~p"/games/poker/#{@slug}")
     view1 |> element("#seat-0 button", "Join") |> render_click()
-    view1 |> element("#buy-in-slider") |> render_change(%{"amount" => "100"})
+    view1 |> element("#buy-in-slider") |> render_change(%{"amount" => "10000"})
     view1 |> element("#join-modal form") |> render_submit()
 
     user2 = HighSociety.AccountsFixtures.user_fixture()
-    {:ok, _} = Accounts.adjust_balance(user2, 1000)
+    {:ok, _} = Accounts.adjust_balance(user2, 100_000)
     conn2 = Phoenix.ConnTest.build_conn() |> log_in_user(user2)
     {:ok, view2, _html} = live(conn2, ~p"/games/poker/#{@slug}")
     view2 |> element("#seat-1 button", "Join") |> render_click()
-    view2 |> element("#buy-in-slider") |> render_change(%{"amount" => "100"})
+    view2 |> element("#buy-in-slider") |> render_change(%{"amount" => "10000"})
     view2 |> element("#join-modal form") |> render_submit()
 
     # heads-up: the button (seat 0, dealt first since it's the very first
@@ -123,18 +123,18 @@ defmodule HighSocietyWeb.GameLive.PokerTableLiveTest do
     conn: conn,
     user: user1
   } do
-    {:ok, _} = Accounts.adjust_balance(user1, 1000)
+    {:ok, _} = Accounts.adjust_balance(user1, 100_000)
     {:ok, view1, _html} = live(conn, ~p"/games/poker/#{@slug}")
     view1 |> element("#seat-0 button", "Join") |> render_click()
-    view1 |> element("#buy-in-slider") |> render_change(%{"amount" => "100"})
+    view1 |> element("#buy-in-slider") |> render_change(%{"amount" => "10000"})
     view1 |> element("#join-modal form") |> render_submit()
 
     user2 = HighSociety.AccountsFixtures.user_fixture()
-    {:ok, _} = Accounts.adjust_balance(user2, 1000)
+    {:ok, _} = Accounts.adjust_balance(user2, 100_000)
     conn2 = Phoenix.ConnTest.build_conn() |> log_in_user(user2)
     {:ok, view2, _html} = live(conn2, ~p"/games/poker/#{@slug}")
     view2 |> element("#seat-1 button", "Join") |> render_click()
-    view2 |> element("#buy-in-slider") |> render_change(%{"amount" => "100"})
+    view2 |> element("#buy-in-slider") |> render_change(%{"amount" => "10000"})
     view2 |> element("#join-modal form") |> render_submit()
 
     hand = HighSociety.Games.PokerTable.get_state(@slug).hand
@@ -162,11 +162,11 @@ defmodule HighSocietyWeb.GameLive.PokerTableLiveTest do
   end
 
   test "leaving the table cashes the stack back out", %{conn: conn, user: user} do
-    {:ok, _user} = Accounts.adjust_balance(user, 1000)
+    {:ok, _user} = Accounts.adjust_balance(user, 100_000)
     {:ok, view, _html} = live(conn, ~p"/games/poker/#{@slug}")
 
     view |> element("#seat-0 button", "Join") |> render_click()
-    view |> element("#buy-in-slider") |> render_change(%{"amount" => "100"})
+    view |> element("#buy-in-slider") |> render_change(%{"amount" => "10000"})
     view |> element("#join-modal form") |> render_submit()
 
     view |> element("#leave-table-button") |> render_click()

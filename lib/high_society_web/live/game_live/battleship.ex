@@ -5,10 +5,11 @@ defmodule HighSocietyWeb.GameLive.Battleship do
   alias HighSociety.Accounts.Scope
   alias HighSociety.Games.Battleship
   alias HighSociety.Games.BattleshipContext
+  alias HighSociety.Money
 
   import HighSocietyWeb.GameLive.BattleshipComponents
 
-  @wager_options [50, 100, 250, 500]
+  @wager_options [5_000, 10_000, 25_000, 50_000]
 
   @impl true
   def mount(_params, _session, socket) do
@@ -218,7 +219,7 @@ defmodule HighSocietyWeb.GameLive.Battleship do
                 Balance
               </div>
               <div id="balance" class="text-lg font-bold">
-                ${format_money(@current_scope.user.balance)}
+                ${Money.format(@current_scope.user.balance)}
               </div>
             </div>
             <button
@@ -228,7 +229,7 @@ defmodule HighSocietyWeb.GameLive.Battleship do
               phx-click="claim_starting_chips"
               class="btn btn-success btn-sm animate-pulse"
             >
-              Claim ${format_money(Accounts.battleship_starting_chip_amount())}
+              Claim ${Money.format(Accounts.battleship_starting_chip_amount())}
             </button>
             <.link navigate={~p"/games/battleship/lobby"} class="btn btn-ghost btn-sm">
               <.icon name="hero-user-group" class="size-4" /> Play a live opponent
@@ -253,7 +254,7 @@ defmodule HighSocietyWeb.GameLive.Battleship do
           <p class="text-base-content/70">Choose a wager to start a game against the computer.</p>
           <form phx-submit="start_game" class="flex items-center gap-2">
             <select name="wager" class="select select-bordered">
-              <option :for={amount <- @wager_options} value={amount}>${amount}</option>
+              <option :for={amount <- @wager_options} value={amount}>${Money.format(amount)}</option>
             </select>
             <button type="submit" class="btn btn-primary">Start game</button>
           </form>
@@ -341,7 +342,7 @@ defmodule HighSocietyWeb.GameLive.Battleship do
 
           <div :if={@battleship.status == :player_won} class="text-center">
             <p class="text-2xl font-bold text-success">You sank their fleet! 🎉</p>
-            <p class="text-base-content/70">You won ${@game.payout}.</p>
+            <p class="text-base-content/70">You won ${Money.format(@game.payout)}.</p>
           </div>
 
           <div :if={@battleship.status == :opponent_won} class="text-center">
@@ -448,12 +449,4 @@ defmodule HighSocietyWeb.GameLive.Battleship do
   defp shot_message(%{result: :miss}), do: "miss"
   defp shot_message(%{result: :hit}), do: "hit!"
   defp shot_message(%{result: :sunk, ship_type: type}), do: "sunk the #{ship_label(type)}!"
-
-  defp format_money(amount) when is_integer(amount) do
-    amount
-    |> Integer.to_string()
-    |> String.reverse()
-    |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
-    |> String.reverse()
-  end
 end

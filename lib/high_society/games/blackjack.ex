@@ -21,7 +21,8 @@ defmodule HighSociety.Games.Blackjack do
 
   @ranks ~w(2 3 4 5 6 7 8 9 10 J Q K A)
   @suits ~w(S H D C)
-  @max_bet 500
+  # bets are integer cents ($1.00 = 100)
+  @max_bet 500 * 100
   @dealer_stands_on 17
 
   @type card :: String.t()

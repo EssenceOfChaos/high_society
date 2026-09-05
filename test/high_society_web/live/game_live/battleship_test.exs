@@ -27,11 +27,14 @@ defmodule HighSocietyWeb.GameLive.BattleshipTest do
     assert render(element(view, "#balance")) =~ "$10,000"
   end
 
-  test "starting a game debits the wager and shows the placement screen", %{conn: conn, user: user} do
-    {:ok, _user} = Accounts.adjust_balance(user, 1000)
+  test "starting a game debits the wager and shows the placement screen", %{
+    conn: conn,
+    user: user
+  } do
+    {:ok, _user} = Accounts.adjust_balance(user, 100_000)
     {:ok, view, _html} = live(conn, ~p"/games/battleship")
 
-    view |> element("form[phx-submit='start_game']") |> render_submit(%{"wager" => "100"})
+    view |> element("form[phx-submit='start_game']") |> render_submit(%{"wager" => "10000"})
 
     assert has_element?(view, "h2", "Place your fleet")
     assert render(element(view, "#balance")) =~ "$900"
@@ -87,7 +90,9 @@ defmodule HighSocietyWeb.GameLive.BattleshipTest do
     view |> element("button", "Clear all") |> render_click()
 
     refute has_element?(view, "button[phx-value-type='carrier'][disabled]")
-    assert has_element?(view, "button", "Ready") and has_element?(view, "button[disabled]", "Ready")
+
+    assert has_element?(view, "button", "Ready") and
+             has_element?(view, "button[disabled]", "Ready")
   end
 
   test "firing at the computer's board resolves a shot", %{conn: conn, user: user} do
@@ -102,14 +107,18 @@ defmodule HighSocietyWeb.GameLive.BattleshipTest do
     # one shot - whichever seat's turn it is, one of these clicks (on the
     # enemy board, when it's the player's turn) will land.
     html =
-      Enum.reduce_while(["A1", "B1", "C1", "D1", "E1", "F1", "G1", "H1", "I1", "J1"], nil, fn coord, _ ->
-        if has_element?(view, "#enemy-board-#{coord}:not([disabled])") do
-          html = view |> element("#enemy-board-#{coord}") |> render_click()
-          {:halt, html}
-        else
-          {:cont, nil}
+      Enum.reduce_while(
+        ["A1", "B1", "C1", "D1", "E1", "F1", "G1", "H1", "I1", "J1"],
+        nil,
+        fn coord, _ ->
+          if has_element?(view, "#enemy-board-#{coord}:not([disabled])") do
+            html = view |> element("#enemy-board-#{coord}") |> render_click()
+            {:halt, html}
+          else
+            {:cont, nil}
+          end
         end
-      end)
+      )
 
     assert html =~ "You:" or html =~ "won" or html =~ "sank"
     assert_push_event(view, "play_sound", %{sound: "artillery-shot"})

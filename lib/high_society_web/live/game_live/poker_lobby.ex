@@ -3,6 +3,7 @@ defmodule HighSocietyWeb.GameLive.PokerLobby do
 
   alias HighSociety.Games.PokerTable
   alias HighSociety.Games.PokerTables
+  alias HighSociety.Money
 
   @impl true
   def mount(_params, _session, socket) do
@@ -54,7 +55,9 @@ defmodule HighSocietyWeb.GameLive.PokerLobby do
           >
             <h2 class="text-2xl font-semibold">{table.config.name}</h2>
             <p class="text-sm font-medium text-base-content/50">
-              Blinds ${table.config.small_blind} / ${table.config.big_blind}
+              Blinds ${Money.format(table.config.small_blind)} / ${Money.format(
+                table.config.big_blind
+              )}
             </p>
             <div class="mt-4 flex items-center gap-2 text-sm">
               <span class="flex items-center gap-1.5 rounded-full bg-base-200 px-3 py-1 font-semibold">

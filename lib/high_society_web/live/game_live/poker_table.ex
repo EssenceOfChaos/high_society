@@ -7,6 +7,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   alias HighSociety.Games.Poker.HandEvaluator
   alias HighSociety.Games.PokerTable
   alias HighSociety.Games.PokerTables
+  alias HighSociety.Money
   alias HighSocietyWeb.Presence
 
   # Screen slots for up to 8 seats, arranged clockwise around the felt
@@ -225,7 +226,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
             </.link>
             <h1 class="mt-1 text-3xl font-bold tracking-tight">{@table.name}</h1>
             <p class="text-sm text-base-content/50">
-              Blinds ${@table.small_blind} / ${@table.big_blind} &middot;
+              Blinds ${Money.format(@table.small_blind)} / ${Money.format(@table.big_blind)} &middot;
               <.icon name="hero-eye" class="-mt-0.5 inline size-4" /> {@viewer_count} watching
             </p>
           </div>
@@ -235,7 +236,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
                 Balance
               </div>
               <div id="balance" class="text-lg font-bold">
-                ${format_money(@current_scope.user.balance)}
+                ${Money.format(@current_scope.user.balance)}
               </div>
             </div>
             <button
@@ -245,7 +246,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
               phx-click="claim_poker_chips"
               class="btn btn-success btn-sm animate-pulse"
             >
-              Claim ${format_money(Accounts.poker_starting_chip_amount())}
+              Claim ${Money.format(Accounts.poker_starting_chip_amount())}
             </button>
             <button
               id="sound-toggle-button"
@@ -296,7 +297,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
           >
             <.chip_stack id="pot-chips-stack" amount={pot_total(@state.hand)} chip_size="size-7" />
             <div class="rounded-full bg-black/50 px-4 py-1 text-sm font-semibold text-amber-200">
-              Pot: ${format_money(pot_total(@state.hand))}
+              Pot: ${Money.format(pot_total(@state.hand))}
             </div>
           </div>
 
@@ -678,7 +679,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
         </span>
         <span class="truncate">{@seat.username}</span>
       </div>
-      <div class="text-[11px] text-amber-200">${format_money(current_stack(@seat, @hand_seat))}</div>
+      <div class="text-[11px] text-amber-200">${Money.format(current_stack(@seat, @hand_seat))}</div>
 
       <div :if={@hand_seat} class="flex w-40 gap-2">
         <.card_face :for={card <- @hand_seat.hole_cards} card={card} face_down={not @reveal?} />
@@ -719,7 +720,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     >
       <.chip_stack id={"#{@id}-stack"} amount={@amount} chip_size="size-5" />
       <span class="rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
-        ${format_money(@amount)}
+        ${Money.format(@amount)}
       </span>
     </div>
     """
@@ -750,13 +751,13 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     """
   end
 
-  defp chip_count(amount) when amount >= 100, do: 3
-  defp chip_count(amount) when amount >= 25, do: 2
+  defp chip_count(amount) when amount >= 10_000, do: 3
+  defp chip_count(amount) when amount >= 2_500, do: 2
   defp chip_count(_amount), do: 1
 
-  defp chip_tier_color(amount) when amount >= 100, do: "border-amber-300 bg-amber-500"
-  defp chip_tier_color(amount) when amount >= 25, do: "border-neutral-600 bg-neutral-900"
-  defp chip_tier_color(amount) when amount >= 5, do: "border-red-300 bg-red-600"
+  defp chip_tier_color(amount) when amount >= 10_000, do: "border-amber-300 bg-amber-500"
+  defp chip_tier_color(amount) when amount >= 2_500, do: "border-neutral-600 bg-neutral-900"
+  defp chip_tier_color(amount) when amount >= 500, do: "border-red-300 bg-red-600"
   defp chip_tier_color(_amount), do: "border-neutral-400 bg-neutral-100"
 
   attr :state, :map, required: true
@@ -812,7 +813,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
           phx-value-action="call"
           class="btn btn-sm border-none bg-emerald-600 text-white hover:bg-emerald-500"
         >
-          Call ${format_money(@to_call)}
+          Call ${Money.format(@to_call)}
         </button>
       </div>
 
@@ -827,7 +828,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
           phx-hook=".BetSlider"
           class="range range-sm w-48"
         />
-        <output id="bet-amount-output" class="w-16 text-right text-sm font-semibold">${format_money(
+        <output id="bet-amount-output" class="w-16 text-right text-sm font-semibold">${Money.format(
           @min_amount
         )}</output>
         <button
@@ -845,7 +846,11 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
         mounted() {
           this.output = this.el.parentElement.querySelector("output")
           this.el.addEventListener("input", () => {
-            this.output.textContent = "$" + Number(this.el.value).toLocaleString("en-US")
+            const dollars = Number(this.el.value) / 100
+          this.output.textContent = "$" + dollars.toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          })
           })
         }
       }
@@ -870,7 +875,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
       <div class="w-full max-w-sm rounded-2xl bg-base-100 p-6 shadow-xl">
         <h2 class="text-lg font-bold">Buy in for seat {@seat_index + 1}</h2>
         <p class="mt-1 text-sm text-base-content/60">
-          Between ${format_money(@min_buy_in)} and ${format_money(@max_buy_in)}.
+          Between ${Money.format(@min_buy_in)} and ${Money.format(@max_buy_in)}.
         </p>
 
         <p :if={@error} id="join-error" class="mt-3 text-sm font-medium text-error">{@error}</p>
@@ -887,7 +892,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
               phx-change="set_buy_in"
               class="range range-sm w-full"
             />
-            <div id="buy-in-amount" class="text-2xl font-bold">${format_money(@amount)}</div>
+            <div id="buy-in-amount" class="text-2xl font-bold">${Money.format(@amount)}</div>
             <div class="mt-2 flex gap-2">
               <button type="button" phx-click="close_join" class="btn btn-ghost btn-sm">Cancel</button>
               <button type="submit" id="confirm-join-button" class="btn btn-primary btn-sm">Sit down</button>
@@ -994,7 +999,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     names = pot.winners |> Enum.map(&Map.fetch!(hand.seats, &1).username) |> Enum.join(" & ")
     plural = if length(pot.winners) == 1, do: "s", else: ""
     suffix = if name = showdown_hand_name(pot, hand), do: " with a #{name}", else: ""
-    "#{names} win#{plural} $#{format_money(pot.amount)}#{suffix}"
+    "#{names} win#{plural} $#{Money.format(pot.amount)}#{suffix}"
   end
 
   defp showdown_hand_name(%{eligible: eligible, winners: [seat | _]}, hand)
@@ -1014,12 +1019,4 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   end
 
   defp showdown_hand_name(_pot, _hand), do: nil
-
-  defp format_money(amount) when is_integer(amount) do
-    amount
-    |> Integer.to_string()
-    |> String.reverse()
-    |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
-    |> String.reverse()
-  end
 end

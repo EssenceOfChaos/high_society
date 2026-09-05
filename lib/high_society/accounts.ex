@@ -62,22 +62,23 @@ defmodule HighSociety.Accounts do
 
   ## Balance
 
-  @starting_chip_amount 25_000
+  # `balance` and other money fields store integer cents ($1.00 = 100).
+  @starting_chip_amount 25_000 * 100
 
-  @doc "The one-time starting chip grant amount."
+  @doc "The one-time starting chip grant amount, in cents."
   @spec starting_chip_amount() :: pos_integer()
   def starting_chip_amount, do: @starting_chip_amount
 
   @doc """
   Grants the user's one-time starting balance of `#{@starting_chip_amount}`
-  play money. Atomic and idempotent: the update only matches a row that
-  hasn't claimed yet, so two concurrent requests for the same user can't
-  both succeed.
+  cents play money. Atomic and idempotent: the update only matches a row
+  that hasn't claimed yet, so two concurrent requests for the same user
+  can't both succeed.
 
   ## Examples
 
       iex> claim_starting_chips(user)
-      {:ok, %User{balance: 25_000}}
+      {:ok, %User{balance: 2_500_000}}
 
       iex> claim_starting_chips(already_claimed_user)
       {:error, :already_claimed}
@@ -97,22 +98,22 @@ defmodule HighSociety.Accounts do
     if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :already_claimed}
   end
 
-  @battleship_starting_chip_amount 10_000
+  @battleship_starting_chip_amount 10_000 * 100
 
-  @doc "The one-time starting chip grant amount for Battleship."
+  @doc "The one-time starting chip grant amount for Battleship, in cents."
   @spec battleship_starting_chip_amount() :: pos_integer()
   def battleship_starting_chip_amount, do: @battleship_starting_chip_amount
 
   @doc """
   Grants the user's one-time Battleship starting balance of
-  `#{@battleship_starting_chip_amount}` play money. Atomic and idempotent,
-  and tracked separately from `claim_starting_chips/1` and
+  `#{@battleship_starting_chip_amount}` cents play money. Atomic and
+  idempotent, and tracked separately from `claim_starting_chips/1` and
   `claim_poker_chips/1` since each game offers its own one-time grant.
 
   ## Examples
 
       iex> claim_battleship_chips(user)
-      {:ok, %User{balance: 10_000}}
+      {:ok, %User{balance: 1_000_000}}
 
       iex> claim_battleship_chips(already_claimed_user)
       {:error, :already_claimed}
@@ -139,8 +140,8 @@ defmodule HighSociety.Accounts do
 
   ## Examples
 
-      iex> adjust_balance(user, -500)
-      {:ok, %User{balance: 24_500}}
+      iex> adjust_balance(user, -50_000)
+      {:ok, %User{balance: 2_450_000}}
 
       iex> adjust_balance(broke_user, -500)
       {:error, :insufficient_funds}
@@ -157,22 +158,22 @@ defmodule HighSociety.Accounts do
     if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :insufficient_funds}
   end
 
-  @poker_starting_chip_amount 10_000
+  @poker_starting_chip_amount 10_000 * 100
 
-  @doc "The one-time starting chip grant amount for Poker."
+  @doc "The one-time starting chip grant amount for Poker, in cents."
   @spec poker_starting_chip_amount() :: pos_integer()
   def poker_starting_chip_amount, do: @poker_starting_chip_amount
 
   @doc """
   Grants the user's one-time Poker starting balance of
-  `#{@poker_starting_chip_amount}` play money. Atomic and idempotent, and
-  tracked separately from `claim_starting_chips/1` (Blackjack's claim) since
-  each game offers its own one-time grant.
+  `#{@poker_starting_chip_amount}` cents play money. Atomic and idempotent,
+  and tracked separately from `claim_starting_chips/1` (Blackjack's claim)
+  since each game offers its own one-time grant.
 
   ## Examples
 
       iex> claim_poker_chips(user)
-      {:ok, %User{balance: 10_000}}
+      {:ok, %User{balance: 1_000_000}}
 
       iex> claim_poker_chips(already_claimed_user)
       {:error, :already_claimed}
