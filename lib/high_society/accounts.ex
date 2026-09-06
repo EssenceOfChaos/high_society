@@ -63,7 +63,7 @@ defmodule HighSociety.Accounts do
   ## Balance
 
   # `balance` and other money fields store integer cents ($1.00 = 100).
-  @starting_chip_amount 25_000 * 100
+  @starting_chip_amount 10_000 * 100
 
   @doc "The one-time starting chip grant amount, in cents."
   @spec starting_chip_amount() :: pos_integer()
@@ -188,6 +188,41 @@ defmodule HighSociety.Accounts do
         from(u in User, where: u.id == ^user.id and is_nil(u.claimed_poker_chips_at)),
         inc: [balance: @poker_starting_chip_amount],
         set: [claimed_poker_chips_at: now]
+      )
+
+    if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :already_claimed}
+  end
+
+  @slots_starting_chip_amount 10_000 * 100
+
+  @doc "The one-time starting chip grant amount for Slots, in cents."
+  @spec slots_starting_chip_amount() :: pos_integer()
+  def slots_starting_chip_amount, do: @slots_starting_chip_amount
+
+  @doc """
+  Grants the user's one-time Slots starting balance of
+  `#{@slots_starting_chip_amount}` cents play money. Atomic and idempotent,
+  and tracked separately from the other games' claims since each offers its
+  own one-time grant.
+
+  ## Examples
+
+      iex> claim_slots_chips(user)
+      {:ok, %User{balance: 1_000_000}}
+
+      iex> claim_slots_chips(already_claimed_user)
+      {:error, :already_claimed}
+
+  """
+  @spec claim_slots_chips(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
+  def claim_slots_chips(%User{} = user) do
+    now = DateTime.utc_now(:second)
+
+    {count, _} =
+      Repo.update_all(
+        from(u in User, where: u.id == ^user.id and is_nil(u.claimed_slots_chips_at)),
+        inc: [balance: @slots_starting_chip_amount],
+        set: [claimed_slots_chips_at: now]
       )
 
     if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :already_claimed}

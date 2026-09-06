@@ -31,27 +31,45 @@ defmodule HighSocietyWeb.Layouts do
     default: nil,
     doc: "the current [scope](https://phoenix.hexdocs.pm/scopes.html)"
 
+  slot :hero,
+    doc:
+      "optional full-bleed section rendered between the header and the constrained main content"
+
   slot :inner_block, required: true
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
+    <header class={[
+      "navbar relative z-10 px-4 sm:px-6 lg:px-8",
+      @hero != [] && "text-white"
+    ]}>
       <div class="flex-1">
         <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <.icon name="hero-rectangle-stack-solid" class="size-7 text-primary" />
+          <.icon
+            name="hero-rectangle-stack-solid"
+            class={[
+              "size-7",
+              if(@hero != [],
+                do: "bg-gradient-to-r from-amber-200 via-amber-300 to-amber-500",
+                else: "text-primary"
+              )
+            ]}
+          />
           <span class="text-lg font-bold tracking-tight">High Society</span>
         </a>
       </div>
       <div class="flex-none">
         <ul class="flex flex-column px-1 space-x-4 items-center">
           <li>
-            <.theme_toggle />
+            <.theme_toggle hero?={@hero != []} />
           </li>
         </ul>
       </div>
     </header>
 
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
+    {render_slot(@hero)}
+
+    <main class="relative z-10 bg-base-100 px-4 py-20 sm:px-6 lg:px-8">
       <div class="mx-auto max-w-3xl space-y-4">
         {render_slot(@inner_block)}
       </div>
@@ -68,7 +86,7 @@ defmodule HighSocietyWeb.Layouts do
   """
   def footer(assigns) do
     ~H"""
-    <footer class="border-t border-base-300 px-4 py-10 sm:px-6 lg:px-8">
+    <footer class="relative z-10 border-t border-base-300 bg-base-100 px-4 py-10 sm:px-6 lg:px-8">
       <div class="mx-auto flex max-w-3xl flex-col items-center gap-6 text-center sm:flex-row sm:justify-between sm:text-left">
         <a href="/" class="flex items-center gap-2">
           <.icon name="hero-rectangle-stack-solid" class="size-5 text-primary" />
@@ -218,10 +236,27 @@ defmodule HighSocietyWeb.Layouts do
 
   See <head> in root.html.heex which applies the theme before page load.
   """
+  attr :hero?, :boolean,
+    default: false,
+    doc:
+      "true when floating over the dashboard's hero video, for a translucent look that suits a dark background regardless of the site theme"
+
   def theme_toggle(assigns) do
     ~H"""
-    <div class="card relative flex flex-row items-center border-2 border-base-300 bg-base-300 rounded-full">
-      <div class="absolute w-1/3 h-full rounded-full border-1 border-base-200 bg-base-100 brightness-200 left-0 [[data-theme=light]_&]:left-1/3 [[data-theme=dark]_&]:left-2/3 [[data-theme-source=system]_&]:!left-0 transition-[left]" />
+    <div class={[
+      "card relative flex flex-row items-center rounded-full border-2",
+      if(@hero?,
+        do: "border-white/25 bg-white/10 backdrop-blur-sm",
+        else: "border-base-300 bg-base-300"
+      )
+    ]}>
+      <div class={[
+        "absolute left-0 h-full w-1/3 rounded-full border-1 transition-[left] [[data-theme-source=system]_&]:!left-0 [[data-theme=dark]_&]:left-2/3 [[data-theme=light]_&]:left-1/3",
+        if(@hero?,
+          do: "border-white/20 bg-white/30",
+          else: "border-base-200 bg-base-100 brightness-200"
+        )
+      ]} />
 
       <button
         class="flex p-2 cursor-pointer w-1/3"

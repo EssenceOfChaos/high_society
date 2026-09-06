@@ -22,7 +22,8 @@ defmodule HighSociety.Application do
       {Registry, keys: :unique, name: HighSociety.Games.BattleshipRegistry},
       HighSociety.Games.BattleshipMatchesSupervisor,
       # Start to serve requests, typically the last entry
-      HighSocietyWeb.Endpoint
+      HighSocietyWeb.Endpoint,
+      HighSociety.Healthcheck.Supervisor
     ]
 
     # See https://elixir.hexdocs.pm/Supervisor.html

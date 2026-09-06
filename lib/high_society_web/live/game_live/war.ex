@@ -50,7 +50,7 @@ defmodule HighSocietyWeb.GameLive.War do
       <div id="war-screen" class="mx-auto max-w-3xl" phx-hook=".SoundEffects">
         <div class="flex items-center justify-between">
           <div>
-            <.link navigate={~p"/"} class="text-sm text-base-content/60 hover:text-base-content">
+            <.link navigate={~p"/#games"} class="text-sm text-base-content/60 hover:text-base-content">
               &larr; All games
             </.link>
             <h1 class="mt-1 text-3xl font-bold tracking-tight">War</h1>
