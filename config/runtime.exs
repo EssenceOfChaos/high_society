@@ -67,7 +67,7 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "https://high-society.gigalixirapp.com"
+  host = System.get_env("PHX_HOST") || "high-society.gigalixirapp.com"
 
   config :high_society, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
@@ -80,10 +80,16 @@ if config_env() == :prod do
       # for details about using IPv6 vs IPv4 and loopback vs public addresses.
       ip: {0, 0, 0, 0, 0, 0, 0, 0}
     ],
+    # The fixed entries cover prod's custom domain (both with and without
+    # "www", which PHX_HOST can only ever be one of) and its default
+    # Gigalixir subdomain; `host` on top of those covers whatever this
+    # specific deploy's PHX_HOST actually is - notably the staging app's
+    # own subdomain, without having to hardcode every environment here.
     check_origin: [
       "https://highsociety.cc",
       "https://www.highsociety.cc",
-      "https://high-society.gigalixirapp.com"
+      "https://high-society.gigalixirapp.com",
+      "https://#{host}"
     ],
     secret_key_base: secret_key_base
 
