@@ -4,6 +4,10 @@ defmodule HighSocietyWeb.GameLive.BattleshipTest do
   import Phoenix.LiveViewTest
 
   alias HighSociety.Accounts
+  alias HighSociety.Games.Battleship
+  alias HighSociety.Games.BattleshipContext
+  alias HighSociety.Games.BattleshipGame
+  alias HighSociety.Repo
 
   setup :register_and_log_in_user
 
@@ -124,5 +128,57 @@ defmodule HighSocietyWeb.GameLive.BattleshipTest do
     assert_push_event(view, "play_sound", %{sound: "artillery-shot"})
     assert_push_event(view, "play_sound", %{sound: sound})
     assert sound in ["direct-hit", "water-splash"]
+  end
+
+  test "losing reveals the computer's full fleet, not just what was sunk", %{
+    conn: conn,
+    user: user,
+    scope: scope
+  } do
+    {:ok, _user} = Accounts.adjust_balance(user, 100_000)
+    {:ok, game} = BattleshipContext.start_battleship_game(scope, 100)
+
+    # every cell has already been "shot" by the computer except {1, 1}
+    # and {2, 1}, where the player's lone (2-cell) ship sits - so the
+    # AI's hunt/target phases always have exactly one live untried cell
+    # to choose from and are guaranteed to sink it in exactly 2 shots.
+    # No real ship is ever 1 cell long, so a stray hit on the (real,
+    # randomly-placed) opponent fleet below can never end the game
+    # early on its own - it always takes at least 2 hits to sink a ship.
+    opponent_shots =
+      for col <- 0..9,
+          row <- 0..9,
+          {col, row} not in [{1, 1}, {2, 1}],
+          into: %{} do
+        {Battleship.format_coord({col, row}), "miss"}
+      end
+
+    battleship = %Battleship{
+      player_fleet: [%{type: :destroyer, cells: [{1, 1}, {2, 1}], hits: MapSet.new()}],
+      opponent_fleet: Battleship.random_fleet(),
+      player_ready?: true,
+      opponent_ready?: true,
+      opponent_shots: opponent_shots,
+      status: :player_turn
+    }
+
+    game
+    |> BattleshipGame.changeset(%{
+      status: "player_turn",
+      battleship: Battleship.to_json(battleship)
+    })
+    |> Repo.update!()
+
+    {:ok, view, _html} = live(conn, ~p"/games/battleship")
+
+    # whatever these two shots resolve to (hit or miss), the computer's
+    # own guaranteed-hit return shots (see above) still resolve each
+    # round, sinking the player's only ship on the second one
+    view |> element("#enemy-board-F6") |> render_click()
+    html = view |> element("#enemy-board-F7") |> render_click()
+    assert html =~ "The computer sank your fleet."
+
+    enemy_board_html = view |> element("#enemy-board") |> render()
+    assert enemy_board_html =~ "#778da9"
   end
 end

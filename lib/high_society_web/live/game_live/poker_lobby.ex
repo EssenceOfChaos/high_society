@@ -38,7 +38,7 @@ defmodule HighSocietyWeb.GameLive.PokerLobby do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="mx-auto max-w-4xl">
-        <.link navigate={~p"/"} class="text-sm text-base-content/60 hover:text-base-content">
+        <.link navigate={~p"/#games"} class="text-sm text-base-content/60 hover:text-base-content">
           &larr; All games
         </.link>
         <h1 class="mt-1 text-3xl font-bold tracking-tight">Poker</h1>

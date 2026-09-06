@@ -9,7 +9,7 @@ defmodule HighSocietyWeb.GameLive.Battleship do
 
   import HighSocietyWeb.GameLive.BattleshipComponents
 
-  @wager_options [5_000, 10_000, 25_000, 50_000]
+  @wager_options [100, 500, 1_000, 2_500, 5_000, 10_000, 25_000]
 
   @impl true
   def mount(_params, _session, socket) do
@@ -208,7 +208,7 @@ defmodule HighSocietyWeb.GameLive.Battleship do
       <div id="battleship-screen" class="mx-auto max-w-4xl" phx-hook=".SoundEffects">
         <div class="flex items-center justify-between">
           <div>
-            <.link navigate={~p"/"} class="text-sm text-base-content/60 hover:text-base-content">
+            <.link navigate={~p"/#games"} class="text-sm text-base-content/60 hover:text-base-content">
               &larr; All games
             </.link>
             <h1 class="mt-1 text-3xl font-bold tracking-tight">Battleship</h1>
@@ -347,9 +347,10 @@ defmodule HighSocietyWeb.GameLive.Battleship do
 
           <div :if={@battleship.status == :opponent_won} class="text-center">
             <p class="text-2xl font-bold text-error">The computer sank your fleet.</p>
+            <p class="text-base-content/70">Here's where their fleet was hiding.</p>
           </div>
 
-          <div :if={@last_result} class="mt-2 text-center text-sm text-base-content/70">
+          <div :if={@last_result} class="mt-2 text-center text-base text-base-content/70">
             <span>You: {shot_message(@last_result.player)}</span>
             <span :if={@last_result.computer}> · Computer: {shot_message(@last_result.computer)}</span>
           </div>
@@ -373,7 +374,7 @@ defmodule HighSocietyWeb.GameLive.Battleship do
               <.board
                 id="enemy-board"
                 fleet={@battleship.opponent_fleet}
-                reveal_only_sunk
+                reveal_only_sunk={@battleship.status in [:player_turn, :opponent_turn]}
                 shots={@battleship.player_shots}
                 clickable={@battleship.status == :player_turn}
                 click_event="fire"

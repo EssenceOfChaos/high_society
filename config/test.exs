@@ -46,3 +46,9 @@ config :phoenix,
 # Keep the paced dealer play-out (see HighSocietyWeb.GameLive.Blackjack) fast
 # in tests instead of waiting out the realistic in-app delay.
 config :high_society, :blackjack_dealer_step_delay_ms, 10
+config :high_society, :blackjack_deal_step_delay_ms, 10
+
+# Keep the paced reel reveal (see HighSocietyWeb.GameLive.Slots) fast in
+# tests instead of waiting out the realistic in-app delay.
+config :high_society, :slots_spin_reveal_delay_ms, 10
+config :high_society, :slots_free_spin_delay_ms, 10

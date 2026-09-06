@@ -13,6 +13,8 @@ defmodule HighSociety.Games do
   alias HighSociety.Repo
   alias HighSociety.Games.Blackjack
   alias HighSociety.Games.BlackjackGame
+  alias HighSociety.Games.Slots
+  alias HighSociety.Games.SlotsGame
   alias HighSociety.Games.War
   alias HighSociety.Games.WarGame
 
@@ -287,6 +289,98 @@ defmodule HighSociety.Games do
 
   def can_split?(%BlackjackGame{} = game),
     do: game |> to_blackjack() |> Blackjack.can_split?(game.active_hand)
+
+  @doc """
+  Returns the current user's most recent Slots spin, or `nil` if they've
+  never spun. Kept regardless of outcome (there's no "in-progress" status
+  to filter on - a spin always resolves in one step) purely so the last
+  result is still shown on remount instead of an empty grid.
+  """
+  @spec get_active_slots_game(Scope.t()) :: SlotsGame.t() | nil
+  def get_active_slots_game(%Scope{user: user}) do
+    Repo.one(from sg in SlotsGame, where: sg.user_id == ^user.id)
+  end
+
+  @doc """
+  Spins the reels for the current user. If a free-spins round is active
+  (the user's last spin left `free_spins_remaining > 0`), `wager` is
+  ignored: this spin replays at the wager that triggered the feature and
+  doesn't touch the balance. Otherwise `wager` must be one of
+  `Slots.wager_options/0` and is debited up front. Either way, any Bonus
+  symbols landed can award or extend a free-spins round (see
+  `Slots.apply_bonus/4`), and any payline wins (scaled by the feature
+  multiplier while free spins are active) are credited back. Discards the
+  user's previous spin row.
+  """
+  @spec spin(Scope.t(), pos_integer()) ::
+          {:ok, SlotsGame.t(), User.t()} | {:error, :invalid_wager | :insufficient_funds}
+  def spin(%Scope{user: user}, wager) when is_integer(wager) do
+    Repo.transact(fn ->
+      previous = get_active_slots_game(%Scope{user: user})
+      free_spin? = !!(previous && previous.free_spins_remaining > 0)
+
+      cond do
+        not free_spin? and wager not in Slots.wager_options() ->
+          {:error, :invalid_wager}
+
+        true ->
+          actual_wager = if free_spin?, do: previous.triggering_wager, else: wager
+          feature_multiplier = if free_spin?, do: previous.free_spin_multiplier, else: 1
+
+          with {:ok, user} <- maybe_debit(user, if(free_spin?, do: 0, else: actual_wager)) do
+            result = Slots.spin(feature_multiplier)
+
+            remaining_after_this_spin =
+              if free_spin?, do: previous.free_spins_remaining - 1, else: 0
+
+            {remaining, multiplier, triggered?} =
+              Slots.apply_bonus(
+                remaining_after_this_spin,
+                free_spin?,
+                feature_multiplier,
+                result.bonus_count
+              )
+
+            total_win = div(actual_wager * result.total_multiplier_hundredths, 100)
+
+            Repo.delete_all(from sg in SlotsGame, where: sg.user_id == ^user.id)
+
+            game =
+              %SlotsGame{}
+              |> SlotsGame.changeset(%{
+                user_id: user.id,
+                grid: Enum.map(result.grid, &Atom.to_string/1),
+                wins: Enum.map(result.wins, &stringify_win/1),
+                wager: actual_wager,
+                total_win: total_win,
+                free_spins_remaining: remaining,
+                free_spin_multiplier: multiplier,
+                triggering_wager: if(remaining > 0, do: actual_wager, else: nil),
+                bonus_triggered: triggered?,
+                spins_taken: ((previous && previous.spins_taken) || 0) + 1
+              })
+              |> Repo.insert!()
+
+            {:ok, user} = Accounts.adjust_balance(user, total_win)
+
+            {:ok, {game, user}}
+          end
+      end
+    end)
+    |> case do
+      {:ok, {game, user}} -> {:ok, game, user}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp stringify_win(%{} = win) do
+    %{
+      "payline" => win.payline,
+      "kind" => Atom.to_string(win.kind),
+      "length" => win.length,
+      "multiplier_hundredths" => win.multiplier_hundredths
+    }
+  end
 
   defp to_blackjack(%BlackjackGame{} = game) do
     %Blackjack{

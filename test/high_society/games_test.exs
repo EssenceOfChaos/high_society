@@ -4,6 +4,8 @@ defmodule HighSociety.GamesTest do
   alias HighSociety.Accounts
   alias HighSociety.Games
   alias HighSociety.Games.Blackjack
+  alias HighSociety.Games.Slots
+  alias HighSociety.Games.SlotsGame
 
   import HighSociety.AccountsFixtures
 
@@ -467,6 +469,84 @@ defmodule HighSociety.GamesTest do
 
       assert {:error, :invalid_action} = Games.split(scope, game)
       assert Accounts.get_user!(user.id).balance == scope.user.balance
+    end
+  end
+
+  describe "get_active_slots_game/1" do
+    test "returns nil when the user has never spun", %{scope: scope} do
+      assert Games.get_active_slots_game(scope) == nil
+    end
+  end
+
+  describe "spin/2" do
+    test "rejects a wager that isn't one of the fixed options", %{scope: scope} do
+      {:ok, user} = Accounts.claim_slots_chips(scope.user)
+      scope = %{scope | user: user}
+
+      assert {:error, :invalid_wager} = Games.spin(scope, 99)
+      assert Accounts.get_user!(user.id).balance == user.balance
+      assert Games.get_active_slots_game(scope) == nil
+    end
+
+    test "rejects a wager exceeding the user's balance", %{scope: scope} do
+      assert scope.user.balance == 0
+      assert {:error, :insufficient_funds} = Games.spin(scope, 25)
+      assert Games.get_active_slots_game(scope) == nil
+    end
+
+    test "debits the wager, persists the spin, and credits any win", %{scope: scope} do
+      {:ok, user} = Accounts.claim_slots_chips(scope.user)
+      scope = %{scope | user: user}
+      balance_before = user.balance
+
+      assert {:ok, game, updated_user} = Games.spin(scope, 100)
+
+      assert game.wager == 100
+      assert game.spins_taken == 1
+      assert length(game.grid) == 24
+      assert updated_user.balance == balance_before - 100 + game.total_win
+
+      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).balance ==
+               updated_user.balance
+    end
+
+    test "discards the user's previous spin", %{scope: scope} do
+      {:ok, user} = Accounts.claim_slots_chips(scope.user)
+      scope = %{scope | user: user}
+
+      {:ok, first, user} = Games.spin(scope, 100)
+      {:ok, second, _user} = Games.spin(%{scope | user: user}, 100)
+
+      assert first.id != second.id
+      refute HighSociety.Repo.get(SlotsGame, first.id)
+    end
+
+    test "during an active free-spins round, replays at the triggering wager without a debit", %{
+      scope: scope
+    } do
+      {:ok, user} = Accounts.claim_slots_chips(scope.user)
+      scope = %{scope | user: user}
+
+      %SlotsGame{}
+      |> SlotsGame.changeset(%{
+        user_id: user.id,
+        grid: List.duplicate("cherries", 24),
+        wager: 100,
+        total_win: 0,
+        free_spins_remaining: 4,
+        free_spin_multiplier: Slots.free_spin_multiplier(),
+        triggering_wager: 100,
+        spins_taken: 1
+      })
+      |> HighSociety.Repo.insert!()
+
+      balance_before = Accounts.get_user!(user.id).balance
+
+      # pass a wager that doesn't match the triggering one, to prove it's ignored
+      assert {:ok, game, updated_user} = Games.spin(scope, 500)
+
+      assert game.wager == 100
+      assert updated_user.balance == balance_before + game.total_win
     end
   end
 end

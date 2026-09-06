@@ -70,6 +70,7 @@ defmodule HighSocietyWeb.Router do
       live "/games/battleship", GameLive.Battleship, :show
       live "/games/battleship/lobby", GameLive.BattleshipLobby, :index
       live "/games/battleship/lobby/:slug", GameLive.BattleshipMatch, :show
+      live "/games/slots", GameLive.Slots, :show
     end
 
     post "/users/update-password", UserSessionController, :update_password
@@ -77,6 +78,7 @@ defmodule HighSocietyWeb.Router do
 
   scope "/", HighSocietyWeb do
     pipe_through [:browser]
+    get "/health", HealthcheckController, :status
 
     live_session :current_user,
       on_mount: [{HighSocietyWeb.UserAuth, :mount_current_scope}] do

@@ -23,7 +23,7 @@ defmodule HighSocietyWeb.GameLive.BlackjackTest do
     view |> element("#claim-chips-button") |> render_click()
 
     refute has_element?(view, "#claim-chips-button")
-    assert render(element(view, "#balance")) =~ "$25,000"
+    assert render(element(view, "#balance")) =~ "$10,000"
   end
 
   test "chip buttons build up a pending bet, clamped at the $500 max", %{conn: conn} do

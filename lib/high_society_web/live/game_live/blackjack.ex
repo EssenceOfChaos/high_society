@@ -17,7 +17,9 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
         pending_bets: %{0 => 0, 1 => 0},
         second_hand?: false,
         round_dismissed?: false,
-        bet_error: nil
+        bet_error: nil,
+        dealing?: false,
+        deal_step: 0
       )
 
     socket =
@@ -87,13 +89,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
     case Games.start_blackjack_round(socket.assigns.current_scope, bets) do
       {:ok, blackjack_game} ->
         user = Accounts.get_user!(socket.assigns.current_scope.user.id)
-
-        socket =
-          socket
-          |> assign(pending_bets: %{0 => 0, 1 => 0}, round_dismissed?: false, bet_error: nil)
-          |> update_blackjack_game(blackjack_game, user, deal_sounds(blackjack_game))
-
-        {:noreply, socket}
+        begin_deal(socket, blackjack_game, user)
 
       {:error, reason} ->
         {:noreply, assign(socket, bet_error: bet_error_message(reason))}
@@ -178,13 +174,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
     case Games.start_blackjack_round(socket.assigns.current_scope, bets) do
       {:ok, blackjack_game} ->
         user = Accounts.get_user!(socket.assigns.current_scope.user.id)
-
-        socket =
-          socket
-          |> assign(pending_bets: %{0 => 0, 1 => 0}, round_dismissed?: false, bet_error: nil)
-          |> update_blackjack_game(blackjack_game, user, deal_sounds(blackjack_game))
-
-        {:noreply, socket}
+        begin_deal(socket, blackjack_game, user)
 
       {:error, reason} ->
         socket =
@@ -215,6 +205,90 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
 
     {:noreply, update_blackjack_game(socket, blackjack_game, user)}
   end
+
+  # Paces the initial deal one card at a time instead of showing every hand
+  # fully dealt the instant "Deal"/"Rebet" is clicked - the round itself is
+  # already fully resolved server-side (see `begin_deal/3`); this only
+  # controls how much of it the client has been shown so far via
+  # `deal_step`/`deal_sequence/1`. Once every step has played, hands off to
+  # `update_blackjack_game/4` exactly as the old immediate-reveal path did,
+  # so dealer-turn pacing/round-over sounds pick up from there unchanged.
+  def handle_info(:deal_step, socket) do
+    sequence = deal_sequence(socket.assigns.blackjack_game)
+    next_step = socket.assigns.deal_step + 1
+
+    socket =
+      socket
+      |> assign(deal_step: next_step)
+      |> push_event("play_sound", %{sound: "deal"})
+
+    if next_step < length(sequence) do
+      Process.send_after(self(), :deal_step, deal_step_delay())
+      {:noreply, socket}
+    else
+      blackjack_game = socket.assigns.blackjack_game
+      user = socket.assigns.current_scope.user
+
+      socket =
+        socket
+        |> assign(dealing?: false)
+        |> update_blackjack_game(blackjack_game, user, deal_sounds(blackjack_game))
+
+      {:noreply, socket}
+    end
+  end
+
+  defp begin_deal(socket, blackjack_game, user) do
+    socket =
+      assign(socket,
+        blackjack_game: blackjack_game,
+        current_scope: Scope.for_user(user),
+        pending_bets: %{0 => 0, 1 => 0},
+        round_dismissed?: false,
+        bet_error: nil,
+        dealing?: true,
+        deal_step: 0
+      )
+
+    Process.send_after(self(), :deal_step, deal_step_delay())
+
+    {:noreply, socket}
+  end
+
+  # The order the initial deal lands in, matching how a dealer actually
+  # moves: one card to each box in turn, then the dealer's own up-card,
+  # then a second card to each box, then finally the dealer's hole card
+  # face-down - never both dealer cards at once, since a real dealer
+  # doesn't set their hole card down until after the boxes have their
+  # second card. Purely a client-side reveal pacing device - by the time
+  # this plays out, `hands`/`dealer_hand` are already the final,
+  # fully-resolved values (see `HighSociety.Games.Blackjack.new/1`).
+  defp deal_sequence(%{hands: hands}) do
+    hand_ids = hands |> Enum.sort_by(& &1["box"]) |> Enum.map(& &1["id"])
+    one_round = Enum.map(hand_ids, &{:hand, &1})
+    one_round ++ [:dealer_up] ++ one_round ++ [:dealer_hole]
+  end
+
+  # How many of `hand_id`'s cards have been revealed so far - both of them
+  # once dealing has finished (or was never staged at all, e.g. a page
+  # reload mid-round).
+  defp deal_revealed_count(%{dealing?: true, blackjack_game: game, deal_step: step}, hand_id) do
+    game |> deal_sequence() |> Enum.take(step) |> Enum.count(&(&1 == {:hand, hand_id}))
+  end
+
+  defp deal_revealed_count(%{blackjack_game: game}, hand_id) do
+    game.hands |> Enum.find(&(&1["id"] == hand_id)) |> Map.fetch!("cards") |> length()
+  end
+
+  # How many of the dealer's cards have been dealt so far - both of the
+  # initial two while staging the deal, or (once dealing has finished, or
+  # was never staged at all) every card the dealer currently holds,
+  # including any drawn later during `dealer_turn`.
+  defp dealer_revealed_count(%{dealing?: true, blackjack_game: game, deal_step: step}) do
+    game |> deal_sequence() |> Enum.take(step) |> Enum.count(&(&1 in [:dealer_up, :dealer_hole]))
+  end
+
+  defp dealer_revealed_count(%{blackjack_game: game}), do: length(game.dealer_hand)
 
   # Applies a freshly-persisted game (and possibly-credited user) to the
   # socket, queuing `extra_sounds` (the sound(s) for whatever action just
@@ -266,6 +340,9 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
 
   defp dealer_step_delay,
     do: Application.get_env(:high_society, :blackjack_dealer_step_delay_ms, 900)
+
+  defp deal_step_delay,
+    do: Application.get_env(:high_society, :blackjack_deal_step_delay_ms, 700)
 
   # The sound(s) for a hand right after it took a card (hit or double down):
   # a bust gets its own reaction; otherwise the hand's new value is read out.
@@ -377,7 +454,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
       <div id="blackjack-screen" class="mx-auto max-w-3xl" phx-hook=".SoundEffects">
         <div class="flex items-center justify-between">
           <div>
-            <.link navigate={~p"/"} class="text-sm text-base-content/60 hover:text-base-content">
+            <.link navigate={~p"/#games"} class="text-sm text-base-content/60 hover:text-base-content">
               &larr; All games
             </.link>
             <h1 class="mt-1 text-3xl font-bold tracking-tight">Blackjack</h1>
@@ -461,11 +538,11 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
         <div :if={!betting?(assigns)} id="blackjack-table" class="mt-8">
           <div class="relative flex flex-col items-center gap-2 rounded-t-2xl bg-cover bg-top bg-[url(/images/blackjack-felt.png)] px-4 pb-6 pt-6 shadow-xl">
             <span class="flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-100 shadow">
-              Dealer<span :if={@blackjack_game.status != "player_turn"}>
+              Dealer<span :if={@blackjack_game.status != "player_turn" && !@dealing?}>
                 — {Blackjack.value(@blackjack_game.dealer_hand)}
               </span>
               <.icon
-                :if={@blackjack_game.status == "dealer_turn"}
+                :if={@blackjack_game.status == "dealer_turn" && !@dealing?}
                 name="hero-arrow-path"
                 class="size-3 motion-safe:animate-spin"
               />
@@ -473,8 +550,11 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
             <div id="dealer-cards" class="flex w-full justify-center gap-2">
               <.card_face
                 :for={{card, index} <- Enum.with_index(@blackjack_game.dealer_hand)}
-                card={card}
-                face_down={index == 1 && @blackjack_game.status == "player_turn"}
+                card={if index < dealer_revealed_count(assigns), do: card}
+                face_down={
+                  index == 1 && index < dealer_revealed_count(assigns) &&
+                    (@dealing? || @blackjack_game.status == "player_turn")
+                }
               />
             </div>
           </div>
@@ -493,10 +573,15 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
                 status={@blackjack_game.status}
                 can_double_down?={Games.can_double_down?(@blackjack_game)}
                 can_split?={Games.can_split?(@blackjack_game)}
+                revealed_count={deal_revealed_count(assigns, hand["id"])}
+                dealing?={@dealing?}
               />
             </div>
 
-            <div :if={@blackjack_game.status == "round_over"} class="mt-8 flex justify-center gap-3">
+            <div
+              :if={@blackjack_game.status == "round_over" && !@dealing?}
+              class="mt-8 flex justify-center gap-3"
+            >
               <button
                 id="rebet-button"
                 type="button"
@@ -651,6 +736,13 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
     """
   end
 
+  # Blank until both of the hand's initial cards have been revealed (see
+  # `deal_revealed_count/2`) - showing the total early, before the second
+  # card visibly lands, would spoil the point of dealing it one at a time.
+  defp hand_total_suffix(hand, revealed_count) do
+    if revealed_count >= length(hand["cards"]), do: " — #{Blackjack.value(hand["cards"])}"
+  end
+
   defp chip_color(500), do: "border-neutral-400 bg-neutral-100 text-neutral-900"
   defp chip_color(2_500), do: "border-red-300 bg-red-600 text-white"
   defp chip_color(10_000), do: "border-neutral-600 bg-neutral-900 text-white"
@@ -662,6 +754,8 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
   attr :status, :string, required: true
   attr :can_double_down?, :boolean, required: true
   attr :can_split?, :boolean, required: true
+  attr :revealed_count, :integer, required: true
+  attr :dealing?, :boolean, required: true
 
   defp hand_box(assigns) do
     ~H"""
@@ -669,27 +763,31 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
       id={"hand-box-#{@hand["id"]}"}
       class={[
         "flex w-full flex-col items-center gap-2 rounded-2xl p-3 transition-colors duration-500",
-        @active? && "bg-amber-400/10 ring-2 ring-amber-400"
+        @active? && !@dealing? && "bg-amber-400/10 ring-2 ring-amber-400"
       ]}
     >
       <span class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-100/60">
         <span
-          :if={@active? && @status == "player_turn"}
+          :if={@active? && @status == "player_turn" && !@dealing?}
           class="relative flex size-2"
           title="Your turn"
         >
           <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
           <span class="relative inline-flex size-2 rounded-full bg-amber-500"></span>
         </span>
-        {@label} — Bet ${Money.format(@hand["bet"])}{if @hand["doubled"], do: " (doubled)"} — {Blackjack.value(
-          @hand["cards"]
+        {@label} — Bet ${Money.format(@hand["bet"])}{if @hand["doubled"], do: " (doubled)"}{hand_total_suffix(
+          @hand,
+          @revealed_count
         )}
       </span>
       <div id={"hand-cards-#{@hand["id"]}"} class="flex w-full justify-center gap-2">
-        <.card_face :for={card <- @hand["cards"]} card={card} />
+        <.card_face
+          :for={{card, index} <- Enum.with_index(@hand["cards"])}
+          card={if index < @revealed_count, do: card}
+        />
       </div>
       <p
-        :if={@hand["outcome"]}
+        :if={@hand["outcome"] && !@dealing?}
         class={[
           "text-sm font-semibold",
           @hand["outcome"] in ["win", "blackjack_win"] &&
@@ -700,7 +798,10 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
       >
         {outcome_message(@hand)}
       </p>
-      <div :if={@active? && @status == "player_turn"} class="mt-3 flex flex-wrap justify-center gap-3">
+      <div
+        :if={@active? && @status == "player_turn" && !@dealing?}
+        class="mt-3 flex flex-wrap justify-center gap-3"
+      >
         <button
           id={"hit-button-#{@hand["id"]}"}
           type="button"

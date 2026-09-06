@@ -13,6 +13,7 @@ defmodule HighSociety.Accounts.User do
           claimed_starting_chips_at: DateTime.t() | nil,
           claimed_poker_chips_at: DateTime.t() | nil,
           claimed_battleship_chips_at: DateTime.t() | nil,
+          claimed_slots_chips_at: DateTime.t() | nil,
           active_days_count: integer(),
           last_active_on: Date.t() | nil
         }
@@ -30,6 +31,7 @@ defmodule HighSociety.Accounts.User do
     field :claimed_starting_chips_at, :utc_datetime
     field :claimed_poker_chips_at, :utc_datetime
     field :claimed_battleship_chips_at, :utc_datetime
+    field :claimed_slots_chips_at, :utc_datetime
     field :active_days_count, :integer, default: 0
     field :last_active_on, :date
 

@@ -18,7 +18,7 @@ defmodule HighSocietyWeb do
   """
 
   def static_paths,
-    do: ~w(assets fonts images audio favicon.ico robots.txt manifest.webmanifest sw.js)
+    do: ~w(assets fonts images audio videos favicon.ico robots.txt manifest.webmanifest sw.js)
 
   def router do
     quote do

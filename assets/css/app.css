@@ -119,6 +119,22 @@
   animation: card-deal-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* Slots reel spin: an infinite vertical loop over a doubled decorative
+   symbol strip (see HighSocietyWeb.GameLive.SlotsComponents.grid/1) -
+   translating exactly half its height loops seamlessly. Only ever shown
+   while the real (already server-decided) result is being held back for a
+   moment, so it never needs to reflect anything but filler symbols. */
+@keyframes reel-spin {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+
+.reel-spin-strip {
+  animation-name: reel-spin;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
 /* Blackjack action icons (priv/static/images/blackjack/*.png), masked with
    the current text color so they match each button's fill/hover state
    without needing separate light/dark image assets. */
