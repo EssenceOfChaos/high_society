@@ -15,7 +15,9 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatchTest do
 
   test "redirects to log in when not authenticated" do
     conn = Phoenix.ConnTest.build_conn()
-    assert {:error, {:redirect, %{to: "/users/log-in"}}} = live(conn, ~p"/games/battleship/lobby/nope")
+
+    assert {:error, {:redirect, %{to: "/users/log-in"}}} =
+             live(conn, ~p"/games/battleship/lobby/nope")
   end
 
   test "redirects to the lobby for a match that doesn't exist", %{conn: conn} do

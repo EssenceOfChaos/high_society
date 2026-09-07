@@ -4,6 +4,8 @@ defmodule HighSociety.GamesTest do
   alias HighSociety.Accounts
   alias HighSociety.Games
   alias HighSociety.Games.Blackjack
+  alias HighSociety.Games.Roulette
+  alias HighSociety.Games.RouletteGame
   alias HighSociety.Games.Slots
   alias HighSociety.Games.SlotsGame
 
@@ -547,6 +549,76 @@ defmodule HighSociety.GamesTest do
 
       assert game.wager == 100
       assert updated_user.balance == balance_before + game.total_win
+    end
+  end
+
+  describe "get_active_roulette_game/1" do
+    test "returns nil when the user has never spun", %{scope: scope} do
+      assert Games.get_active_roulette_game(scope) == nil
+    end
+  end
+
+  describe "spin_roulette/2" do
+    test "rejects an empty bet map", %{scope: scope} do
+      {:ok, user} = Accounts.claim_roulette_chips(scope.user)
+      scope = %{scope | user: user}
+
+      assert {:error, :no_bets} = Games.spin_roulette(scope, %{})
+      assert Games.get_active_roulette_game(scope) == nil
+    end
+
+    test "rejects a bet key it doesn't recognize", %{scope: scope} do
+      {:ok, user} = Accounts.claim_roulette_chips(scope.user)
+      scope = %{scope | user: user}
+
+      assert {:error, :invalid_bet} = Games.spin_roulette(scope, %{"straight:37" => 100})
+      assert Accounts.get_user!(user.id).balance == user.balance
+      assert Games.get_active_roulette_game(scope) == nil
+    end
+
+    test "rejects a single bet over the max, leaving balance and DB untouched", %{scope: scope} do
+      {:ok, user} = Accounts.claim_roulette_chips(scope.user)
+      scope = %{scope | user: user}
+
+      assert {:error, :bet_too_large} =
+               Games.spin_roulette(scope, %{"red" => Roulette.max_bet() + 1})
+
+      assert Accounts.get_user!(user.id).balance == user.balance
+      assert Games.get_active_roulette_game(scope) == nil
+    end
+
+    test "rejects a total bet exceeding the user's balance", %{scope: scope} do
+      assert scope.user.balance == 0
+      assert {:error, :insufficient_funds} = Games.spin_roulette(scope, %{"red" => 100})
+      assert Games.get_active_roulette_game(scope) == nil
+    end
+
+    test "debits the total stake, persists the spin, and credits any payout", %{scope: scope} do
+      {:ok, user} = Accounts.claim_roulette_chips(scope.user)
+      scope = %{scope | user: user}
+      balance_before = user.balance
+
+      assert {:ok, game, updated_user} =
+               Games.spin_roulette(scope, %{"red" => 100, "black" => 50})
+
+      assert game.total_wager == 150
+      assert game.winning_number in 0..36
+      assert length(game.bets) == 2
+      assert updated_user.balance == balance_before - 150 + game.total_payout
+
+      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).balance ==
+               updated_user.balance
+    end
+
+    test "discards the user's previous spin", %{scope: scope} do
+      {:ok, user} = Accounts.claim_roulette_chips(scope.user)
+      scope = %{scope | user: user}
+
+      {:ok, first, user} = Games.spin_roulette(scope, %{"red" => 100})
+      {:ok, second, _user} = Games.spin_roulette(%{scope | user: user}, %{"black" => 100})
+
+      assert first.id != second.id
+      refute HighSociety.Repo.get(RouletteGame, first.id)
     end
   end
 end

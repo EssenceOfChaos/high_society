@@ -33,12 +33,15 @@ defmodule HighSociety.Games.BattleshipTest do
     end
 
     test "rejects an unknown ship type" do
-      assert Battleship.place_ship([], :dinghy, {0, 0}, :horizontal) == {:error, :invalid_ship_type}
+      assert Battleship.place_ship([], :dinghy, {0, 0}, :horizontal) ==
+               {:error, :invalid_ship_type}
     end
 
     test "rejects a duplicate ship type" do
       {:ok, fleet} = Battleship.place_ship([], :destroyer, {0, 0}, :horizontal)
-      assert Battleship.place_ship(fleet, :destroyer, {5, 5}, :horizontal) == {:error, :duplicate_ship_type}
+
+      assert Battleship.place_ship(fleet, :destroyer, {5, 5}, :horizontal) ==
+               {:error, :duplicate_ship_type}
     end
 
     test "rejects a run that leaves the board" do
@@ -75,7 +78,11 @@ defmodule HighSociety.Games.BattleshipTest do
 
   describe "ready_up/2" do
     setup do
-      {:ok, battleship: %Battleship{player_fleet: Battleship.random_fleet(), opponent_fleet: Battleship.random_fleet()}}
+      {:ok,
+       battleship: %Battleship{
+         player_fleet: Battleship.random_fleet(),
+         opponent_fleet: Battleship.random_fleet()
+       }}
     end
 
     test "rejects an incomplete fleet", %{battleship: battleship} do
@@ -141,21 +148,32 @@ defmodule HighSociety.Games.BattleshipTest do
     end
 
     test "a miss records the shot and flips turn", %{battleship: battleship} do
-      {:ok, %{result: :miss, ship_type: nil}, battleship} = Battleship.fire(battleship, :player, {5, 5})
+      {:ok, %{result: :miss, ship_type: nil}, battleship} =
+        Battleship.fire(battleship, :player, {5, 5})
+
       assert battleship.player_shots["F6"] == "miss"
       assert battleship.status == :opponent_turn
     end
 
-    test "a hit records the shot, flips turn, and does not sink the ship yet", %{battleship: battleship} do
-      {:ok, %{result: :hit, ship_type: :destroyer}, battleship} = Battleship.fire(battleship, :player, {0, 0})
+    test "a hit records the shot, flips turn, and does not sink the ship yet", %{
+      battleship: battleship
+    } do
+      {:ok, %{result: :hit, ship_type: :destroyer}, battleship} =
+        Battleship.fire(battleship, :player, {0, 0})
+
       assert battleship.player_shots["A1"] == "hit"
       assert battleship.status == :opponent_turn
     end
 
-    test "sinking the last cell of a ship reports :sunk and wins the game", %{battleship: battleship} do
+    test "sinking the last cell of a ship reports :sunk and wins the game", %{
+      battleship: battleship
+    } do
       {:ok, %{result: :hit}, battleship} = Battleship.fire(battleship, :player, {0, 0})
       {:ok, _result, battleship} = Battleship.fire(battleship, :opponent, {5, 5})
-      {:ok, %{result: :sunk, ship_type: :destroyer}, battleship} = Battleship.fire(battleship, :player, {1, 0})
+
+      {:ok, %{result: :sunk, ship_type: :destroyer}, battleship} =
+        Battleship.fire(battleship, :player, {1, 0})
+
       assert battleship.status == :player_won
     end
 

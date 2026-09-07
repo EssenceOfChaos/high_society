@@ -528,7 +528,8 @@ defmodule HighSocietyWeb.CoreComponents do
   attr :tooltip_position, :string, default: "tooltip-bottom"
 
   def player_badge(assigns) do
-    assigns = assign(assigns, :badge, HighSociety.Badges.for_active_days(assigns.active_days_count))
+    assigns =
+      assign(assigns, :badge, HighSociety.Badges.for_active_days(assigns.active_days_count))
 
     ~H"""
     <span class={["tooltip", @tooltip_position]} data-tip={@badge.name}>

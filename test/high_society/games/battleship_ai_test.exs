@@ -12,7 +12,9 @@ defmodule HighSociety.Games.BattleshipAITest do
     end
 
     test "never re-chooses an already-shot cell" do
-      shots_fired = for col <- 0..9, row <- 0..9, rem(col + row, 2) == 0, into: %{}, do: {{col, row}, :miss}
+      shots_fired =
+        for col <- 0..9, row <- 0..9, rem(col + row, 2) == 0, into: %{}, do: {{col, row}, :miss}
+
       {col, row} = BattleshipAI.choose_shot(shots_fired, [])
       assert rem(col + row, 2) == 1
       refute Map.has_key?(shots_fired, {col, row})

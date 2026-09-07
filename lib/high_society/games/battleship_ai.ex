@@ -61,6 +61,7 @@ defmodule HighSociety.Games.BattleshipAI do
   defp line_candidates(live_hits, :horizontal, shots_fired, board_size) do
     [{_col, row} | _] = live_hits
     cols = Enum.map(live_hits, &elem(&1, 0))
+
     (Enum.min(cols) - 1)..(Enum.max(cols) + 1)
     |> Enum.map(&{&1, row})
     |> untried(shots_fired, board_size)
@@ -69,6 +70,7 @@ defmodule HighSociety.Games.BattleshipAI do
   defp line_candidates(live_hits, :vertical, shots_fired, board_size) do
     [{col, _row} | _] = live_hits
     rows = Enum.map(live_hits, &elem(&1, 1))
+
     (Enum.min(rows) - 1)..(Enum.max(rows) + 1)
     |> Enum.map(&{col, &1})
     |> untried(shots_fired, board_size)

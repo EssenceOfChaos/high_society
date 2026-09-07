@@ -148,7 +148,10 @@ defmodule HighSociety.Games.BattleshipContextTest do
 
       game =
         game
-        |> Map.replace!(:battleship, Battleship.to_json(%{battleship | opponent_fleet: opponent_fleet}))
+        |> Map.replace!(
+          :battleship,
+          Battleship.to_json(%{battleship | opponent_fleet: opponent_fleet})
+        )
         |> force_status(:player_turn)
 
       balance_before = Accounts.get_user!(scope.user.id).balance

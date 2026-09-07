@@ -135,6 +135,27 @@
   animation-iteration-count: infinite;
 }
 
+/* Roulette wheel/table (see HighSocietyWeb.GameLive.RouletteComponents).
+   -142px is the wheel's fixed radius (its size never changes with
+   viewport) plus the ball's own offset from the rim. Once the result is
+   known, the ball element instead gets a `phx-hook=".InlineStyle"`-applied
+   `transform: rotate(<angle>deg) translateY(-142px)` (its own CSS
+   `transition`, no animation class), so it settles smoothly from wherever
+   this loop left it onto the winning pocket. */
+@keyframes roulette-ball-spin {
+  from { transform: translate(-50%, -50%) rotate(0deg) translateY(-142px); }
+  to { transform: translate(-50%, -50%) rotate(360deg) translateY(-142px); }
+}
+
+.roulette-ball-spin {
+  animation: roulette-ball-spin 0.7s linear infinite;
+}
+
+.roulette-table-grid {
+  grid-template-columns: 52px repeat(12, minmax(48px, 1fr)) 52px;
+  grid-template-rows: repeat(3, 52px) 44px 44px;
+}
+
 /* Blackjack action icons (priv/static/images/blackjack/*.png), masked with
    the current text color so they match each button's fill/hover state
    without needing separate light/dark image assets. */

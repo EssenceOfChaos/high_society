@@ -99,7 +99,8 @@ defmodule HighSociety.Games.BattleshipContext do
   live vs-human mode, there's no separate connected process representing
   the computer that could otherwise take its turn.
   """
-  @spec ready_up_player(BattleshipGame.t()) :: {:ok, BattleshipGame.t()} | {:error, :fleet_incomplete}
+  @spec ready_up_player(BattleshipGame.t()) ::
+          {:ok, BattleshipGame.t()} | {:error, :fleet_incomplete}
   def ready_up_player(%BattleshipGame{} = game) do
     case Battleship.ready_up(to_battleship(game), :player) do
       {:ok, battleship} ->
@@ -119,7 +120,8 @@ defmodule HighSociety.Games.BattleshipContext do
   credited) user.
   """
   @spec fire(Scope.t(), BattleshipGame.t(), Battleship.coord()) ::
-          {:ok, BattleshipGame.t(), User.t(), %{player: map, computer: map | nil}} | {:error, atom}
+          {:ok, BattleshipGame.t(), User.t(), %{player: map, computer: map | nil}}
+          | {:error, atom}
   def fire(%Scope{user: user}, %BattleshipGame{} = game, coord) do
     battleship = to_battleship(game)
 
@@ -163,7 +165,8 @@ defmodule HighSociety.Games.BattleshipContext do
   defp payout_for(%Battleship{status: :player_won}, wager), do: wager * 2
   defp payout_for(_battleship, _wager), do: 0
 
-  defp to_battleship(%BattleshipGame{battleship: battleship}), do: Battleship.from_json(battleship)
+  defp to_battleship(%BattleshipGame{battleship: battleship}),
+    do: Battleship.from_json(battleship)
 
   defp save(%BattleshipGame{} = game, %Battleship{} = battleship, extra_attrs \\ %{}) do
     attrs =

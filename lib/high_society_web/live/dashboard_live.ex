@@ -60,8 +60,8 @@ defmodule HighSocietyWeb.DashboardLive do
       description: "Red or black, odd or even — let the wheel decide.",
       icon: "hero-adjustments-horizontal",
       accent: "from-red-500 to-rose-400",
-      path: nil,
-      available: false
+      path: "/games/roulette",
+      available: true
     }
   ]
 
@@ -96,8 +96,8 @@ defmodule HighSocietyWeb.DashboardLive do
 
           <div class="relative mx-auto w-full max-w-5xl">
             <div class="flex items-center gap-3">
-              <span class="h-px w-8 bg-amber-400/70" />
-              <p class="text-xs font-semibold uppercase tracking-[0.3em] text-amber-300/90">
+              <span class="h-px w-8 bg-zinc-300/70" />
+              <p class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-200/90">
                 Play, curated to a higher standard.
               </p>
             </div>
@@ -106,7 +106,7 @@ defmodule HighSocietyWeb.DashboardLive do
               <span class="block text-6xl leading-[1.15] font-bold tracking-tight text-white sm:text-7xl lg:text-8xl">
                 High
               </span>
-              <span class="block bg-gradient-to-r from-amber-200 via-amber-300 to-amber-500 bg-clip-text text-6xl leading-[1.15] font-serif text-transparent italic [text-shadow:0_2px_30px_rgba(0,0,0,0.45)] sm:text-7xl lg:text-8xl">
+              <span class="block bg-gradient-to-r from-zinc-100 via-slate-200 to-zinc-300 bg-clip-text text-6xl leading-[1.15] font-serif text-transparent italic [text-shadow:0_2px_30px_rgba(0,0,0,0.45)] sm:text-7xl lg:text-8xl">
                 Society
               </span>
             </h1>
@@ -118,7 +118,7 @@ defmodule HighSocietyWeb.DashboardLive do
             <div class="mt-8">
               <a
                 href="#games"
-                class="inline-flex items-center rounded-sm border border-amber-300/50 px-6 py-3 text-sm font-semibold text-amber-100 backdrop-blur-sm transition-colors hover:border-amber-300 hover:bg-amber-400/10"
+                class="inline-flex items-center rounded-sm border border-zinc-300/50 px-6 py-3 text-sm font-semibold text-zinc-100 backdrop-blur-sm transition-colors hover:border-zinc-200 hover:bg-zinc-300/10"
               >
                 Enter the tables
               </a>
@@ -172,6 +172,10 @@ defmodule HighSocietyWeb.DashboardLive do
             </div>
           </div>
         </div>
+
+        <p class="mt-10 text-center text-sm text-base-content/50">
+          More games coming soon&hellip;
+        </p>
       </div>
     </Layouts.app>
     """

@@ -12,7 +12,14 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
       {:ok, view} ->
         if connected?(socket) do
           Phoenix.PubSub.subscribe(HighSociety.PubSub, BattleshipMatch.topic(slug))
-          HighSocietyWeb.Presence.track(self(), presence_topic(slug), socket.assigns.current_scope.user.id, %{})
+
+          HighSocietyWeb.Presence.track(
+            self(),
+            presence_topic(slug),
+            socket.assigns.current_scope.user.id,
+            %{}
+          )
+
           Phoenix.PubSub.subscribe(HighSociety.PubSub, presence_topic(slug))
         end
 
@@ -44,7 +51,8 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
 
   defp presence_topic(slug), do: "battleship_match_watchers:#{slug}"
 
-  defp watching_count(slug), do: slug |> presence_topic() |> HighSocietyWeb.Presence.list() |> map_size()
+  defp watching_count(slug),
+    do: slug |> presence_topic() |> HighSocietyWeb.Presence.list() |> map_size()
 
   @impl true
   def handle_info({:battleship_match_updated, %{status: :cancelled}}, socket) do
@@ -66,7 +74,10 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
   defp reset_selected(socket, view) do
     user_id = socket.assigns.current_scope.user.id
     perspective = perspective(view, user_id)
-    if Battleship.fleet_complete?(perspective.my_fleet), do: nil, else: socket.assigns.selected_ship_type
+
+    if Battleship.fleet_complete?(perspective.my_fleet),
+      do: nil,
+      else: socket.assigns.selected_ship_type
   end
 
   @impl true
@@ -101,7 +112,11 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
     {:noreply, assign(socket, orientation: orientation)}
   end
 
-  def handle_event("place_ship", %{"coord" => _coord}, %{assigns: %{selected_ship_type: nil}} = socket) do
+  def handle_event(
+        "place_ship",
+        %{"coord" => _coord},
+        %{assigns: %{selected_ship_type: nil}} = socket
+      ) do
     {:noreply, socket}
   end
 
@@ -110,7 +125,13 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
     user_id = socket.assigns.current_scope.user.id
     ship_type = socket.assigns.selected_ship_type
 
-    case BattleshipMatch.place_ship(socket.assigns.slug, user_id, ship_type, coord, socket.assigns.orientation) do
+    case BattleshipMatch.place_ship(
+           socket.assigns.slug,
+           user_id,
+           ship_type,
+           coord,
+           socket.assigns.orientation
+         ) do
       {:ok, view} ->
         perspective = perspective(view, user_id)
         next_type = next_unplaced_type(perspective.my_fleet)
@@ -146,8 +167,11 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
     user_id = socket.assigns.current_scope.user.id
 
     case BattleshipMatch.ready_up(socket.assigns.slug, user_id) do
-      {:ok, view} -> {:noreply, assign(socket, view: view, error: nil)}
-      {:error, :fleet_incomplete} -> {:noreply, assign(socket, error: "Place all 5 ships before you're ready.")}
+      {:ok, view} ->
+        {:noreply, assign(socket, view: view, error: nil)}
+
+      {:error, :fleet_incomplete} ->
+        {:noreply, assign(socket, error: "Place all 5 ships before you're ready.")}
     end
   end
 
@@ -178,7 +202,9 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
 
   defp join_error_message(:match_full), do: "That match is already full."
   defp join_error_message(:already_seated), do: "You're already in this match."
-  defp join_error_message(:insufficient_funds), do: "You don't have enough balance to match that wager."
+
+  defp join_error_message(:insufficient_funds),
+    do: "You don't have enough balance to match that wager."
 
   defp placement_error_message(:out_of_bounds), do: "That ship would run off the board."
   defp placement_error_message(:overlaps), do: "That overlaps another ship."
@@ -196,9 +222,21 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
   # visitor.
   defp perspective(view, user_id) do
     cond do
-      view.seats[0] && view.seats[0].user_id == user_id -> build_perspective(view, 0)
-      view.seats[1] && view.seats[1].user_id == user_id -> build_perspective(view, 1)
-      true -> %{seat: nil, my_fleet: [], my_received: %{}, enemy_fleet: [], my_fired: %{}, my_turn?: false}
+      view.seats[0] && view.seats[0].user_id == user_id ->
+        build_perspective(view, 0)
+
+      view.seats[1] && view.seats[1].user_id == user_id ->
+        build_perspective(view, 1)
+
+      true ->
+        %{
+          seat: nil,
+          my_fleet: [],
+          my_received: %{},
+          enemy_fleet: [],
+          my_fired: %{},
+          my_turn?: false
+        }
     end
   end
 
@@ -247,7 +285,10 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
       <div id="battleship-match-screen" class="mx-auto max-w-4xl" phx-hook=".SoundEffects">
         <div class="flex items-center justify-between">
           <div>
-            <.link navigate={~p"/games/battleship/lobby"} class="text-sm text-base-content/60 hover:text-base-content">
+            <.link
+              navigate={~p"/games/battleship/lobby"}
+              class="text-sm text-base-content/60 hover:text-base-content"
+            >
               &larr; All matches
             </.link>
             <h1 class="mt-1 text-3xl font-bold tracking-tight">Battleship — ${@view.wager} match</h1>
@@ -359,7 +400,10 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
           :if={@view.status in [:player_turn, :opponent_turn, :player_won, :opponent_won]}
           class="mt-8"
         >
-          <p :if={@view.status in [:player_turn, :opponent_turn] && @p.seat} class="text-center text-lg font-semibold">
+          <p
+            :if={@view.status in [:player_turn, :opponent_turn] && @p.seat}
+            class="text-center text-lg font-semibold"
+          >
             <%= if @p.my_turn? do %>
               Your turn — fire at {opponent_username(@view, @p.seat)}'s fleet
             <% else %>
@@ -381,7 +425,10 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
             <p class="text-2xl font-bold text-error">Your fleet was sunk.</p>
           </div>
 
-          <div :if={is_nil(@p.seat) && @view.status in [:player_won, :opponent_won]} class="text-center">
+          <div
+            :if={is_nil(@p.seat) && @view.status in [:player_won, :opponent_won]}
+            class="text-center"
+          >
             <p class="text-2xl font-bold">Match over.</p>
           </div>
 

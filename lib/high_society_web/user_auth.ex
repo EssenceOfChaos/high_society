@@ -267,7 +267,11 @@ defmodule HighSocietyWeb.UserAuth do
     if Phoenix.LiveView.connected?(socket) do
       case socket.assigns.current_scope do
         %Scope{user: %Accounts.User{} = user} ->
-          Phoenix.Component.assign(socket, :current_scope, Scope.for_user(Accounts.record_activity(user)))
+          Phoenix.Component.assign(
+            socket,
+            :current_scope,
+            Scope.for_user(Accounts.record_activity(user))
+          )
 
         _ ->
           socket

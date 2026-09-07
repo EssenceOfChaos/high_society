@@ -228,6 +228,41 @@ defmodule HighSociety.Accounts do
     if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :already_claimed}
   end
 
+  @roulette_starting_chip_amount 10_000 * 100
+
+  @doc "The one-time starting chip grant amount for Roulette, in cents."
+  @spec roulette_starting_chip_amount() :: pos_integer()
+  def roulette_starting_chip_amount, do: @roulette_starting_chip_amount
+
+  @doc """
+  Grants the user's one-time Roulette starting balance of
+  `#{@roulette_starting_chip_amount}` cents play money. Atomic and
+  idempotent, and tracked separately from the other games' claims since
+  each offers its own one-time grant.
+
+  ## Examples
+
+      iex> claim_roulette_chips(user)
+      {:ok, %User{balance: 1_000_000}}
+
+      iex> claim_roulette_chips(already_claimed_user)
+      {:error, :already_claimed}
+
+  """
+  @spec claim_roulette_chips(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
+  def claim_roulette_chips(%User{} = user) do
+    now = DateTime.utc_now(:second)
+
+    {count, _} =
+      Repo.update_all(
+        from(u in User, where: u.id == ^user.id and is_nil(u.claimed_roulette_chips_at)),
+        inc: [balance: @roulette_starting_chip_amount],
+        set: [claimed_roulette_chips_at: now]
+      )
+
+    if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :already_claimed}
+  end
+
   @doc """
   Records that the user was active today, for badge progression. Atomic and
   idempotent - calling it more than once on the same UTC day is a no-op, so
