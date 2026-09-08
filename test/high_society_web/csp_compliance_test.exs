@@ -35,9 +35,7 @@ defmodule HighSocietyWeb.CspComplianceTest do
 
   test "every inline <script> tag is external, a colocated hook, or nonce'd" do
     offenders =
-      grep(@web_files, ~r/<script/,
-        unless_also_matches: ~r/src=|ColocatedHook|nonce=/
-      )
+      grep(@web_files, ~r/<script/, unless_also_matches: ~r/src=|ColocatedHook|nonce=/)
 
     assert offenders == [],
            """

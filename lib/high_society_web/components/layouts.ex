@@ -50,7 +50,7 @@ defmodule HighSocietyWeb.Layouts do
             class={[
               "size-7",
               if(@hero != [],
-                do: "bg-gradient-to-r from-amber-200 via-amber-300 to-amber-500",
+                do: "bg-gradient-to-r from-zinc-100 via-slate-200 to-zinc-300",
                 else: "text-primary"
               )
             ]}
@@ -70,7 +70,7 @@ defmodule HighSocietyWeb.Layouts do
     {render_slot(@hero)}
 
     <main class="relative z-10 bg-base-100 px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-3xl space-y-4">
+      <div class="mx-auto max-w-7xl space-y-4">
         {render_slot(@inner_block)}
       </div>
     </main>

@@ -175,7 +175,15 @@ defmodule HighSocietyWeb.GameLive.BattleshipComponents do
   defp miss_marker(assigns) do
     ~H"""
     <svg viewBox="0 0 64 64" class="pointer-events-none absolute inset-0">
-      <circle cx="32" cy="32" r="12" fill="none" stroke="#a8dadc" stroke-width="2.5" stroke-dasharray="4 2" />
+      <circle
+        cx="32"
+        cy="32"
+        r="12"
+        fill="none"
+        stroke="#a8dadc"
+        stroke-width="2.5"
+        stroke-dasharray="4 2"
+      />
       <circle cx="32" cy="32" r="3" fill="#a8dadc" />
     </svg>
     """

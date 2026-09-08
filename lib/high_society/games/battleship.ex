@@ -89,7 +89,8 @@ defmodule HighSociety.Games.Battleship do
   existing ship.
   """
   @spec place_ship(fleet, atom, coord, orientation) ::
-          {:ok, fleet} | {:error, :invalid_ship_type | :duplicate_ship_type | :out_of_bounds | :overlaps}
+          {:ok, fleet}
+          | {:error, :invalid_ship_type | :duplicate_ship_type | :out_of_bounds | :overlaps}
   def place_ship(fleet, ship_type, coord, orientation) do
     cond do
       ship_type not in @ship_types ->
@@ -116,7 +117,8 @@ defmodule HighSociety.Games.Battleship do
 
   @doc "The number of cells `ship_type` occupies."
   @spec ship_length(atom) :: pos_integer | nil
-  def ship_length(ship_type), do: Enum.find_value(@ship_specs, &(&1.type == ship_type && &1.length))
+  def ship_length(ship_type),
+    do: Enum.find_value(@ship_specs, &(&1.type == ship_type && &1.length))
 
   @doc "True once all 5 required ship types have been placed."
   @spec fleet_complete?(fleet) :: boolean

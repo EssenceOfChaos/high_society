@@ -183,8 +183,11 @@ defmodule HighSociety.Games.BattleshipMatch do
   def handle_call({:ready_up, user_id}, _from, state) do
     with_seat(state, user_id, fn side ->
       case Battleship.ready_up(state.battleship, side) do
-        {:ok, battleship} -> finalize(%{state | battleship: battleship, status: battleship.status})
-        {:error, reason} -> {:reply, {:error, reason}, state}
+        {:ok, battleship} ->
+          finalize(%{state | battleship: battleship, status: battleship.status})
+
+        {:error, reason} ->
+          {:reply, {:error, reason}, state}
       end
     end)
   end
@@ -227,7 +230,9 @@ defmodule HighSociety.Games.BattleshipMatch do
         {:reply, {:error, :not_seated}, state}
 
       true ->
-        {:ok, _user} = Accounts.adjust_balance(Accounts.get_user!(state.seat_0_user_id), state.wager)
+        {:ok, _user} =
+          Accounts.adjust_balance(Accounts.get_user!(state.seat_0_user_id), state.wager)
+
         finalize(%{state | status: :cancelled})
     end
   end
@@ -253,8 +258,12 @@ defmodule HighSociety.Games.BattleshipMatch do
 
   ## Settling a win
 
-  defp settle_if_won(%{status: :player_won} = state), do: credit_winner(state, state.seat_0_user_id)
-  defp settle_if_won(%{status: :opponent_won} = state), do: credit_winner(state, state.seat_1_user_id)
+  defp settle_if_won(%{status: :player_won} = state),
+    do: credit_winner(state, state.seat_0_user_id)
+
+  defp settle_if_won(%{status: :opponent_won} = state),
+    do: credit_winner(state, state.seat_1_user_id)
+
   defp settle_if_won(state), do: state
 
   defp credit_winner(state, winner_user_id) do
@@ -324,8 +333,12 @@ defmodule HighSociety.Games.BattleshipMatch do
       wager: state.wager,
       status: state.status,
       seats: %{
-        0 => state.seat_0_user_id && %{user_id: state.seat_0_user_id, username: state.seat_0_username},
-        1 => state.seat_1_user_id && %{user_id: state.seat_1_user_id, username: state.seat_1_username}
+        0 =>
+          state.seat_0_user_id &&
+            %{user_id: state.seat_0_user_id, username: state.seat_0_username},
+        1 =>
+          state.seat_1_user_id &&
+            %{user_id: state.seat_1_user_id, username: state.seat_1_username}
       },
       battleship: state.battleship,
       last_shot: last_shot

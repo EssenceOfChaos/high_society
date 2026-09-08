@@ -13,6 +13,8 @@ defmodule HighSociety.Games do
   alias HighSociety.Repo
   alias HighSociety.Games.Blackjack
   alias HighSociety.Games.BlackjackGame
+  alias HighSociety.Games.Roulette
+  alias HighSociety.Games.RouletteGame
   alias HighSociety.Games.Slots
   alias HighSociety.Games.SlotsGame
   alias HighSociety.Games.War
@@ -380,6 +382,76 @@ defmodule HighSociety.Games do
       "length" => win.length,
       "multiplier_hundredths" => win.multiplier_hundredths
     }
+  end
+
+  @doc """
+  Returns the current user's most recent Roulette spin, or `nil` if
+  they've never spun. Kept regardless of outcome purely so the last result
+  is still shown on remount instead of an empty table.
+  """
+  @spec get_active_roulette_game(Scope.t()) :: RouletteGame.t() | nil
+  def get_active_roulette_game(%Scope{user: user}) do
+    Repo.one(from rg in RouletteGame, where: rg.user_id == ^user.id)
+  end
+
+  @doc """
+  Places `bets` (a map of table-cell key to wagered cents - see
+  `HighSociety.Games.Roulette`) and spins the wheel for the current user,
+  debiting the total stake up front and crediting back whatever the spin
+  pays out. Discards the user's previous spin row.
+  """
+  @spec spin_roulette(Scope.t(), Roulette.bets()) ::
+          {:ok, RouletteGame.t(), User.t()}
+          | {:error, :no_bets | :invalid_bet | :bet_too_large | :insufficient_funds}
+  def spin_roulette(%Scope{user: user}, bets) when is_map(bets) do
+    total = bets |> Map.values() |> Enum.sum()
+
+    cond do
+      map_size(bets) == 0 ->
+        {:error, :no_bets}
+
+      not Enum.all?(bets, fn {key, amount} ->
+        Roulette.valid_key?(key) and is_integer(amount) and amount > 0
+      end) ->
+        {:error, :invalid_bet}
+
+      Enum.any?(bets, fn {_key, amount} -> amount > Roulette.max_bet() end) ->
+        {:error, :bet_too_large}
+
+      true ->
+        Repo.transact(fn ->
+          with {:ok, user} <- maybe_debit(user, total) do
+            winning_number = Roulette.spin()
+            settled = Roulette.evaluate(winning_number, bets)
+            total_payout = settled |> Enum.map(& &1.payout) |> Enum.sum()
+
+            Repo.delete_all(from rg in RouletteGame, where: rg.user_id == ^user.id)
+
+            game =
+              %RouletteGame{}
+              |> RouletteGame.changeset(%{
+                user_id: user.id,
+                winning_number: winning_number,
+                bets: Enum.map(settled, &stringify_settled_bet/1),
+                total_wager: total,
+                total_payout: total_payout
+              })
+              |> Repo.insert!()
+
+            {:ok, user} = Accounts.adjust_balance(user, total_payout)
+
+            {:ok, {game, user}}
+          end
+        end)
+        |> case do
+          {:ok, {game, user}} -> {:ok, game, user}
+          {:error, reason} -> {:error, reason}
+        end
+    end
+  end
+
+  defp stringify_settled_bet(%{} = bet) do
+    %{"key" => bet.key, "amount" => bet.amount, "payout" => bet.payout, "won" => bet.won?}
   end
 
   defp to_blackjack(%BlackjackGame{} = game) do
