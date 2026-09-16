@@ -11,7 +11,7 @@ defmodule HighSociety do
   def get_application do
     app = Application.get_application(__MODULE__)
     s = app |> to_string |> Macro.camelize()
-    c = s |> String.to_atom()
+    c = s |> String.to_existing_atom()
     %{atom: app, string: s, camelized: c}
   end
 
