@@ -5,9 +5,9 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobby do
   alias HighSociety.Accounts.Scope
   alias HighSociety.Games.BattleshipMatch
   alias HighSociety.Games.BattleshipMatches
-  alias HighSociety.Money
+  alias HighSociety.Tokens
 
-  @wager_options [5_000, 10_000, 25_000, 50_000]
+  @wager_options [100, 500, 1_000, 2_500, 5_000, 10_000, 25_000]
 
   @impl true
   def mount(_params, _session, socket) do
@@ -56,8 +56,8 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobby do
     end
   end
 
-  def handle_event("claim_starting_chips", _params, socket) do
-    case Accounts.claim_battleship_chips(socket.assigns.current_scope.user) do
+  def handle_event("claim_battleship_tokens", _params, socket) do
+    case Accounts.claim_battleship_tokens(socket.assigns.current_scope.user) do
       {:ok, user} -> {:noreply, assign(socket, current_scope: Scope.for_user(user))}
       {:error, :already_claimed} -> {:noreply, socket}
     end
@@ -83,18 +83,16 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobby do
               <div class="text-xs font-medium uppercase tracking-wide text-base-content/50">
                 Balance
               </div>
-              <div id="balance" class="text-lg font-bold">
-                ${Money.format(@current_scope.user.balance)}
-              </div>
+              <.token_balance amount={@current_scope.user.tokens_balance} />
             </div>
             <button
-              :if={is_nil(@current_scope.user.claimed_battleship_chips_at)}
-              id="claim-chips-button"
+              :if={is_nil(@current_scope.user.claimed_battleship_tokens_at)}
+              id="claim-battleship-tokens-button"
               type="button"
-              phx-click="claim_starting_chips"
+              phx-click="claim_battleship_tokens"
               class="btn btn-success btn-sm animate-pulse"
             >
-              Claim ${Money.format(Accounts.battleship_starting_chip_amount())} chips
+              Claim {Tokens.format(Accounts.battleship_starting_token_amount())} Tokens
             </button>
           </div>
         </div>
@@ -103,7 +101,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobby do
         </p>
 
         <img
-          src={~p"/images/pirate-ship-deck.jpg"}
+          src={~p"/images/battleship-fleet-banner.jpg"}
           alt=""
           class="mt-6 h-40 w-full rounded-box object-cover"
         />
@@ -112,7 +110,9 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobby do
 
         <form phx-submit="create_match" class="mt-6 flex items-center gap-2">
           <select name="wager" class="select select-bordered">
-            <option :for={amount <- @wager_options} value={amount}>${Money.format(amount)}</option>
+            <option :for={amount <- @wager_options} value={amount}>
+              {Tokens.format(amount)} Tokens
+            </option>
           </select>
           <button type="submit" class="btn btn-primary">Create match</button>
         </form>
@@ -129,7 +129,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobby do
             class="flex items-center justify-between rounded-box border border-base-300 bg-base-100 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
           >
             <div>
-              <p class="font-semibold">${Money.format(match.wager)} wager</p>
+              <p class="font-semibold">{Tokens.format(match.wager)} Tokens wager</p>
               <p class="text-sm text-base-content/60">{status_label(match.status)}</p>
             </div>
             <span class="flex items-center gap-1.5 rounded-full bg-base-200 px-3 py-1 text-sm font-semibold">

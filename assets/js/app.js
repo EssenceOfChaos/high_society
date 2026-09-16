@@ -24,6 +24,12 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/high_society"
 import topbar from "../vendor/topbar"
+import {animate} from "../vendor/anime"
+
+// Exposed on window so colocated hooks (which live alongside the templates
+// that use them, not here) can reach it without their own bundler-relative
+// import path back to assets/vendor.
+window.animeAnimate = animate
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {

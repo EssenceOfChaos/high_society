@@ -5,7 +5,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
   alias HighSociety.Accounts.Scope
   alias HighSociety.Games
   alias HighSociety.Games.Blackjack
-  alias HighSociety.Money
+  alias HighSociety.Tokens
 
   @impl true
   def mount(_params, _session, socket) do
@@ -96,6 +96,33 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
     end
   end
 
+  def handle_event("take_insurance", _params, socket) do
+    case Games.take_insurance(socket.assigns.current_scope, socket.assigns.blackjack_game) do
+      {:ok, blackjack_game, user} ->
+        sounds =
+          if blackjack_game.insurance_outcome == "loss", do: ["dealer-no-blackjack"], else: []
+
+        {:noreply, update_blackjack_game(socket, blackjack_game, user, sounds)}
+
+      {:error, :insufficient_funds} ->
+        {:noreply, put_flash(socket, :error, "You don't have enough Tokens to buy insurance.")}
+    end
+  end
+
+  def handle_event("decline_insurance", _params, socket) do
+    {blackjack_game, user} =
+      Games.decline_insurance(socket.assigns.current_scope, socket.assigns.blackjack_game)
+
+    # A dealer blackjack still ends the round immediately (handled by
+    # `round_over_sounds/1`'s own "dealer-blackjack" cue below) - this only
+    # covers the other peek outcome, which declining doesn't otherwise
+    # announce on its own.
+    sounds =
+      if Blackjack.blackjack?(blackjack_game.dealer_hand), do: [], else: ["dealer-no-blackjack"]
+
+    {:noreply, update_blackjack_game(socket, blackjack_game, user, sounds)}
+  end
+
   def handle_event("hit", _params, socket) do
     hand_id = socket.assigns.blackjack_game.active_hand
 
@@ -119,6 +146,19 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
     {:noreply, update_blackjack_game(socket, blackjack_game, user, sounds)}
   end
 
+  def handle_event("surrender", _params, socket) do
+    hand_id = socket.assigns.blackjack_game.active_hand
+
+    case Games.surrender(socket.assigns.current_scope, socket.assigns.blackjack_game) do
+      {:ok, blackjack_game, user} ->
+        sounds = ["player-stand"] ++ turn_advance_sounds(blackjack_game, hand_id)
+        {:noreply, update_blackjack_game(socket, blackjack_game, user, sounds)}
+
+      {:error, :invalid_action} ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_event("double_down", _params, socket) do
     hand_id = socket.assigns.blackjack_game.active_hand
 
@@ -133,7 +173,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
         {:noreply, update_blackjack_game(socket, blackjack_game, user, sounds)}
 
       {:error, :insufficient_funds} ->
-        {:noreply, put_flash(socket, :error, "You don't have enough chips to double down.")}
+        {:noreply, put_flash(socket, :error, "You don't have enough Tokens to double down.")}
 
       {:error, :invalid_action} ->
         {:noreply, socket}
@@ -152,7 +192,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
         {:noreply, update_blackjack_game(socket, blackjack_game, user, sounds)}
 
       {:error, :insufficient_funds} ->
-        {:noreply, put_flash(socket, :error, "You don't have enough chips to split.")}
+        {:noreply, put_flash(socket, :error, "You don't have enough Tokens to split.")}
 
       {:error, :invalid_action} ->
         {:noreply, socket}
@@ -191,8 +231,8 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
     end
   end
 
-  def handle_event("claim_starting_chips", _params, socket) do
-    case Accounts.claim_starting_chips(socket.assigns.current_scope.user) do
+  def handle_event("claim_blackjack_tokens", _params, socket) do
+    case Accounts.claim_blackjack_tokens(socket.assigns.current_scope.user) do
       {:ok, user} -> {:noreply, assign(socket, current_scope: Scope.for_user(user))}
       {:error, :already_claimed} -> {:noreply, socket}
     end
@@ -394,9 +434,12 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
   end
 
   # A bust was already announced live in `hit_result_sounds/1`, so it stays
-  # silent here. A push has no dedicated clip of its own (the dealer
-  # natural blackjack push is handled up in `round_over_sounds/1` instead).
+  # silent here - same for a surrender, already announced live in the
+  # "surrender" handler. A push has no dedicated clip of its own (the
+  # dealer natural blackjack push is handled up in `round_over_sounds/1`
+  # instead).
   defp outcome_sound(%{"status" => "busted"}), do: nil
+  defp outcome_sound(%{"outcome" => "surrender"}), do: nil
   defp outcome_sound(%{"outcome" => "push"}), do: nil
   defp outcome_sound(%{"outcome" => "blackjack_win"}), do: "player-blackjack"
   defp outcome_sound(%{"outcome" => "win"}), do: "player-wins"
@@ -464,18 +507,16 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
               <div class="text-xs font-medium uppercase tracking-wide text-base-content/50">
                 Balance
               </div>
-              <div id="balance" class="text-lg font-bold">
-                ${Money.format(@current_scope.user.balance)}
-              </div>
+              <.token_balance amount={@current_scope.user.tokens_balance} />
             </div>
             <button
-              :if={is_nil(@current_scope.user.claimed_starting_chips_at)}
-              id="claim-chips-button"
+              :if={is_nil(@current_scope.user.claimed_blackjack_tokens_at)}
+              id="claim-blackjack-tokens-button"
               type="button"
-              phx-click="claim_starting_chips"
+              phx-click="claim_blackjack_tokens"
               class="btn btn-success btn-sm animate-pulse"
             >
-              Claim ${Money.format(Accounts.starting_chip_amount())}
+              Claim {Tokens.format(Accounts.blackjack_starting_token_amount())} Tokens
             </button>
             <button
               id="sound-toggle-button"
@@ -488,6 +529,13 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
               <.icon name="hero-speaker-wave" class="size-4 sound-on-icon" />
               <.icon name="hero-speaker-x-mark" class="size-4 sound-off-icon hidden" />
             </button>
+            <.link
+              navigate={~p"/games/blackjack/leaderboard"}
+              class="btn btn-ghost btn-sm btn-circle"
+              aria-label="Leaderboard"
+            >
+              <.icon name="hero-trophy" class="size-5" />
+            </.link>
           </div>
         </div>
 
@@ -513,7 +561,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
           </div>
 
           <p class="mt-4 text-center text-xs text-base-content/50">
-            Max ${Money.format(Blackjack.max_bet())} per hand.
+            Max {Tokens.format(Blackjack.max_bet())} Tokens per hand.
           </p>
 
           <div class="mt-6 flex flex-col items-center gap-2">
@@ -536,68 +584,154 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
         </div>
 
         <div :if={!betting?(assigns)} id="blackjack-table" class="mt-8">
-          <div class="relative flex flex-col items-center gap-2 rounded-t-2xl bg-cover bg-top bg-[url(/images/blackjack-felt.png)] px-4 pb-6 pt-6 shadow-xl">
-            <span class="flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-100 shadow">
-              Dealer<span :if={@blackjack_game.status != "player_turn" && !@dealing?}>
-                — {Blackjack.value(@blackjack_game.dealer_hand)}
-              </span>
-              <.icon
-                :if={@blackjack_game.status == "dealer_turn" && !@dealing?}
-                name="hero-arrow-path"
-                class="size-3 motion-safe:animate-spin"
-              />
-            </span>
-            <div id="dealer-cards" class="flex w-full justify-center gap-2">
-              <.card_face
-                :for={{card, index} <- Enum.with_index(@blackjack_game.dealer_hand)}
-                card={if index < dealer_revealed_count(assigns), do: card}
-                face_down={
-                  index == 1 && index < dealer_revealed_count(assigns) &&
-                    (@dealing? || @blackjack_game.status == "player_turn")
-                }
-              />
-            </div>
-          </div>
+          <svg width="0" height="0" class="absolute" aria-hidden="true">
+            <defs>
+              <clipPath id="blackjack-felt-clip" clipPathUnits="objectBoundingBox">
+                <path d="M0,0 L1,0 L1,0.6503 Q0.5,1.0038 0,0.6503 Z" />
+              </clipPath>
+            </defs>
+          </svg>
 
-          <div class="rounded-b-2xl bg-gradient-to-b from-[#241608] to-[#150c04] px-4 pb-6 pt-8 shadow-xl ring-1 ring-black/40">
-            <div class={[
-              "grid gap-6",
-              length(@blackjack_game.hands) == 1 && "grid-cols-1 justify-items-center",
-              length(@blackjack_game.hands) > 1 && "grid-cols-2"
-            ]}>
-              <.hand_box
-                :for={hand <- @blackjack_game.hands}
-                hand={hand}
-                label={hand_label(@blackjack_game.hands, hand)}
-                active?={@blackjack_game.active_hand == hand["id"]}
-                status={@blackjack_game.status}
-                can_double_down?={Games.can_double_down?(@blackjack_game)}
-                can_split?={Games.can_split?(@blackjack_game)}
-                revealed_count={deal_revealed_count(assigns, hand["id"])}
-                dealing?={@dealing?}
+          <div class="relative overflow-hidden rounded-2xl bg-[#14100d] shadow-xl ring-1 ring-black/40">
+            <div class="absolute inset-x-0 top-0 aspect-[1400/1200]">
+              <div class="absolute inset-0 bg-[url(/images/blackjack/table/table_felt.svg)] bg-cover [clip-path:url(#blackjack-felt-clip)]">
+              </div>
+              <img
+                src={~p"/images/blackjack/table/table_rail.svg"}
+                alt=""
+                class="pointer-events-none absolute inset-x-0 top-[61.74%] h-[39.58%] w-full"
+              />
+              <img
+                src={~p"/images/blackjack/table/min_max_bet.png"}
+                alt={"Min #{Tokens.format(hd(chip_values()))} / Max #{Tokens.format(Blackjack.max_bet())} Tokens"}
+                class="pointer-events-none absolute left-[4%] top-[4%] w-[9.5%]"
+              />
+              <img
+                src={~p"/images/blackjack/table/cup_holder.svg"}
+                alt=""
+                class="pointer-events-none absolute left-[9%] top-[77.5%] w-[6.5%] -translate-y-1/2"
+              />
+              <img
+                src={~p"/images/blackjack/table/cup_holder.svg"}
+                alt=""
+                class="pointer-events-none absolute right-[9%] top-[77.5%] w-[6.5%] -translate-y-1/2"
               />
             </div>
 
-            <div
-              :if={@blackjack_game.status == "round_over" && !@dealing?}
-              class="mt-8 flex justify-center gap-3"
-            >
-              <button
-                id="rebet-button"
-                type="button"
-                phx-click="rebet"
-                class="btn btn-lg animate-pulse gap-2 border-none bg-amber-500 px-12 text-amber-950 hover:bg-amber-400"
+            <div class="relative z-10 flex flex-col items-center gap-4 px-4 pb-8 pt-5">
+              <div class="flex flex-col items-center gap-2">
+                <span class="flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-100 shadow">
+                  Dealer
+                  <.icon
+                    :if={@blackjack_game.status == "dealer_turn" && !@dealing?}
+                    name="hero-arrow-path"
+                    class="size-3 motion-safe:animate-spin"
+                  />
+                </span>
+                <div class="indicator">
+                  <span
+                    :if={
+                      @blackjack_game.status not in ["player_turn", "insurance_offered"] &&
+                        !@dealing?
+                    }
+                    class={[
+                      "indicator-item indicator-top indicator-end z-20 badge badge-lg border-none font-bold shadow",
+                      hand_value_badge_class(@blackjack_game.dealer_hand)
+                    ]}
+                  >
+                    {Blackjack.value(@blackjack_game.dealer_hand)}
+                  </span>
+                  <div id="dealer-cards" class="flex justify-center -space-x-8">
+                    <.card_face
+                      :for={{card, index} <- Enum.with_index(@blackjack_game.dealer_hand)}
+                      id={"dealer-card-#{@blackjack_game.id}-#{index}"}
+                      card={if index < dealer_revealed_count(assigns), do: card}
+                      face_down={
+                        index == 1 && index < dealer_revealed_count(assigns) &&
+                          (@dealing? || @blackjack_game.status in ["player_turn", "insurance_offered"])
+                      }
+                      deal_animation
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <img
+                src={~p"/images/blackjack/table/table_print.svg"}
+                alt=""
+                class="w-3/5 max-w-xs opacity-90"
+              />
+
+              <div class={[
+                "grid w-full gap-6 py-2",
+                length(@blackjack_game.hands) == 1 && "grid-cols-1 justify-items-center",
+                length(@blackjack_game.hands) > 1 && "grid-cols-2"
+              ]}>
+                <.hand_box
+                  :for={hand <- @blackjack_game.hands}
+                  game_id={@blackjack_game.id}
+                  hand={hand}
+                  label={hand_label(@blackjack_game.hands, hand)}
+                  active?={@blackjack_game.active_hand == hand["id"]}
+                  status={@blackjack_game.status}
+                  can_double_down?={Games.can_double_down?(@blackjack_game)}
+                  can_split?={Games.can_split?(@blackjack_game)}
+                  can_surrender?={Games.can_surrender?(@blackjack_game)}
+                  revealed_count={deal_revealed_count(assigns, hand["id"])}
+                  dealing?={@dealing?}
+                />
+              </div>
+
+              <div
+                :if={@blackjack_game.status == "insurance_offered" && !@dealing?}
+                class="flex flex-col items-center gap-3"
               >
-                <span class="blackjack-action-icon blackjack-action-icon-rebet size-5"></span> Rebet
-              </button>
-              <button
-                id="change-bet-button"
-                type="button"
-                phx-click="change_bet"
-                class="btn btn-lg border border-amber-100/50 bg-transparent px-12 text-amber-100 hover:bg-amber-100/10 hover:text-amber-50"
+                <p class="text-sm font-medium text-amber-100">
+                  Dealer shows an Ace — buy insurance for {Tokens.format(
+                    insurance_amount(@blackjack_game)
+                  )} Tokens?
+                </p>
+                <div class="flex justify-center gap-3">
+                  <button
+                    id="insurance-yes-button"
+                    type="button"
+                    phx-click="take_insurance"
+                    class="btn btn-lg gap-2 border-none bg-emerald-600 text-white hover:bg-emerald-500"
+                  >
+                    Yes
+                  </button>
+                  <button
+                    id="insurance-no-button"
+                    type="button"
+                    phx-click="decline_insurance"
+                    class="btn btn-lg border border-amber-100/50 bg-transparent text-amber-100 hover:bg-amber-100/10 hover:text-amber-50"
+                  >
+                    No
+                  </button>
+                </div>
+              </div>
+
+              <div
+                :if={@blackjack_game.status == "round_over" && !@dealing?}
+                class="flex justify-center gap-3"
               >
-                Change bet
-              </button>
+                <button
+                  id="rebet-button"
+                  type="button"
+                  phx-click="rebet"
+                  class="btn btn-lg animate-pulse gap-2 border-none bg-amber-500 px-12 text-amber-950 hover:bg-amber-400"
+                >
+                  <span class="blackjack-action-icon blackjack-action-icon-rebet size-5"></span> Rebet
+                </button>
+                <button
+                  id="change-bet-button"
+                  type="button"
+                  phx-click="change_bet"
+                  class="btn btn-lg border border-amber-100/50 bg-transparent px-12 text-amber-100 hover:bg-amber-100/10 hover:text-amber-50"
+                >
+                  Change bet
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -632,8 +766,8 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
         export default {
           mounted() {
             this.specialSrc = {
-              deal: "/audio/card-deal.mp3",
-              flip: "/audio/card-flip.mp3"
+              deal: "/audio/blackjack/card-deal.mp3",
+              flip: "/audio/blackjack/card-flip.mp3"
             }
             this.queue = []
             this.playing = false
@@ -646,7 +780,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
             this.handleEvent("play_sound", ({sound}) => {
               if (localStorage.getItem("high_society:sound_muted") === "true") return
 
-              const src = this.specialSrc[sound] || `/audio/${sound}.aac`
+              const src = this.specialSrc[sound] || `/audio/blackjack/${sound}.aac`
               new Audio(src).play().catch(() => {})
             })
 
@@ -663,7 +797,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
             const name = this.queue.shift()
             if (!name) return
 
-            const src = this.specialSrc[name] || `/audio/${name}.aac`
+            const src = this.specialSrc[name] || `/audio/blackjack/${name}.aac`
             const audio = new Audio(src)
             this.playing = true
 
@@ -705,7 +839,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
       <span class="text-xs font-semibold uppercase tracking-wide text-base-content/50">
         Hand {@box + 1}
       </span>
-      <div id={"bet-amount-#{@box}"} class="text-2xl font-bold">${Money.format(@amount)}</div>
+      <div id={"bet-amount-#{@box}"} class="text-2xl font-bold">{Tokens.format(@amount)} Tokens</div>
       <div class="flex flex-wrap justify-center gap-2">
         <button
           :for={chip <- chip_values()}
@@ -719,7 +853,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
             chip_color(chip)
           ]}
         >
-          ${Money.format(chip)}
+          {Tokens.format(chip)}
         </button>
       </div>
       <button
@@ -736,11 +870,14 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
     """
   end
 
-  # Blank until both of the hand's initial cards have been revealed (see
-  # `deal_revealed_count/2`) - showing the total early, before the second
-  # card visibly lands, would spoil the point of dealing it one at a time.
-  defp hand_total_suffix(hand, revealed_count) do
-    if revealed_count >= length(hand["cards"]), do: " — #{Blackjack.value(hand["cards"])}"
+  # Badge color for a hand/dealer-hand's total count indicator - red once
+  # busted (over 21), the site's usual amber otherwise. Blackjack itself
+  # isn't called out here since it's already announced by the round-over
+  # outcome message right below the cards.
+  defp hand_value_badge_class(cards) do
+    if Blackjack.busted?(cards),
+      do: "bg-red-600 text-white",
+      else: "bg-amber-400 text-amber-950"
   end
 
   defp chip_color(500), do: "border-neutral-400 bg-neutral-100 text-neutral-900"
@@ -748,12 +885,14 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
   defp chip_color(10_000), do: "border-neutral-600 bg-neutral-900 text-white"
   defp chip_color(50_000), do: "border-amber-300 bg-amber-500 text-amber-950"
 
+  attr :game_id, :any, required: true
   attr :hand, :map, required: true
   attr :label, :string, required: true
   attr :active?, :boolean, required: true
   attr :status, :string, required: true
   attr :can_double_down?, :boolean, required: true
   attr :can_split?, :boolean, required: true
+  attr :can_surrender?, :boolean, required: true
   attr :revealed_count, :integer, required: true
   attr :dealing?, :boolean, required: true
 
@@ -775,16 +914,26 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
           <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"></span>
           <span class="relative inline-flex size-2 rounded-full bg-amber-500"></span>
         </span>
-        {@label} — Bet ${Money.format(@hand["bet"])}{if @hand["doubled"], do: " (doubled)"}{hand_total_suffix(
-          @hand,
-          @revealed_count
-        )}
+        {@label} — Bet {Tokens.format(@hand["bet"])} Tokens{if @hand["doubled"], do: " (doubled)"}
       </span>
-      <div id={"hand-cards-#{@hand["id"]}"} class="flex w-full justify-center gap-2">
-        <.card_face
-          :for={{card, index} <- Enum.with_index(@hand["cards"])}
-          card={if index < @revealed_count, do: card}
-        />
+      <div class="indicator">
+        <span
+          :if={@revealed_count >= length(@hand["cards"])}
+          class={[
+            "indicator-item indicator-top indicator-end z-20 badge badge-lg border-none font-bold shadow",
+            hand_value_badge_class(@hand["cards"])
+          ]}
+        >
+          {Blackjack.value(@hand["cards"])}
+        </span>
+        <div id={"hand-cards-#{@hand["id"]}"} class="flex justify-center -space-x-8">
+          <.card_face
+            :for={{card, index} <- Enum.with_index(@hand["cards"])}
+            id={"hand-card-#{@game_id}-#{@hand["id"]}-#{index}"}
+            card={if index < @revealed_count, do: card}
+            deal_animation
+          />
+        </div>
       </div>
       <p
         :if={@hand["outcome"] && !@dealing?}
@@ -793,49 +942,71 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
           @hand["outcome"] in ["win", "blackjack_win"] &&
             "animate-bounce text-emerald-400 [animation-iteration-count:2]",
           @hand["outcome"] == "push" && "text-amber-100/70",
-          @hand["outcome"] == "loss" && "text-red-400"
+          @hand["outcome"] in ["loss", "surrender"] && "text-red-400"
         ]}
       >
         {outcome_message(@hand)}
       </p>
       <div
         :if={@active? && @status == "player_turn" && !@dealing?}
-        class="mt-3 flex flex-wrap justify-center gap-3"
+        class="mt-3 flex flex-wrap justify-center gap-2"
       >
         <button
           id={"hit-button-#{@hand["id"]}"}
           type="button"
           phx-click="hit"
-          class="btn btn-md gap-2 border-none bg-emerald-600 text-white hover:bg-emerald-500"
+          class="transition-transform hover:-translate-y-0.5"
         >
-          <span class="blackjack-action-icon blackjack-action-icon-hit size-5"></span> Hit
+          <img src={~p"/images/blackjack/buttons/button_hit.svg"} alt="Hit" class="h-11 w-auto" />
         </button>
         <button
           id={"stand-button-#{@hand["id"]}"}
           type="button"
           phx-click="stand"
-          class="btn btn-md gap-2 border-none bg-red-700 text-white hover:bg-red-600"
+          class="transition-transform hover:-translate-y-0.5"
         >
-          <span class="blackjack-action-icon blackjack-action-icon-stand size-5"></span> Stand
+          <img src={~p"/images/blackjack/buttons/button_stand.svg"} alt="Stand" class="h-11 w-auto" />
         </button>
         <button
           :if={@can_double_down?}
           id={"double-button-#{@hand["id"]}"}
           type="button"
           phx-click="double_down"
-          class="btn btn-md gap-2 border-none bg-indigo-600 text-white hover:bg-indigo-500"
+          class="transition-transform hover:-translate-y-0.5"
         >
-          <span class="blackjack-action-icon blackjack-action-icon-double size-5"></span> Double
+          <img
+            src={~p"/images/blackjack/buttons/button_double_down.svg"}
+            alt="Double down"
+            class="h-11 w-auto"
+          />
         </button>
         <button
           :if={@can_split?}
           id={"split-button-#{@hand["id"]}"}
           type="button"
           phx-click="split"
-          class="btn btn-md gap-2 border-none bg-amber-600 text-white hover:bg-amber-500"
+          class="transition-transform hover:-translate-y-0.5"
         >
-          <span class="blackjack-action-icon blackjack-action-icon-split size-5"></span> Split
+          <img src={~p"/images/blackjack/buttons/button_split.svg"} alt="Split" class="h-11 w-auto" />
         </button>
+        <div
+          :if={@can_surrender?}
+          class="tooltip"
+          data-tip="Forfeit half your bet and end this hand immediately"
+        >
+          <button
+            id={"surrender-button-#{@hand["id"]}"}
+            type="button"
+            phx-click="surrender"
+            class="transition-transform hover:-translate-y-0.5"
+          >
+            <img
+              src={~p"/images/blackjack/buttons/button_surrender.svg"}
+              alt="Surrender"
+              class="h-11 w-auto"
+            />
+          </button>
+        </div>
       </div>
     </div>
     """
@@ -880,21 +1051,32 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
 
   defp total_bet(pending_bets), do: pending_bets |> Map.values() |> Enum.sum()
 
+  # Half the total original wager across every dealt box - mirrors
+  # `HighSociety.Games.Blackjack.insurance_amount/1`, but computed directly
+  # off the persisted (string-keyed) hands already in assigns rather than
+  # round-tripping through the pure game struct just to display a price.
+  defp insurance_amount(%{hands: hands}) do
+    hands |> Enum.map(& &1["bet"]) |> Enum.sum() |> div(2)
+  end
+
   defp bet_error_message(:no_bets), do: "Place a bet on at least one box before dealing."
 
   defp bet_error_message(:bet_too_large),
-    do: "Max bet is $#{Money.format(Blackjack.max_bet())} per box."
+    do: "Max bet is #{Tokens.format(Blackjack.max_bet())} Tokens per box."
 
-  defp bet_error_message(:insufficient_funds), do: "You don't have enough chips for that bet."
+  defp bet_error_message(:insufficient_funds), do: "You don't have enough Tokens for that bet."
 
   defp outcome_message(%{"outcome" => "blackjack_win", "payout" => payout}),
-    do: "Blackjack! +$#{Money.format(payout)}"
+    do: "Blackjack! +#{Tokens.format(payout)} Tokens"
 
   defp outcome_message(%{"outcome" => "win", "payout" => payout}),
-    do: "Win +$#{Money.format(payout)}"
+    do: "Win +#{Tokens.format(payout)} Tokens"
 
   defp outcome_message(%{"outcome" => "push", "payout" => payout}),
-    do: "Push — $#{Money.format(payout)} returned"
+    do: "Push — #{Tokens.format(payout)} Tokens returned"
+
+  defp outcome_message(%{"outcome" => "surrender", "payout" => payout}),
+    do: "Surrendered — #{Tokens.format(payout)} Tokens returned"
 
   defp outcome_message(%{"outcome" => "loss"}), do: "Loss"
   defp outcome_message(_hand), do: nil

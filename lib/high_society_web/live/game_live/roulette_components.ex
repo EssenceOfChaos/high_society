@@ -16,7 +16,7 @@ defmodule HighSocietyWeb.GameLive.RouletteComponents do
   use Phoenix.Component
 
   alias HighSociety.Games.Roulette
-  alias HighSociety.Money
+  alias HighSociety.Tokens
 
   # The wheel's rendered size never changes with viewport, so its radius is
   # a fixed constant - notably shared with the `.roulette-ball-spin`
@@ -325,7 +325,7 @@ defmodule HighSocietyWeb.GameLive.RouletteComponents do
         class="absolute inset-0 flex items-center justify-center rounded-full"
       >
         <span class="flex size-7 items-center justify-center rounded-full border-2 border-white bg-amber-500/90 text-[11px] text-white shadow sm:size-8">
-          ${Money.format(@amount)}
+          {Tokens.format(@amount)}
         </span>
       </span>
     </button>

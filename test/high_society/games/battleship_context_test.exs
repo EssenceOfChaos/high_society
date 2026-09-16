@@ -8,7 +8,7 @@ defmodule HighSociety.Games.BattleshipContextTest do
   import HighSociety.AccountsFixtures
 
   setup do
-    {:ok, user} = user_scope_fixture().user |> Accounts.claim_starting_chips()
+    {:ok, user} = user_scope_fixture().user |> Accounts.claim_blackjack_tokens()
     %{scope: user_scope_fixture(user)}
   end
 
@@ -30,7 +30,8 @@ defmodule HighSociety.Games.BattleshipContextTest do
       assert Battleship.fleet_complete?(battleship.opponent_fleet)
       assert battleship.player_fleet == []
 
-      assert Accounts.get_user!(scope.user.id).balance == Accounts.starting_chip_amount() - 100
+      assert Accounts.get_user!(scope.user.id).tokens_balance ==
+               Accounts.blackjack_starting_token_amount() - 100
     end
 
     test "rejects a wager the user can't afford" do
@@ -154,7 +155,7 @@ defmodule HighSociety.Games.BattleshipContextTest do
         )
         |> force_status(:player_turn)
 
-      balance_before = Accounts.get_user!(scope.user.id).balance
+      balance_before = Accounts.get_user!(scope.user.id).tokens_balance
 
       final =
         Enum.reduce([{0, 0}, {9, 9}, {9, 8}, {9, 7}, {9, 6}], game, fn coord, game ->
@@ -164,7 +165,7 @@ defmodule HighSociety.Games.BattleshipContextTest do
 
       assert final.status == "player_won"
       assert final.payout == 100
-      assert Accounts.get_user!(scope.user.id).balance == balance_before + 100
+      assert Accounts.get_user!(scope.user.id).tokens_balance == balance_before + 100
     end
   end
 end

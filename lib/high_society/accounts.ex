@@ -6,7 +6,7 @@ defmodule HighSociety.Accounts do
   import Ecto.Query, warn: false
   alias HighSociety.Repo
 
-  alias HighSociety.Accounts.{User, UserToken, UserNotifier}
+  alias HighSociety.Accounts.{User, UserToken, UserNotifier, TokenTransaction}
 
   ## Database getters
 
@@ -60,208 +60,331 @@ defmodule HighSociety.Accounts do
   """
   def get_user!(id), do: Repo.get!(User, id)
 
-  ## Balance
-
-  # `balance` and other money fields store integer cents ($1.00 = 100).
-  @starting_chip_amount 10_000 * 100
-
-  @doc "The one-time starting chip grant amount, in cents."
-  @spec starting_chip_amount() :: pos_integer()
-  def starting_chip_amount, do: @starting_chip_amount
-
   @doc """
-  Grants the user's one-time starting balance of `#{@starting_chip_amount}`
-  cents play money. Atomic and idempotent: the update only matches a row
-  that hasn't claimed yet, so two concurrent requests for the same user
-  can't both succeed.
+  The name to show for a user wherever a player-facing name is needed
+  (the poker table, leaderboards, ...) - their own `display_name` if
+  they've set one (see `HighSociety.Accounts.User.display_name_changeset/3`),
+  otherwise the part of their email before the `@`.
 
   ## Examples
 
-      iex> claim_starting_chips(user)
-      {:ok, %User{balance: 2_500_000}}
+      iex> display_name(%User{display_name: "Freddy"})
+      "Freddy"
 
-      iex> claim_starting_chips(already_claimed_user)
+      iex> display_name(%User{display_name: nil, email: "freddy@example.com"})
+      "freddy"
+
+  """
+  @spec display_name(User.t()) :: String.t()
+  def display_name(%User{display_name: display_name}) when is_binary(display_name),
+    do: display_name
+
+  def display_name(%User{email: email}), do: email |> String.split("@") |> hd()
+
+  ## Tokens
+
+  # `tokens_balance` and other money fields store integer amounts, carried
+  # over unscaled from when they were cents ($1.00 = 100) - see
+  # `HighSociety.Tokens`.
+  @blackjack_starting_token_amount 5_000 * 100
+
+  @doc "The one-time starting Token grant amount for Blackjack."
+  @spec blackjack_starting_token_amount() :: pos_integer()
+  def blackjack_starting_token_amount, do: @blackjack_starting_token_amount
+
+  @doc """
+  Grants the user's one-time starting balance of
+  `#{@blackjack_starting_token_amount}` Tokens for Blackjack. Atomic and
+  idempotent: the update only matches a row that hasn't claimed yet, so two
+  concurrent requests for the same user can't both succeed. Also writes a
+  `TokenTransaction` ledger row in the same transaction as the grant.
+
+  ## Examples
+
+      iex> claim_blackjack_tokens(user)
+      {:ok, %User{tokens_balance: 2_500_000}}
+
+      iex> claim_blackjack_tokens(already_claimed_user)
       {:error, :already_claimed}
 
   """
-  @spec claim_starting_chips(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
-  def claim_starting_chips(%User{} = user) do
-    now = DateTime.utc_now(:second)
-
-    {count, _} =
-      Repo.update_all(
-        from(u in User, where: u.id == ^user.id and is_nil(u.claimed_starting_chips_at)),
-        inc: [balance: @starting_chip_amount],
-        set: [claimed_starting_chips_at: now]
-      )
-
-    if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :already_claimed}
+  @spec claim_blackjack_tokens(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
+  def claim_blackjack_tokens(%User{} = user) do
+    claim_starting_grant(
+      user,
+      :claimed_blackjack_tokens_at,
+      @blackjack_starting_token_amount,
+      "starting_grant_blackjack"
+    )
   end
 
-  @battleship_starting_chip_amount 10_000 * 100
+  @battleship_starting_token_amount 5_000 * 100
 
-  @doc "The one-time starting chip grant amount for Battleship, in cents."
-  @spec battleship_starting_chip_amount() :: pos_integer()
-  def battleship_starting_chip_amount, do: @battleship_starting_chip_amount
+  @doc "The one-time starting Token grant amount for Battleship."
+  @spec battleship_starting_token_amount() :: pos_integer()
+  def battleship_starting_token_amount, do: @battleship_starting_token_amount
 
   @doc """
   Grants the user's one-time Battleship starting balance of
-  `#{@battleship_starting_chip_amount}` cents play money. Atomic and
-  idempotent, and tracked separately from `claim_starting_chips/1` and
-  `claim_poker_chips/1` since each game offers its own one-time grant.
+  `#{@battleship_starting_token_amount}` Tokens. Atomic and idempotent, and
+  tracked separately from `claim_blackjack_tokens/1` and
+  `claim_poker_tokens/1` since each game offers its own one-time grant. Also
+  writes a `TokenTransaction` ledger row in the same transaction as the
+  grant.
 
   ## Examples
 
-      iex> claim_battleship_chips(user)
-      {:ok, %User{balance: 1_000_000}}
+      iex> claim_battleship_tokens(user)
+      {:ok, %User{tokens_balance: 500_000}}
 
-      iex> claim_battleship_chips(already_claimed_user)
+      iex> claim_battleship_tokens(already_claimed_user)
       {:error, :already_claimed}
 
   """
-  @spec claim_battleship_chips(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
-  def claim_battleship_chips(%User{} = user) do
-    now = DateTime.utc_now(:second)
-
-    {count, _} =
-      Repo.update_all(
-        from(u in User, where: u.id == ^user.id and is_nil(u.claimed_battleship_chips_at)),
-        inc: [balance: @battleship_starting_chip_amount],
-        set: [claimed_battleship_chips_at: now]
-      )
-
-    if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :already_claimed}
+  @spec claim_battleship_tokens(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
+  def claim_battleship_tokens(%User{} = user) do
+    claim_starting_grant(
+      user,
+      :claimed_battleship_tokens_at,
+      @battleship_starting_token_amount,
+      "starting_grant_battleship"
+    )
   end
 
   @doc """
-  Atomically adjusts `user`'s balance by `delta` (negative to debit, positive
-  to credit). The update is guarded at the database level so the balance can
-  never go negative, even under concurrent requests for the same user.
+  Atomically adjusts `user`'s `tokens_balance` by `delta` (negative to
+  debit, positive to credit), guarded at the database level so the balance
+  can never go negative even under concurrent requests for the same user.
+  Also writes a `TokenTransaction` audit row in the same transaction as the
+  balance update - `source` (a short, stable string like `"blackjack_bet"`)
+  identifies what caused the change, and `metadata` can carry arbitrary
+  extra context for analytics. There is no way to adjust `tokens_balance`
+  through this module without that ledger row being written alongside it.
 
   ## Examples
 
-      iex> adjust_balance(user, -50_000)
-      {:ok, %User{balance: 2_450_000}}
+      iex> adjust_tokens_balance(user, -50_000, "blackjack_bet")
+      {:ok, %User{tokens_balance: 2_450_000}}
 
-      iex> adjust_balance(broke_user, -500)
+      iex> adjust_tokens_balance(broke_user, -500, "blackjack_bet")
       {:error, :insufficient_funds}
 
   """
-  @spec adjust_balance(User.t(), integer()) :: {:ok, User.t()} | {:error, :insufficient_funds}
-  def adjust_balance(%User{} = user, delta) when is_integer(delta) do
-    {count, _} =
-      Repo.update_all(
-        from(u in User, where: u.id == ^user.id and u.balance + ^delta >= 0),
-        inc: [balance: delta]
-      )
+  @spec adjust_tokens_balance(User.t(), integer(), String.t(), map()) ::
+          {:ok, User.t()} | {:error, :insufficient_funds}
+  def adjust_tokens_balance(%User{} = user, delta, source, metadata \\ %{})
+      when is_integer(delta) and is_binary(source) and is_map(metadata) do
+    Repo.transact(fn ->
+      {count, _} =
+        Repo.update_all(
+          from(u in User, where: u.id == ^user.id and u.tokens_balance + ^delta >= 0),
+          inc: [tokens_balance: delta]
+        )
 
-    if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :insufficient_funds}
+      if count == 1 do
+        insert_token_transaction!(user.id, delta, source, metadata)
+        {:ok, get_user!(user.id)}
+      else
+        {:error, :insufficient_funds}
+      end
+    end)
   end
 
-  @poker_starting_chip_amount 10_000 * 100
+  @poker_starting_token_amount 5_000 * 100
 
-  @doc "The one-time starting chip grant amount for Poker, in cents."
-  @spec poker_starting_chip_amount() :: pos_integer()
-  def poker_starting_chip_amount, do: @poker_starting_chip_amount
+  @doc "The one-time starting Token grant amount for Poker."
+  @spec poker_starting_token_amount() :: pos_integer()
+  def poker_starting_token_amount, do: @poker_starting_token_amount
 
   @doc """
   Grants the user's one-time Poker starting balance of
-  `#{@poker_starting_chip_amount}` cents play money. Atomic and idempotent,
-  and tracked separately from `claim_starting_chips/1` (Blackjack's claim)
-  since each game offers its own one-time grant.
+  `#{@poker_starting_token_amount}` Tokens. Atomic and idempotent, and
+  tracked separately from `claim_blackjack_tokens/1` since each game offers
+  its own one-time grant. Also writes a `TokenTransaction` ledger row in the
+  same transaction as the grant.
 
   ## Examples
 
-      iex> claim_poker_chips(user)
-      {:ok, %User{balance: 1_000_000}}
+      iex> claim_poker_tokens(user)
+      {:ok, %User{tokens_balance: 500_000}}
 
-      iex> claim_poker_chips(already_claimed_user)
+      iex> claim_poker_tokens(already_claimed_user)
       {:error, :already_claimed}
 
   """
-  @spec claim_poker_chips(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
-  def claim_poker_chips(%User{} = user) do
-    now = DateTime.utc_now(:second)
-
-    {count, _} =
-      Repo.update_all(
-        from(u in User, where: u.id == ^user.id and is_nil(u.claimed_poker_chips_at)),
-        inc: [balance: @poker_starting_chip_amount],
-        set: [claimed_poker_chips_at: now]
-      )
-
-    if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :already_claimed}
+  @spec claim_poker_tokens(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
+  def claim_poker_tokens(%User{} = user) do
+    claim_starting_grant(
+      user,
+      :claimed_poker_tokens_at,
+      @poker_starting_token_amount,
+      "starting_grant_poker"
+    )
   end
 
-  @slots_starting_chip_amount 10_000 * 100
+  @slots_starting_token_amount 5_000 * 100
 
-  @doc "The one-time starting chip grant amount for Slots, in cents."
-  @spec slots_starting_chip_amount() :: pos_integer()
-  def slots_starting_chip_amount, do: @slots_starting_chip_amount
+  @doc "The one-time starting Token grant amount for Slots."
+  @spec slots_starting_token_amount() :: pos_integer()
+  def slots_starting_token_amount, do: @slots_starting_token_amount
 
   @doc """
   Grants the user's one-time Slots starting balance of
-  `#{@slots_starting_chip_amount}` cents play money. Atomic and idempotent,
-  and tracked separately from the other games' claims since each offers its
-  own one-time grant.
+  `#{@slots_starting_token_amount}` Tokens. Atomic and idempotent, and
+  tracked separately from the other games' claims since each offers its own
+  one-time grant. Also writes a `TokenTransaction` ledger row in the same
+  transaction as the grant.
 
   ## Examples
 
-      iex> claim_slots_chips(user)
-      {:ok, %User{balance: 1_000_000}}
+      iex> claim_slots_tokens(user)
+      {:ok, %User{tokens_balance: 500_000}}
 
-      iex> claim_slots_chips(already_claimed_user)
+      iex> claim_slots_tokens(already_claimed_user)
       {:error, :already_claimed}
 
   """
-  @spec claim_slots_chips(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
-  def claim_slots_chips(%User{} = user) do
-    now = DateTime.utc_now(:second)
-
-    {count, _} =
-      Repo.update_all(
-        from(u in User, where: u.id == ^user.id and is_nil(u.claimed_slots_chips_at)),
-        inc: [balance: @slots_starting_chip_amount],
-        set: [claimed_slots_chips_at: now]
-      )
-
-    if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :already_claimed}
+  @spec claim_slots_tokens(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
+  def claim_slots_tokens(%User{} = user) do
+    claim_starting_grant(
+      user,
+      :claimed_slots_tokens_at,
+      @slots_starting_token_amount,
+      "starting_grant_slots"
+    )
   end
 
-  @roulette_starting_chip_amount 10_000 * 100
+  @roulette_starting_token_amount 5_000 * 100
 
-  @doc "The one-time starting chip grant amount for Roulette, in cents."
-  @spec roulette_starting_chip_amount() :: pos_integer()
-  def roulette_starting_chip_amount, do: @roulette_starting_chip_amount
+  @doc "The one-time starting Token grant amount for Roulette."
+  @spec roulette_starting_token_amount() :: pos_integer()
+  def roulette_starting_token_amount, do: @roulette_starting_token_amount
 
   @doc """
   Grants the user's one-time Roulette starting balance of
-  `#{@roulette_starting_chip_amount}` cents play money. Atomic and
-  idempotent, and tracked separately from the other games' claims since
-  each offers its own one-time grant.
+  `#{@roulette_starting_token_amount}` Tokens. Atomic and idempotent, and
+  tracked separately from the other games' claims since each offers its own
+  one-time grant. Also writes a `TokenTransaction` ledger row in the same
+  transaction as the grant.
 
   ## Examples
 
-      iex> claim_roulette_chips(user)
-      {:ok, %User{balance: 1_000_000}}
+      iex> claim_roulette_tokens(user)
+      {:ok, %User{tokens_balance: 500_000}}
 
-      iex> claim_roulette_chips(already_claimed_user)
+      iex> claim_roulette_tokens(already_claimed_user)
       {:error, :already_claimed}
 
   """
-  @spec claim_roulette_chips(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
-  def claim_roulette_chips(%User{} = user) do
+  @spec claim_roulette_tokens(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
+  def claim_roulette_tokens(%User{} = user) do
+    claim_starting_grant(
+      user,
+      :claimed_roulette_tokens_at,
+      @roulette_starting_token_amount,
+      "starting_grant_roulette"
+    )
+  end
+
+  @zombie_attack_starting_token_amount 5_000 * 100
+
+  @doc "The one-time starting Token grant amount for Zombie Attack."
+  @spec zombie_attack_starting_token_amount() :: pos_integer()
+  def zombie_attack_starting_token_amount, do: @zombie_attack_starting_token_amount
+
+  @doc """
+  Grants the user's one-time Zombie Attack starting balance of
+  `#{@zombie_attack_starting_token_amount}` Tokens. Atomic and idempotent,
+  and tracked separately from the other games' claims since each offers its
+  own one-time grant. Also writes a `TokenTransaction` ledger row in the
+  same transaction as the grant.
+
+  ## Examples
+
+      iex> claim_zombie_attack_tokens(user)
+      {:ok, %User{tokens_balance: 500_000}}
+
+      iex> claim_zombie_attack_tokens(already_claimed_user)
+      {:error, :already_claimed}
+
+  """
+  @spec claim_zombie_attack_tokens(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
+  def claim_zombie_attack_tokens(%User{} = user) do
+    claim_starting_grant(
+      user,
+      :claimed_zombie_attack_tokens_at,
+      @zombie_attack_starting_token_amount,
+      "starting_grant_zombie_attack"
+    )
+  end
+
+  # Shared by every `claim_*_tokens/1` above: an atomic, idempotent grant
+  # guarded by `claimed_at_field` being unset, plus its matching ledger row,
+  # all in one transaction.
+  defp claim_starting_grant(%User{} = user, claimed_at_field, amount, source) do
     now = DateTime.utc_now(:second)
 
-    {count, _} =
-      Repo.update_all(
-        from(u in User, where: u.id == ^user.id and is_nil(u.claimed_roulette_chips_at)),
-        inc: [balance: @roulette_starting_chip_amount],
-        set: [claimed_roulette_chips_at: now]
-      )
+    Repo.transact(fn ->
+      {count, _} =
+        Repo.update_all(
+          from(u in User, where: u.id == ^user.id and is_nil(field(u, ^claimed_at_field))),
+          inc: [tokens_balance: amount],
+          set: [{claimed_at_field, now}]
+        )
 
-    if count == 1, do: {:ok, get_user!(user.id)}, else: {:error, :already_claimed}
+      if count == 1 do
+        insert_token_transaction!(user.id, amount, source, %{})
+        {:ok, get_user!(user.id)}
+      else
+        {:error, :already_claimed}
+      end
+    end)
   end
+
+  defp insert_token_transaction!(user_id, amount, source, metadata) do
+    %TokenTransaction{}
+    |> TokenTransaction.changeset(%{
+      user_id: user_id,
+      amount: amount,
+      source: source,
+      metadata: metadata
+    })
+    |> Repo.insert!()
+  end
+
+  @doc """
+  Lists `user`'s Token ledger, most recent first - the audit trail behind
+  `tokens_balance` (see `adjust_tokens_balance/4`). Never used to compute a
+  balance, only to explain how one got where it is.
+
+  ## Options
+
+    * `:limit` - max rows to return. Defaults to 50.
+    * `:source` - only rows with this exact `source` (e.g. `"blackjack_bet"`).
+
+  ## Examples
+
+      iex> list_token_transactions(user)
+      [%TokenTransaction{}, ...]
+
+      iex> list_token_transactions(user, source: "poker_cash_out", limit: 10)
+      [%TokenTransaction{}, ...]
+
+  """
+  @spec list_token_transactions(User.t(), keyword()) :: [TokenTransaction.t()]
+  def list_token_transactions(%User{} = user, opts \\ []) do
+    limit = Keyword.get(opts, :limit, 50)
+
+    TokenTransaction
+    |> where([t], t.user_id == ^user.id)
+    |> maybe_filter_source(Keyword.get(opts, :source))
+    |> order_by([t], desc: t.inserted_at, desc: t.id)
+    |> limit(^limit)
+    |> Repo.all()
+  end
+
+  defp maybe_filter_source(query, nil), do: query
+  defp maybe_filter_source(query, source), do: where(query, [t], t.source == ^source)
 
   @doc """
   Records that the user was active today, for badge progression. Atomic and
@@ -334,6 +457,18 @@ defmodule HighSociety.Accounts do
   def sudo_mode?(_user, _minutes), do: false
 
   @doc """
+  Whether `user` is allowed into the `/admin` section - membership in the
+  `:admin_emails` config list, checked by email since there's no `role`
+  field on `User` (see `config/config.exs` and `config/runtime.exs`).
+  """
+  @spec admin?(User.t() | nil) :: boolean()
+  def admin?(%User{email: email}) when is_binary(email) do
+    email in Application.get_env(:high_society, :admin_emails, [])
+  end
+
+  def admin?(_user), do: false
+
+  @doc """
   Returns an `%Ecto.Changeset{}` for changing the user email.
 
   See `HighSociety.Accounts.User.email_changeset/3` for a list of supported options.
@@ -402,6 +537,42 @@ defmodule HighSociety.Accounts do
     user
     |> User.password_changeset(attrs)
     |> update_user_and_delete_all_tokens()
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for changing the user display name.
+
+  See `HighSociety.Accounts.User.display_name_changeset/3` for a list of
+  supported options.
+
+  ## Examples
+
+      iex> change_user_display_name(user)
+      %Ecto.Changeset{data: %User{}}
+
+  """
+  def change_user_display_name(user, attrs \\ %{}, opts \\ []) do
+    User.display_name_changeset(user, attrs, opts)
+  end
+
+  @doc """
+  Updates the user display name. Not a security-sensitive change (unlike
+  email/password), so this doesn't require sudo mode or invalidate any
+  existing sessions.
+
+  ## Examples
+
+      iex> update_user_display_name(user, %{display_name: "Freddy"})
+      {:ok, %User{}}
+
+      iex> update_user_display_name(user, %{display_name: "a"})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def update_user_display_name(user, attrs) do
+    user
+    |> User.display_name_changeset(attrs)
+    |> Repo.update()
   end
 
   ## Session

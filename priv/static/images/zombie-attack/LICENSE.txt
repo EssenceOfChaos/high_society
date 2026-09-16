@@ -1,0 +1,45 @@
+Ground/blocker sprites are from Kenney (www.kenney.nl), licensed
+CC0 1.0 Universal (public domain) - free to use in personal and
+commercial projects, no attribution required.
+
+  ground-grass.png       Kenney "Tower Defense (Top-Down)" pack, tile 199
+  defender-blocker.png   Kenney "Tower Defense (Top-Down)" pack, tile 228
+
+Source packs:
+  https://kenney.nl/assets/tower-defense-top-down
+  https://kenney.nl/assets/top-down-shooter
+
+Zombie character sprites are from CraftPix.net's "Free Urban Zombie
+Sprite Sheet Pixel Art Pack", under CraftPix's free license
+(https://craftpix.net/file-licenses/) - free for personal and
+commercial use, modification allowed, no attribution required. The
+only restriction is against reselling/redistributing the raw art
+files as a standalone product, which doesn't apply here.
+
+  zombie-walker-*.png    CraftPix pack, "Zombie_1" variant
+  zombie-armored-*.png   CraftPix pack, "Zombie_2" variant
+
+Each is a spritesheet of 128x128 frames: walk.png (10 frames),
+attack.png (5 frames), dead.png (5 frames). The source pack also
+includes Idle and Hurt sheets plus two more character variants
+(Zombie_3, Zombie_4) if either is wanted later.
+
+Turret/effects sprites are from CraftPix.net's "Free Idle Turret
+Defense Asset Kit" ("Merge Turrets"), same CraftPix free license as
+above. The original pack is built for a different (merge/idle) game
+genre, so its per-frame "level number" badge on each turret was
+cropped out, and frames were cropped to their visible content and,
+for the explosion, downscaled - all modification permitted by the
+license.
+
+  turret-shooter-NN.png   CraftPix pack, turret tier "T1", 15-frame
+                           shoot cycle (frame 0 doubles as idle)
+  turret-cannon-NN.png    CraftPix pack, turret tier "T13", same
+                           15-frame shoot cycle
+  muzzle-flash-NN.png     CraftPix pack, "Shoot Fx", 15-frame flash
+  explosion-NN.png        CraftPix pack, "Explosion 1", 19-frame burst
+  projectile.png          CraftPix pack, "Projectile1"
+
+The source pack has 20 turret tiers total (T1-T20) if a third
+tier (or a full tech tree) is wanted later, plus 2 more projectile
+sprites and a second explosion style not used here.

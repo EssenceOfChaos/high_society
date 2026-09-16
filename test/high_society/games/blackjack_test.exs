@@ -11,6 +11,9 @@ defmodule HighSociety.Games.BlackjackTest do
 
   defp play_out_dealer(%Blackjack{} = game), do: game
 
+  defp dealer_shows_ace?(%Blackjack{dealer_hand: [up_card | _]}),
+    do: String.starts_with?(up_card, "A")
+
   describe "new/1" do
     test "deals two cards to each requested box and two to the dealer" do
       game = Blackjack.new(%{0 => 25, 1 => 50})
@@ -20,7 +23,7 @@ defmodule HighSociety.Games.BlackjackTest do
       assert Enum.map(game.hands, & &1.bet) == [25, 50]
       assert Enum.all?(game.hands, &(length(&1.cards) == 2))
       assert length(game.dealer_hand) == 2
-      assert game.status in [:player_turn, :dealer_turn, :round_over]
+      assert game.status in [:insurance_offered, :player_turn, :dealer_turn, :round_over]
 
       all_cards = Enum.flat_map(game.hands, & &1.cards) ++ game.dealer_hand ++ game.shoe
       assert length(Enum.uniq(all_cards)) == 52
@@ -37,6 +40,13 @@ defmodule HighSociety.Games.BlackjackTest do
       game = Blackjack.new(%{0 => 25, 1 => 25})
 
       case game.status do
+        :insurance_offered ->
+          # the dealer's up-card is an Ace - real money is on the table and
+          # peeking the hole card now hinges on the player's insurance
+          # choice, so nothing else plays out until that's resolved.
+          assert dealer_shows_ace?(game)
+          assert game.active_hand == nil
+
         :player_turn ->
           first_active = Enum.find(game.hands, &(&1.status == :active))
           assert game.active_hand == first_active.id
@@ -48,8 +58,10 @@ defmodule HighSociety.Games.BlackjackTest do
           assert game.active_hand == nil
 
         :round_over ->
-          # the dealer itself was dealt a natural blackjack - the round
-          # ends immediately without offering the player any action
+          # the dealer itself was dealt a natural blackjack (and wasn't
+          # showing an Ace, or every hand would've paused on
+          # :insurance_offered first) - the round ends immediately without
+          # offering the player any action
           assert Blackjack.blackjack?(game.dealer_hand)
           assert game.active_hand == nil
           assert Enum.all?(game.hands, &(&1.status in [:blackjack, :standing]))
@@ -57,11 +69,25 @@ defmodule HighSociety.Games.BlackjackTest do
     end
   end
 
-  describe "new/1 when the dealer is dealt a natural blackjack" do
+  describe "new/1 when the dealer shows an Ace" do
+    test "pauses on :insurance_offered instead of peeking the hole card" do
+      game =
+        Stream.repeatedly(fn -> Blackjack.new(%{0 => 25}) end) |> Enum.find(&dealer_shows_ace?/1)
+
+      assert game.status == :insurance_offered
+      assert game.active_hand == nil
+      assert game.insurance_bet == nil
+      assert game.insurance_outcome == nil
+      # every dealt hand is untouched - no action was offered yet
+      assert Enum.all?(game.hands, &(&1.status in [:active, :blackjack]))
+    end
+  end
+
+  describe "new/1 when the dealer is dealt a natural blackjack without showing an Ace" do
     test "ends the round immediately, settling every hand without any player action" do
       game =
         Stream.repeatedly(fn -> Blackjack.new(%{0 => 25}) end)
-        |> Enum.find(&Blackjack.blackjack?(&1.dealer_hand))
+        |> Enum.find(&(Blackjack.blackjack?(&1.dealer_hand) and not dealer_shows_ace?(&1)))
 
       assert game.status == :round_over
       assert game.active_hand == nil
@@ -74,7 +100,8 @@ defmodule HighSociety.Games.BlackjackTest do
       game =
         Stream.repeatedly(fn -> Blackjack.new(%{0 => 25}) end)
         |> Enum.find(fn game ->
-          Blackjack.blackjack?(game.dealer_hand) and hd(game.hands).outcome == :loss
+          Blackjack.blackjack?(game.dealer_hand) and not dealer_shows_ace?(game) and
+            hd(game.hands).outcome == :loss
         end)
 
       hand = hd(game.hands)
@@ -275,6 +302,38 @@ defmodule HighSociety.Games.BlackjackTest do
     end
   end
 
+  describe "surrender/2" do
+    test "forfeits the hand immediately, without drawing a card" do
+      game = %Blackjack{
+        shoe: ["2S", "9S"],
+        hands: [
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["6H", "5D"],
+            status: :active,
+            outcome: nil,
+            payout: nil,
+            split?: false,
+            doubled?: false
+          }
+        ],
+        active_hand: 0,
+        dealer_hand: ["7H", "7D"],
+        status: :player_turn
+      }
+
+      game = Blackjack.surrender(game, 0)
+      hand = hd(game.hands)
+
+      assert hand.cards == ["6H", "5D"]
+      assert hand.status == :surrendered
+      assert game.status == :dealer_turn
+      assert game.shoe == ["2S", "9S"]
+    end
+  end
+
   describe "can_double_down?/2" do
     test "true for the active hand's untouched first two cards" do
       game = %Blackjack{
@@ -340,6 +399,96 @@ defmodule HighSociety.Games.BlackjackTest do
       }
 
       refute Blackjack.can_double_down?(game, 0)
+    end
+  end
+
+  describe "can_surrender?/2" do
+    test "true for the active hand's untouched first two cards" do
+      game = %Blackjack{
+        hands: [
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["6H", "5D"],
+            status: :active,
+            outcome: nil,
+            payout: nil,
+            split?: false,
+            doubled?: false
+          }
+        ],
+        active_hand: 0,
+        status: :player_turn
+      }
+
+      assert Blackjack.can_surrender?(game, 0)
+    end
+
+    test "false once the hand has already been hit" do
+      game = %Blackjack{
+        hands: [
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["6H", "5D", "2S"],
+            status: :active,
+            outcome: nil,
+            payout: nil,
+            split?: false,
+            doubled?: false
+          }
+        ],
+        active_hand: 0,
+        status: :player_turn
+      }
+
+      refute Blackjack.can_surrender?(game, 0)
+    end
+
+    test "false for a hand created by a split" do
+      game = %Blackjack{
+        hands: [
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["8H", "2S"],
+            status: :active,
+            outcome: nil,
+            payout: nil,
+            split?: true,
+            doubled?: false
+          }
+        ],
+        active_hand: 0,
+        status: :player_turn
+      }
+
+      refute Blackjack.can_surrender?(game, 0)
+    end
+
+    test "false outside the player's turn" do
+      game = %Blackjack{
+        hands: [
+          %{
+            id: 0,
+            box: 0,
+            bet: 25,
+            cards: ["6H", "5D"],
+            status: :standing,
+            outcome: nil,
+            payout: nil,
+            split?: false,
+            doubled?: false
+          }
+        ],
+        active_hand: nil,
+        status: :dealer_turn
+      }
+
+      refute Blackjack.can_surrender?(game, 0)
     end
   end
 
@@ -821,6 +970,219 @@ defmodule HighSociety.Games.BlackjackTest do
       assert hand.outcome == :loss
       assert hand.payout == 0
     end
+
+    test "a surrendered hand returns half its bet regardless of the dealer's hand" do
+      game = %Blackjack{
+        shoe: [],
+        hands: [
+          %{
+            id: 0,
+            box: 0,
+            bet: 30,
+            cards: ["6H", "5D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
+        ],
+        active_hand: 0,
+        dealer_hand: ["10S", "AC"],
+        status: :player_turn
+      }
+
+      game = Blackjack.surrender(game, 0) |> play_out_dealer()
+      hand = hd(game.hands)
+
+      assert hand.outcome == :surrender
+      assert hand.payout == 15
+      assert game.status == :round_over
+    end
+  end
+
+  describe "insurance_amount/1" do
+    test "is half the total original wager across every dealt box, rounded down" do
+      game = %Blackjack{
+        hands: [
+          %{id: 0, box: 0, bet: 101, cards: ["9H", "8D"], status: :active},
+          %{id: 1, box: 1, bet: 50, cards: ["7C", "6S"], status: :active}
+        ]
+      }
+
+      # (101 + 50) / 2 = 75.5, floored to 75
+      assert Blackjack.insurance_amount(game) == 75
+    end
+  end
+
+  describe "take_insurance/1 when the dealer has a natural blackjack" do
+    test "settles the round immediately, marking insurance a win" do
+      game = %Blackjack{
+        shoe: ["2S"],
+        hands: [
+          %{
+            id: 0,
+            box: 0,
+            bet: 100,
+            cards: ["9H", "8D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
+        ],
+        dealer_hand: ["AS", "KD"],
+        status: :insurance_offered
+      }
+
+      game = Blackjack.take_insurance(game)
+
+      assert game.status == :round_over
+      assert game.insurance_bet == 50
+      assert game.insurance_outcome == :win
+      assert Blackjack.insurance_payout(game) == 150
+
+      hand = hd(game.hands)
+      assert hand.outcome == :loss
+      assert hand.payout == 0
+      # the untouched shoe proves no card was drawn settling the round
+      assert game.shoe == ["2S"]
+    end
+
+    test "still pushes a player natural against the dealer's natural" do
+      game = %Blackjack{
+        hands: [
+          %{
+            id: 0,
+            box: 0,
+            bet: 100,
+            cards: ["AH", "KC"],
+            status: :blackjack,
+            outcome: nil,
+            payout: nil
+          }
+        ],
+        dealer_hand: ["AS", "QD"],
+        status: :insurance_offered
+      }
+
+      game = Blackjack.take_insurance(game)
+
+      assert game.status == :round_over
+      assert game.insurance_outcome == :win
+      hand = hd(game.hands)
+      assert hand.outcome == :push
+      assert hand.payout == 100
+    end
+  end
+
+  describe "take_insurance/1 when the dealer does not have a natural blackjack" do
+    test "marks insurance a loss and carries on to the player's turn" do
+      game = %Blackjack{
+        hands: [
+          %{
+            id: 0,
+            box: 0,
+            bet: 100,
+            cards: ["9H", "8D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
+        ],
+        dealer_hand: ["AS", "5D"],
+        status: :insurance_offered
+      }
+
+      game = Blackjack.take_insurance(game)
+
+      assert game.status == :player_turn
+      assert game.active_hand == 0
+      assert game.insurance_bet == 50
+      assert game.insurance_outcome == :loss
+      assert Blackjack.insurance_payout(game) == 0
+      # the main hand is untouched - insurance draws no cards either way
+      assert hd(game.hands).cards == ["9H", "8D"]
+    end
+
+    test "carries on to the dealer's turn when every hand already has a natural" do
+      game = %Blackjack{
+        hands: [
+          %{
+            id: 0,
+            box: 0,
+            bet: 100,
+            cards: ["AH", "KC"],
+            status: :blackjack,
+            outcome: nil,
+            payout: nil
+          }
+        ],
+        dealer_hand: ["AS", "5D"],
+        status: :insurance_offered
+      }
+
+      game = Blackjack.take_insurance(game) |> play_out_dealer()
+
+      assert game.status == :round_over
+      assert game.insurance_outcome == :loss
+      hand = hd(game.hands)
+      assert hand.outcome == :blackjack_win
+      assert hand.payout == 100 + div(100 * 3, 2)
+    end
+  end
+
+  describe "decline_insurance/1" do
+    test "leaves insurance untouched and carries on exactly as new/1 otherwise would" do
+      game = %Blackjack{
+        hands: [
+          %{
+            id: 0,
+            box: 0,
+            bet: 100,
+            cards: ["9H", "8D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
+        ],
+        dealer_hand: ["AS", "5D"],
+        status: :insurance_offered
+      }
+
+      game = Blackjack.decline_insurance(game)
+
+      assert game.status == :player_turn
+      assert game.active_hand == 0
+      assert game.insurance_bet == nil
+      assert game.insurance_outcome == nil
+      assert Blackjack.insurance_payout(game) == 0
+    end
+
+    test "still settles immediately if the dealer turns up a natural blackjack" do
+      game = %Blackjack{
+        hands: [
+          %{
+            id: 0,
+            box: 0,
+            bet: 100,
+            cards: ["9H", "8D"],
+            status: :active,
+            outcome: nil,
+            payout: nil
+          }
+        ],
+        dealer_hand: ["AS", "KD"],
+        status: :insurance_offered
+      }
+
+      game = Blackjack.decline_insurance(game)
+
+      assert game.status == :round_over
+      assert game.insurance_bet == nil
+      assert game.insurance_outcome == nil
+      assert Blackjack.insurance_payout(game) == 0
+      hand = hd(game.hands)
+      assert hand.outcome == :loss
+      assert hand.payout == 0
+    end
   end
 
   describe "value/1" do
@@ -840,6 +1202,11 @@ defmodule HighSociety.Games.BlackjackTest do
       game =
         Stream.iterate(game, fn game ->
           case game.status do
+            :insurance_offered ->
+              if Enum.random([true, false]),
+                do: Blackjack.take_insurance(game),
+                else: Blackjack.decline_insurance(game)
+
             :player_turn ->
               if Enum.random([true, false]),
                 do: Blackjack.hit(game, game.active_hand),

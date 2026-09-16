@@ -116,13 +116,13 @@ defmodule HighSocietyWeb.GameLive.War do
               <span class="text-xs font-semibold uppercase tracking-wide text-base-content/40">
                 Tied — burned
               </span>
-              <.card_face card={tie["player_card"]} dim />
+              <.card_face card={tie["player_card"]} dim size={:large} />
             </div>
             <div class="flex flex-col items-center gap-1">
               <span class="text-xs font-semibold uppercase tracking-wide text-base-content/40">
                 Tied — burned
               </span>
-              <.card_face card={tie["computer_card"]} dim />
+              <.card_face card={tie["computer_card"]} dim size={:large} />
             </div>
           </div>
 
@@ -134,7 +134,13 @@ defmodule HighSocietyWeb.GameLive.War do
               >
                 Tiebreaker
               </span>
-              <.card_face card={last_card(@war_game, :player_card)} pending={war_pending?(@war_game)} />
+              <.card_face
+                id="war-player-card"
+                card={last_card(@war_game, :player_card)}
+                pending={war_pending?(@war_game)}
+                deal_animation
+                size={:large}
+              />
             </div>
             <div class="flex flex-col items-center gap-1">
               <span
@@ -144,8 +150,11 @@ defmodule HighSocietyWeb.GameLive.War do
                 Tiebreaker
               </span>
               <.card_face
+                id="war-computer-card"
                 card={last_card(@war_game, :computer_card)}
                 pending={war_pending?(@war_game)}
+                deal_animation
+                size={:large}
               />
             </div>
           </div>
@@ -232,8 +241,8 @@ defmodule HighSocietyWeb.GameLive.War do
         export default {
           mounted() {
             this.sounds = {
-              deal: new Audio("/audio/card-deal.mp3"),
-              war: new Audio("/audio/war-drums.wav")
+              deal: new Audio("/audio/war/card-deal.mp3"),
+              war: new Audio("/audio/war/war-drums.wav")
             }
 
             this.handleEvent("play_sound", ({sound}) => {

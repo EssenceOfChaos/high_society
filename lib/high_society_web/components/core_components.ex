@@ -29,6 +29,7 @@ defmodule HighSocietyWeb.CoreComponents do
   use Phoenix.Component
   use Gettext, backend: HighSocietyWeb.Gettext
 
+  alias HighSociety.Tokens
   alias Phoenix.LiveView.JS
 
   @doc """
@@ -350,6 +351,10 @@ defmodule HighSocietyWeb.CoreComponents do
   attr :row_id, :any, default: nil, doc: "the function for generating the row id"
   attr :row_click, :any, default: nil, doc: "the function for handling phx-click on each row"
 
+  attr :row_class, :any,
+    default: nil,
+    doc: "the function for computing a row's extra class(es), given the row"
+
   attr :row_item, :any,
     default: &Function.identity/1,
     doc: "the function for mapping each row before calling the :col and :action slots"
@@ -377,7 +382,11 @@ defmodule HighSocietyWeb.CoreComponents do
         </tr>
       </thead>
       <tbody id={@id} phx-update={is_struct(@rows, Phoenix.LiveView.LiveStream) && "stream"}>
-        <tr :for={row <- @rows} id={@row_id && @row_id.(row)}>
+        <tr
+          :for={row <- @rows}
+          id={@row_id && @row_id.(row)}
+          class={@row_class && @row_class.(row)}
+        >
           <td
             :for={col <- @col}
             phx-click={@row_click && @row_click.(row)}
@@ -463,6 +472,11 @@ defmodule HighSocietyWeb.CoreComponents do
       <.card_face card={nil} pending />
       <.card_face card="10H" face_down />
   """
+  attr :id, :string,
+    default: nil,
+    doc:
+      "required when deal_animation is set, so the entrance plays once per card, not per re-render"
+
   attr :card, :string, default: nil
   attr :dim, :boolean, default: false, doc: "shrinks and fades the card, e.g. for burned cards"
 
@@ -474,16 +488,43 @@ defmodule HighSocietyWeb.CoreComponents do
     default: false,
     doc: "renders a face-down card back instead of the card"
 
+  attr :deal_animation, :boolean,
+    default: false,
+    doc: """
+    swaps the plain CSS fade-in for a JS-driven anime.js entrance (a card
+    tumbling in from above and settling into place) - opt-in, and requires
+    `id`. Retriggers any time the card actually showing changes, so it plays
+    equally well for a paced multi-card deal (Blackjack) or a single slot
+    that's simply replaced every round (War).
+    """
+
+  attr :size, :atom,
+    values: [:normal, :large],
+    default: :normal,
+    doc: "large is ~30% bigger, for screens with only one or two cards and little else on them"
+
   def card_face(assigns) do
-    assigns = assign(assigns, :image_name, assigns.card && card_image_name(assigns.card))
+    assigns =
+      assigns
+      |> assign(:image_name, assigns.card && card_image_name(assigns.card))
+      |> assign(:deal_key, assigns.deal_animation && deal_key(assigns.card, assigns.face_down))
 
     ~H"""
-    <div class={[
-      "@container [contain-intrinsic-width:7rem] card-deal-in flex aspect-[7/10] min-w-0 flex-[0_1_7rem] items-center justify-center overflow-hidden rounded-xl shadow-md transition-transform duration-300",
-      !@card && @pending && "border-2 border-error bg-error text-error-content animate-pulse",
-      !@card && !@pending && !@face_down && "border-2 border-dashed border-base-300 bg-base-200",
-      @dim && "opacity-40 scale-90"
-    ]}>
+    <div
+      id={@id}
+      phx-hook={@deal_animation && "#{inspect(__MODULE__)}.CardDealAnimation"}
+      data-deal-key={@deal_key}
+      class={[
+        "@container flex aspect-[7/10] min-w-0 items-center justify-center overflow-hidden rounded-xl shadow-md transition-transform duration-300",
+        @size == :normal && "[contain-intrinsic-width:7rem] flex-[0_1_7rem]",
+        @size == :large && "[contain-intrinsic-width:9rem] flex-[0_1_9rem]",
+        !@deal_animation && "card-deal-in",
+        !@card && @pending && "border-2 border-error bg-error text-error-content animate-pulse",
+        !@card && !@pending && !@face_down && "border-2 border-dashed border-base-300 bg-base-200",
+        @dim && "opacity-40 scale-90",
+        card_z_class(@card, @face_down)
+      ]}
+    >
       <img
         :if={@card && !@face_down}
         src={"/images/cards/#{@image_name}.svg"}
@@ -507,8 +548,67 @@ defmodule HighSocietyWeb.CoreComponents do
         class="size-[29cqw] text-base-content/20"
       />
     </div>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".CardDealAnimation">
+      export default {
+        // Fires once per genuine reveal, keyed off `data-deal-key` actually
+        // changing to something real - covers both shapes of "dealt": a
+        // fresh mount already showing its face (a card hit into an existing
+        // hand, which never goes through a paced "empty" placeholder stage;
+        // reconnecting mid-round mounts every already-shown card the same
+        // way, replaying as a deal - an acceptable, honestly-labeled redraw
+        // rather than a silent snap-into-place), and a later patch that
+        // either fills a pending placeholder or swaps one already-shown
+        // card straight for another (War replaces its single slot outright
+        // every round, with no pending stage at all).
+        mounted() {
+          this.dealKey = this.el.dataset.dealKey
+          if (this.dealKey) this.playEntrance()
+        },
+        updated() {
+          const newKey = this.el.dataset.dealKey
+          if (newKey && newKey !== this.dealKey) this.playEntrance()
+          this.dealKey = newKey
+        },
+        playEntrance() {
+          // The card's own `transition-transform` (for the unrelated `dim`
+          // fade) would otherwise fight anime.js for the same CSS property:
+          // every inline value anime.js sets mid-flight gets treated as a
+          // brand new transition target, chasing a constantly-moving goal
+          // and damping the motion down to a few percent of its real
+          // distance - which is exactly what reads as "snapping into
+          // place". Suspending it for the entrance and handing it back
+          // afterward keeps that fade working for its actual purpose.
+          this.el.style.transition = "none"
+          this.el.style.opacity = "0"
+
+          const rotate = Math.random() * 26 - 13
+          const drift = Math.random() * 44 - 22
+
+          window.animeAnimate(this.el, {
+            opacity: [0, 1],
+            translateY: [-64, 0],
+            translateX: [drift, 0],
+            rotate: [rotate, 0],
+            scale: [0.7, 1],
+            duration: 480,
+            ease: "outBack",
+            onComplete: () => { this.el.style.transition = "" }
+          })
+        }
+      }
+    </script>
     """
   end
+
+  # Overlapping hands (e.g. Blackjack's -space-x-* rows) rely on DOM order
+  # for stacking - a later card should sit on top of an earlier one once
+  # both are actually dealt. But an empty slot still awaiting its card is
+  # also a later sibling, so without this it would paint over the
+  # already-dealt card next to it the instant the row overlaps. Pinning
+  # dealt/face-down cards above still-empty slots keeps the overlap looking
+  # right at every stage of the deal.
+  defp card_z_class(card, face_down), do: if(card || face_down, do: "z-10", else: "z-0")
 
   @doc """
   Renders a player's badge icon, resolved from their `active_days_count`,
@@ -540,6 +640,86 @@ defmodule HighSocietyWeb.CoreComponents do
       />
     </span>
     """
+  end
+
+  @doc """
+  Renders a player's Token balance, counting up/down with an anime.js tween
+  whenever `amount` changes across a LiveView patch (a bet, a payout, a
+  claim...) instead of the digits just snapping to the new value.
+
+  ## Examples
+
+      <.token_balance amount={@current_scope.user.tokens_balance} />
+  """
+  attr :amount, :integer, required: true
+
+  def token_balance(assigns) do
+    ~H"""
+    <div
+      id="tokens-balance"
+      phx-hook=".TokenBalanceCounter"
+      data-amount={@amount}
+      class="text-lg font-bold"
+    >
+      {Tokens.format(@amount)} Tokens
+    </div>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".TokenBalanceCounter">
+      import { animate } from "@/vendor/anime.js"
+
+      const formatAmount = (amount) => {
+        const sign = amount < 0 ? "-" : ""
+        const abs = Math.abs(Math.round(amount))
+        return `${sign}${abs.toLocaleString("en-US")} Tokens`
+      }
+
+      export default {
+        mounted() {
+          this.counter = { amount: Number(this.el.dataset.amount) }
+        },
+        updated() {
+          const target = Number(this.el.dataset.amount)
+          if (target === this.counter.amount) return
+
+          if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+            this.counter.amount = target
+            return
+          }
+
+          this.el.textContent = formatAmount(this.counter.amount)
+
+          animate(this.counter, {
+            amount: target,
+            duration: 700,
+            ease: "outQuad",
+            onUpdate: () => { this.el.textContent = formatAmount(this.counter.amount) }
+          })
+        }
+      }
+    </script>
+    """
+  end
+
+  # Whether this card slot is showing a face - either the card itself or a
+  # face-down back - as opposed to an empty/pending placeholder. Only
+  # computed (and only meaningful) when `deal_animation` is set: it's what
+  # `.CardDealAnimation` diffs against on every patch to catch the exact
+  # moment a card is revealed.
+  # Identifies what this card slot is currently showing, so
+  # `.CardDealAnimation` can tell a genuine reveal from an unrelated
+  # re-render: a paced Blackjack deal goes from `nil` to a card once, while
+  # War replaces an already-shown card outright every round - both are just
+  # "the key changed to something real", with the actual card string
+  # doubling as that key so two different cards are never mistaken for the
+  # same reveal. `nil` (an empty/pending slot) omits the attribute entirely
+  # rather than sending an empty string, which reads as "nothing to compare
+  # against yet" just as plainly on the JS side (`undefined`).
+  defp deal_key(card, face_down) do
+    cond do
+      card -> card
+      face_down -> "face-down"
+      true -> nil
+    end
   end
 
   defp card_split(card) do

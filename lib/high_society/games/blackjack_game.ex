@@ -17,10 +17,12 @@ defmodule HighSociety.Games.BlackjackGame do
           active_hand: integer() | nil,
           dealer_hand: [String.t()],
           round_number: integer(),
+          insurance_bet: integer() | nil,
+          insurance_outcome: String.t() | nil,
           user_id: integer() | nil
         }
 
-  @statuses ~w(player_turn dealer_turn round_over)
+  @statuses ~w(insurance_offered player_turn dealer_turn round_over)
 
   schema "blackjack_games" do
     field :status, :string, default: "player_turn"
@@ -29,6 +31,8 @@ defmodule HighSociety.Games.BlackjackGame do
     field :active_hand, :integer
     field :dealer_hand, {:array, :string}, default: []
     field :round_number, :integer, default: 0
+    field :insurance_bet, :integer
+    field :insurance_outcome, :string
 
     belongs_to :user, HighSociety.Accounts.User
 
@@ -45,6 +49,8 @@ defmodule HighSociety.Games.BlackjackGame do
       :active_hand,
       :dealer_hand,
       :round_number,
+      :insurance_bet,
+      :insurance_outcome,
       :user_id
     ])
     |> validate_required([:status, :shoe, :hands, :dealer_hand, :round_number, :user_id])

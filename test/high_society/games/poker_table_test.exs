@@ -16,9 +16,9 @@ defmodule HighSociety.Games.PokerTableTest do
     :ok
   end
 
-  defp funded_user(balance) do
+  defp funded_user(tokens_balance) do
     user = AccountsFixtures.user_fixture()
-    {:ok, user} = Accounts.adjust_balance(user, balance)
+    {:ok, user} = Accounts.adjust_tokens_balance(user, tokens_balance, "test_funding")
     user
   end
 
@@ -30,7 +30,7 @@ defmodule HighSociety.Games.PokerTableTest do
       assert view.seats[0].user_id == user.id
       assert view.seats[0].stack == 20_000
 
-      assert Accounts.get_user!(user.id).balance == 80_000
+      assert Accounts.get_user!(user.id).tokens_balance == 80_000
     end
 
     test "rejects a buy-in outside the table's range" do
@@ -59,6 +59,20 @@ defmodule HighSociety.Games.PokerTableTest do
       assert view.hand.status == :in_progress
       assert map_size(view.hand.seats) == 2
     end
+
+    test "falls back to the email-derived name when no display name is set" do
+      user = funded_user(100_000)
+      assert {:ok, view} = PokerTable.sit(@slug, user, 0, 20_000)
+      assert view.seats[0].username == user.email |> String.split("@") |> hd()
+    end
+
+    test "uses the user's display name as the seat username when set" do
+      user = funded_user(100_000)
+      {:ok, user} = Accounts.update_user_display_name(user, %{display_name: "Freddy"})
+
+      assert {:ok, view} = PokerTable.sit(@slug, user, 0, 20_000)
+      assert view.seats[0].username == "Freddy"
+    end
   end
 
   describe "stand/2" do
@@ -68,7 +82,7 @@ defmodule HighSociety.Games.PokerTableTest do
 
       assert {:ok, view} = PokerTable.stand(@slug, user.id)
       refute Map.has_key?(view.seats, 0)
-      assert Accounts.get_user!(user.id).balance == 100_000
+      assert Accounts.get_user!(user.id).tokens_balance == 100_000
     end
 
     test "folds the player's live hand immediately when standing up mid-hand" do
@@ -81,7 +95,7 @@ defmodule HighSociety.Games.PokerTableTest do
       assert map_size(view.seats) == 1
 
       # user1 gets back whatever remained of their stack after posting/folding
-      updated_balance = Accounts.get_user!(user1.id).balance
+      updated_balance = Accounts.get_user!(user1.id).tokens_balance
       assert updated_balance >= 80_000 - 20_000 and updated_balance <= 80_000 + 20_000
     end
 

@@ -55,6 +55,12 @@ config :high_society, HighSociety.Mailer, adapter: Swoosh.Adapters.Local
 config :high_society, :mailer_from_email, "noreply@highsociety.cc"
 config :high_society, :support_email, "support@highsociety.cc"
 
+# Emails allowed into the /admin section (see HighSocietyWeb.UserAuth's
+# :require_admin on_mount). Empty by default - add your own email in
+# config/dev.exs to reach it locally, and set ADMIN_EMAILS in prod (see
+# config/runtime.exs).
+config :high_society, :admin_emails, []
+
 # Configure esbuild (the version is required)
 config :esbuild,
   version: "0.25.4",

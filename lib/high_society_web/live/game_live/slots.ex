@@ -5,7 +5,7 @@ defmodule HighSocietyWeb.GameLive.Slots do
   alias HighSociety.Accounts.Scope
   alias HighSociety.Games
   alias HighSociety.Games.Slots
-  alias HighSociety.Money
+  alias HighSociety.Tokens
 
   import HighSocietyWeb.GameLive.SlotsComponents
 
@@ -22,7 +22,8 @@ defmodule HighSocietyWeb.GameLive.Slots do
         wager_options: Slots.wager_options(),
         error: nil,
         bonus_round_won: 0,
-        bonus_round_summary: nil
+        bonus_round_summary: nil,
+        show_paytable: false
       )
 
     if connected?(socket), do: maybe_schedule_free_spin(socket)
@@ -31,6 +32,12 @@ defmodule HighSocietyWeb.GameLive.Slots do
   end
 
   @impl true
+  def handle_event("open_paytable", _params, socket),
+    do: {:noreply, assign(socket, show_paytable: true)}
+
+  def handle_event("close_paytable", _params, socket),
+    do: {:noreply, assign(socket, show_paytable: false)}
+
   def handle_event("select_wager", %{"amount" => amount}, socket) do
     if free_spins_active?(socket.assigns.slots_game) do
       {:noreply, socket}
@@ -53,8 +60,8 @@ defmodule HighSocietyWeb.GameLive.Slots do
     end
   end
 
-  def handle_event("claim_slots_chips", _params, socket) do
-    case Accounts.claim_slots_chips(socket.assigns.current_scope.user) do
+  def handle_event("claim_slots_tokens", _params, socket) do
+    case Accounts.claim_slots_tokens(socket.assigns.current_scope.user) do
       {:ok, user} -> {:noreply, assign(socket, current_scope: Scope.for_user(user))}
       {:error, :already_claimed} -> {:noreply, socket}
     end
@@ -148,7 +155,7 @@ defmodule HighSocietyWeb.GameLive.Slots do
   defp free_spins_active?(%{free_spins_remaining: n}), do: n > 0
 
   defp spin_error_message(:invalid_wager), do: "Pick a valid wager amount."
-  defp spin_error_message(:insufficient_funds), do: "You don't have enough chips for that wager."
+  defp spin_error_message(:insufficient_funds), do: "You don't have enough Tokens for that wager."
 
   defp result_sound(%{total_win: 0}), do: "spin-lose"
 
@@ -189,18 +196,16 @@ defmodule HighSocietyWeb.GameLive.Slots do
               <div class="text-xs font-medium uppercase tracking-wide text-base-content/50">
                 Balance
               </div>
-              <div id="balance" class="text-lg font-bold">
-                ${Money.format(@current_scope.user.balance)}
-              </div>
+              <.token_balance amount={@current_scope.user.tokens_balance} />
             </div>
             <button
-              :if={is_nil(@current_scope.user.claimed_slots_chips_at)}
-              id="claim-chips-button"
+              :if={is_nil(@current_scope.user.claimed_slots_tokens_at)}
+              id="claim-slots-tokens-button"
               type="button"
-              phx-click="claim_slots_chips"
+              phx-click="claim_slots_tokens"
               class="btn btn-success btn-sm animate-pulse"
             >
-              Claim ${Money.format(Accounts.slots_starting_chip_amount())}
+              Claim {Tokens.format(Accounts.slots_starting_token_amount())} Tokens
             </button>
             <button
               id="sound-toggle-button"
@@ -212,6 +217,15 @@ defmodule HighSocietyWeb.GameLive.Slots do
             >
               <.icon name="hero-speaker-wave" class="size-4 sound-on-icon" />
               <.icon name="hero-speaker-x-mark" class="size-4 sound-off-icon hidden" />
+            </button>
+            <button
+              id="paytable-button"
+              type="button"
+              phx-click="open_paytable"
+              class="btn btn-ghost btn-sm btn-circle"
+              aria-label="Paytable & bonus round rules"
+            >
+              <.icon name="hero-question-mark-circle" class="size-5" />
             </button>
           </div>
         </div>
@@ -237,7 +251,7 @@ defmodule HighSocietyWeb.GameLive.Slots do
             🎉 Bonus! {free_spins_label(@slots_game)}
           </p>
           <p :if={@slots_game.total_win > 0} class="text-xl font-bold text-success">
-            You won ${Money.format(@slots_game.total_win)}!
+            You won {Tokens.format(@slots_game.total_win)} Tokens!
           </p>
           <p
             :if={@slots_game.total_win == 0 && !@slots_game.bonus_triggered}
@@ -246,7 +260,7 @@ defmodule HighSocietyWeb.GameLive.Slots do
             Try again.
           </p>
           <p :if={@bonus_round_summary} class="mt-1 text-base font-semibold text-emerald-300">
-            🏆 Bonus round total: ${Money.format(@bonus_round_summary)}
+            🏆 Bonus round total: {Tokens.format(@bonus_round_summary)} Tokens
           </p>
         </div>
 
@@ -261,7 +275,7 @@ defmodule HighSocietyWeb.GameLive.Slots do
           <form :if={!free_spins_active?(@slots_game)} id="wager-form" phx-change="select_wager">
             <select id="wager-select" name="amount" class="select select-bordered select-sm">
               <option :for={amount <- @wager_options} value={amount} selected={@wager == amount}>
-                ${Money.format(amount)}
+                {Tokens.format(amount)} Tokens
               </option>
             </select>
           </form>
@@ -283,10 +297,12 @@ defmodule HighSocietyWeb.GameLive.Slots do
             disabled={@spinning?}
             class="btn btn-primary btn-lg px-16"
           >
-            Spin — ${Money.format(@wager)}
+            Spin — {Tokens.format(@wager)} Tokens
           </button>
         </div>
       </div>
+
+      <.paytable_modal show={@show_paytable} />
 
       <script :type={Phoenix.LiveView.ColocatedHook} name=".SoundToggle">
         export default {

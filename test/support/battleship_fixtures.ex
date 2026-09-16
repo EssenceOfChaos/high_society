@@ -14,11 +14,11 @@ defmodule HighSociety.BattleshipFixtures do
 
   import HighSociety.AccountsFixtures
 
-  @doc "A user with plenty of balance to wager with."
+  @doc "A user with plenty of Tokens to wager with."
   @spec funded_user(pos_integer) :: Accounts.User.t()
-  def funded_user(balance \\ 10_000) do
+  def funded_user(tokens_balance \\ 10_000) do
     user = user_fixture()
-    {:ok, user} = Accounts.adjust_balance(user, balance)
+    {:ok, user} = Accounts.adjust_tokens_balance(user, tokens_balance, "test_funding")
     user
   end
 

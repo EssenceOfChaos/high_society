@@ -76,5 +76,13 @@ defmodule HighSociety.Games.Poker.HandEvaluatorTest do
 
       assert HandEvaluator.rank(hand_a) == HandEvaluator.rank(hand_b)
     end
+
+    test "ranks exactly 5 cards (2 hole + a flop), for a live in-progress read" do
+      assert HandEvaluator.rank(~w(2S 2D 9C JH KD)) == {1, [2, 13, 11, 9]}
+    end
+
+    test "ranks exactly 6 cards (2 hole + a flop and the turn)" do
+      assert HandEvaluator.rank(~w(2S 2D 9C JH KD 3H)) == {1, [2, 13, 11, 9]}
+    end
   end
 end

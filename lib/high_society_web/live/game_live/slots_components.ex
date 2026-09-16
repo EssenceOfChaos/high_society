@@ -6,9 +6,16 @@ defmodule HighSocietyWeb.GameLive.SlotsComponents do
   """
   use Phoenix.Component
 
+  import HighSocietyWeb.CoreComponents, only: [icon: 1]
+
   alias HighSociety.Games.Slots
 
   @kinds ~w(cherries lemon grapes bell horseshoe crown star seven wild bonus)a
+
+  # Paytable row order, low to high value - matches @reel_weights' rarity
+  # ordering in `HighSociety.Games.Slots`. Bonus has its own explanation
+  # below the table since it doesn't pay out on a payline.
+  @paytable_kinds ~w(cherries lemon grapes bell horseshoe crown star seven wild)a
 
   attr :kind, :atom, required: true
   attr :class, :string, default: ""
@@ -163,6 +170,104 @@ defmodule HighSocietyWeb.GameLive.SlotsComponents do
   defp marquee_light_class(i) when rem(i, 3) == 0, do: "animate-pulse [animation-delay:0ms]"
   defp marquee_light_class(i) when rem(i, 3) == 1, do: "animate-pulse [animation-delay:200ms]"
   defp marquee_light_class(_i), do: "animate-pulse [animation-delay:400ms]"
+
+  attr :show, :boolean, default: false
+
+  @doc """
+  A "how to win" reference sheet: the full symbol x run-length paytable
+  plus the Bonus-symbol trigger/retrigger rules. Every number is read
+  from `HighSociety.Games.Slots` (not hand-copied) so the copy can never
+  drift from the actual payout/bonus logic. Toggled by a `phx-click`
+  event the parent LiveView owns, same as `join_modal` in
+  `HighSocietyWeb.GameLive.PokerTable`.
+  """
+  def paytable_modal(assigns) do
+    assigns =
+      assigns
+      |> assign(:paytable, Slots.paytable())
+      |> assign(:paytable_kinds, @paytable_kinds)
+      |> assign(:bonus_trigger_count, Slots.bonus_trigger_count())
+      |> assign(:free_spins_award, Slots.free_spins_award())
+      |> assign(:free_spins_retrigger_award, Slots.free_spins_retrigger_award())
+      |> assign(:free_spin_multiplier, Slots.free_spin_multiplier())
+
+    ~H"""
+    <div
+      :if={@show}
+      id="paytable-modal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+    >
+      <div
+        phx-click-away="close_paytable"
+        class="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-base-100 p-6 shadow-xl"
+      >
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-bold">Paytable & Bonus Round</h2>
+          <button
+            type="button"
+            phx-click="close_paytable"
+            class="btn btn-ghost btn-sm btn-circle"
+            aria-label="Close"
+          >
+            <.icon name="hero-x-mark" class="size-4" />
+          </button>
+        </div>
+
+        <p class="mt-2 text-sm text-base-content/60">
+          Match 3 or more identical symbols left-to-right, starting at the leftmost reel, on any
+          of the {length(Slots.paylines())} paylines. A
+          <span class="font-semibold text-fuchsia-400">Wild</span>
+          substitutes for any symbol except <span class="font-semibold text-emerald-400">Bonus</span>. Payouts are multiples of your wager, and every payline that hits pays out on the same spin.
+        </p>
+
+        <table class="mt-4 w-full text-sm">
+          <thead>
+            <tr class="text-left text-xs uppercase tracking-wide text-base-content/50">
+              <th class="py-1">Symbol</th>
+              <th class="py-1 text-right">3x</th>
+              <th class="py-1 text-right">4x</th>
+              <th class="py-1 text-right">5x</th>
+              <th class="py-1 text-right">6x</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr :for={kind <- @paytable_kinds} class="border-t border-base-content/10">
+              <td class="flex items-center gap-2 py-2">
+                <.symbol kind={kind} class="size-6" />
+                <span class="capitalize">{kind}</span>
+              </td>
+              <td :for={length <- 3..6} class="text-right font-mono">
+                {payout_label(@paytable, kind, length)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="mt-4 rounded-lg bg-emerald-400/10 p-3 text-sm">
+          <p class="flex items-center gap-2 font-semibold text-emerald-400">
+            <.symbol kind={:bonus} class="size-5" /> Bonus Round
+          </p>
+          <p class="mt-1 text-base-content/70">
+            Land {@bonus_trigger_count} or more Bonus symbols anywhere on the grid (paylines don't
+            matter) to trigger <strong>{@free_spins_award} free spins</strong>
+            at a <strong>{@free_spin_multiplier}x</strong>
+            payout multiplier. Landing {@bonus_trigger_count}+ Bonus symbols again during an
+            active free-spins round retriggers the feature, adding
+            <strong>{@free_spins_retrigger_award} more spins</strong>
+            at the same multiplier.
+          </p>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp payout_label(paytable, kind, length) do
+    case paytable |> Map.fetch!(kind) |> Map.get(length) do
+      nil -> "—"
+      hundredths -> "#{:erlang.float_to_binary(hundredths / 100, decimals: 2)}x"
+    end
+  end
 
   attr :grid, :list, default: nil
   attr :wins, :list, default: []

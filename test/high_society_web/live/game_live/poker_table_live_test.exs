@@ -33,18 +33,18 @@ defmodule HighSocietyWeb.GameLive.PokerTableLiveTest do
     assert has_element?(view, "#seat-7 button", "Join")
   end
 
-  test "claiming the one-time poker chips credits the balance", %{conn: conn} do
+  test "claiming the one-time poker tokens credits the balance", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/games/poker/#{@slug}")
 
-    assert render(element(view, "#balance")) =~ "$0"
-    view |> element("#claim-poker-chips-button") |> render_click()
+    assert render(element(view, "#tokens-balance")) =~ "0 Tokens"
+    view |> element("#claim-poker-tokens-button") |> render_click()
 
-    refute has_element?(view, "#claim-poker-chips-button")
-    assert render(element(view, "#balance")) =~ "$10,000"
+    refute has_element?(view, "#claim-poker-tokens-button")
+    assert render(element(view, "#tokens-balance")) =~ "500,000 Tokens"
   end
 
   test "sitting down debits the balance and shows the seated player", %{conn: conn, user: user} do
-    {:ok, _user} = Accounts.adjust_balance(user, 100_000)
+    {:ok, _user} = Accounts.adjust_tokens_balance(user, 100_000, "test_funding")
     {:ok, view, _html} = live(conn, ~p"/games/poker/#{@slug}")
 
     view |> element("#seat-0 button", "Join") |> render_click()
@@ -54,11 +54,11 @@ defmodule HighSocietyWeb.GameLive.PokerTableLiveTest do
     view |> element("#join-modal form") |> render_submit()
 
     refute has_element?(view, "#join-modal")
-    assert render(element(view, "#balance")) =~ "$900"
+    assert render(element(view, "#tokens-balance")) =~ "90,000 Tokens"
 
     username = user.email |> String.split("@") |> hd()
     assert has_element?(view, "#seat-0", username)
-    assert has_element?(view, "#seat-0", "$100")
+    assert has_element?(view, "#seat-0", "10,000")
     assert has_element?(view, "#leave-table-button")
   end
 
@@ -66,14 +66,14 @@ defmodule HighSocietyWeb.GameLive.PokerTableLiveTest do
     conn: conn,
     user: user1
   } do
-    {:ok, _} = Accounts.adjust_balance(user1, 100_000)
+    {:ok, _} = Accounts.adjust_tokens_balance(user1, 100_000, "test_funding")
     {:ok, view1, _html} = live(conn, ~p"/games/poker/#{@slug}")
     view1 |> element("#seat-0 button", "Join") |> render_click()
     view1 |> element("#buy-in-slider") |> render_change(%{"amount" => "10000"})
     view1 |> element("#join-modal form") |> render_submit()
 
     user2 = HighSociety.AccountsFixtures.user_fixture()
-    {:ok, _} = Accounts.adjust_balance(user2, 100_000)
+    {:ok, _} = Accounts.adjust_tokens_balance(user2, 100_000, "test_funding")
     conn2 = Phoenix.ConnTest.build_conn() |> log_in_user(user2)
     {:ok, view2, _html} = live(conn2, ~p"/games/poker/#{@slug}")
     view2 |> element("#seat-1 button", "Join") |> render_click()
@@ -109,7 +109,7 @@ defmodule HighSocietyWeb.GameLive.PokerTableLiveTest do
     assert hand.pots != nil
 
     banner = view1 |> element("#winner-banner") |> render()
-    assert banner =~ "$"
+    assert banner =~ "Tokens"
 
     hand.pots
     |> Enum.flat_map(& &1.winners)
@@ -123,14 +123,14 @@ defmodule HighSocietyWeb.GameLive.PokerTableLiveTest do
     conn: conn,
     user: user1
   } do
-    {:ok, _} = Accounts.adjust_balance(user1, 100_000)
+    {:ok, _} = Accounts.adjust_tokens_balance(user1, 100_000, "test_funding")
     {:ok, view1, _html} = live(conn, ~p"/games/poker/#{@slug}")
     view1 |> element("#seat-0 button", "Join") |> render_click()
     view1 |> element("#buy-in-slider") |> render_change(%{"amount" => "10000"})
     view1 |> element("#join-modal form") |> render_submit()
 
     user2 = HighSociety.AccountsFixtures.user_fixture()
-    {:ok, _} = Accounts.adjust_balance(user2, 100_000)
+    {:ok, _} = Accounts.adjust_tokens_balance(user2, 100_000, "test_funding")
     conn2 = Phoenix.ConnTest.build_conn() |> log_in_user(user2)
     {:ok, view2, _html} = live(conn2, ~p"/games/poker/#{@slug}")
     view2 |> element("#seat-1 button", "Join") |> render_click()
@@ -162,7 +162,7 @@ defmodule HighSocietyWeb.GameLive.PokerTableLiveTest do
   end
 
   test "leaving the table cashes the stack back out", %{conn: conn, user: user} do
-    {:ok, _user} = Accounts.adjust_balance(user, 100_000)
+    {:ok, _user} = Accounts.adjust_tokens_balance(user, 100_000, "test_funding")
     {:ok, view, _html} = live(conn, ~p"/games/poker/#{@slug}")
 
     view |> element("#seat-0 button", "Join") |> render_click()
@@ -173,6 +173,6 @@ defmodule HighSocietyWeb.GameLive.PokerTableLiveTest do
 
     refute has_element?(view, "#leave-table-button")
     assert has_element?(view, "#seat-0 button", "Join")
-    assert render(element(view, "#balance")) =~ "$1,000"
+    assert render(element(view, "#tokens-balance")) =~ "100,000 Tokens"
   end
 end

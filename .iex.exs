@@ -1,10 +1,19 @@
 # Alias modules so we can use them without the full module name
-alias HighSociety.Accounts
-alias HighSociety.Accounts.Scope
-alias HighSociety.Accounts.User
+alias HighSociety.Accounts.{
+  Scope,
+  User
+}
+
 alias HighSociety.Repo
-alias HighSociety.Games.Blackjack
-alias HighSociety.Games.BlackjackGame
-alias HighSociety.Games.War
-alias HighSociety.Games.WarGame
+
+alias HighSociety.Games.{
+  Blackjack,
+  War,
+  BlackjackGame,
+  WarGame
+}
+
 alias HighSociety.Badges
+import Ecto.{Query, Changeset}
+
+IEx.configure(inspect: [charlists: :as_lists])

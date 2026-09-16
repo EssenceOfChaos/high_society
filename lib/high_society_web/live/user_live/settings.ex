@@ -4,6 +4,7 @@ defmodule HighSocietyWeb.UserLive.Settings do
   on_mount {HighSocietyWeb.UserAuth, :require_sudo_mode}
 
   alias HighSociety.Accounts
+  alias HighSociety.Accounts.Scope
 
   @impl true
   def render(assigns) do
@@ -26,6 +27,29 @@ defmodule HighSocietyWeb.UserLive.Settings do
           required
         />
         <.button variant="primary" phx-disable-with="Changing...">Change Email</.button>
+      </.form>
+
+      <div class="divider" />
+
+      <.form
+        for={@display_name_form}
+        id="display_name_form"
+        phx-submit="update_display_name"
+        phx-change="validate_display_name"
+      >
+        <.input
+          field={@display_name_form[:display_name]}
+          type="text"
+          label="Display name"
+          placeholder={@current_scope.user.email |> String.split("@") |> hd()}
+          autocomplete="off"
+          spellcheck="false"
+          required
+        />
+        <p class="mt-1 text-sm text-base-content/60">
+          Shown at the poker table and on leaderboards, instead of the name we show by default.
+        </p>
+        <.button variant="primary" phx-disable-with="Saving...">Save Display Name</.button>
       </.form>
 
       <div class="divider" />
@@ -87,12 +111,14 @@ defmodule HighSocietyWeb.UserLive.Settings do
     user = socket.assigns.current_scope.user
     email_changeset = Accounts.change_user_email(user, %{}, validate_unique: false)
     password_changeset = Accounts.change_user_password(user, %{}, hash_password: false)
+    display_name_changeset = Accounts.change_user_display_name(user, %{}, validate_unique: false)
 
     socket =
       socket
       |> assign(:current_email, user.email)
       |> assign(:email_form, to_form(email_changeset))
       |> assign(:password_form, to_form(password_changeset))
+      |> assign(:display_name_form, to_form(display_name_changeset))
       |> assign(:trigger_submit, false)
 
     {:ok, socket}
@@ -129,6 +155,40 @@ defmodule HighSocietyWeb.UserLive.Settings do
 
       changeset ->
         {:noreply, assign(socket, :email_form, to_form(changeset, action: :insert))}
+    end
+  end
+
+  def handle_event("validate_display_name", params, socket) do
+    %{"user" => user_params} = params
+
+    display_name_form =
+      socket.assigns.current_scope.user
+      |> Accounts.change_user_display_name(user_params, validate_unique: false)
+      |> Map.put(:action, :validate)
+      |> to_form()
+
+    {:noreply, assign(socket, display_name_form: display_name_form)}
+  end
+
+  def handle_event("update_display_name", params, socket) do
+    %{"user" => user_params} = params
+    user = socket.assigns.current_scope.user
+
+    case Accounts.update_user_display_name(user, user_params) do
+      {:ok, user} ->
+        display_name_form =
+          user |> Accounts.change_user_display_name(%{}, validate_unique: false) |> to_form()
+
+        socket =
+          socket
+          |> assign(:current_scope, Scope.for_user(user))
+          |> assign(:display_name_form, display_name_form)
+          |> put_flash(:info, "Display name updated successfully.")
+
+        {:noreply, socket}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :display_name_form, to_form(changeset, action: :insert))}
     end
   end
 

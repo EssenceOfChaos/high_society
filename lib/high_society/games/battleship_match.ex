@@ -52,7 +52,8 @@ defmodule HighSociety.Games.BattleshipMatch do
   def create(%User{} = user, wager) when is_integer(wager) and wager > 0 do
     result =
       Repo.transact(fn ->
-        with {:ok, _user} <- Accounts.adjust_balance(user, -wager) do
+        with {:ok, _user} <-
+               Accounts.adjust_tokens_balance(user, -wager, "battleship_match_wager") do
           slug = generate_unique_slug()
 
           %BattleshipMatchState{}
@@ -133,7 +134,7 @@ defmodule HighSociety.Games.BattleshipMatch do
         {:reply, {:error, :already_seated}, state}
 
       true ->
-        case Accounts.adjust_balance(user, -state.wager) do
+        case Accounts.adjust_tokens_balance(user, -state.wager, "battleship_match_wager") do
           {:ok, _user} ->
             state = %{
               state
@@ -211,7 +212,13 @@ defmodule HighSociety.Games.BattleshipMatch do
   def handle_call({:forfeit, user_id}, _from, state) do
     with_seat(state, user_id, fn side ->
       winner_user_id = if side == :player, do: state.seat_1_user_id, else: state.seat_0_user_id
-      {:ok, _user} = Accounts.adjust_balance(Accounts.get_user!(winner_user_id), state.wager * 2)
+
+      {:ok, _user} =
+        Accounts.adjust_tokens_balance(
+          Accounts.get_user!(winner_user_id),
+          state.wager * 2,
+          "battleship_match_forfeit_payout"
+        )
 
       finalize(%{state | status: :forfeited})
     end)
@@ -231,7 +238,11 @@ defmodule HighSociety.Games.BattleshipMatch do
 
       true ->
         {:ok, _user} =
-          Accounts.adjust_balance(Accounts.get_user!(state.seat_0_user_id), state.wager)
+          Accounts.adjust_tokens_balance(
+            Accounts.get_user!(state.seat_0_user_id),
+            state.wager,
+            "battleship_match_cancel_refund"
+          )
 
         finalize(%{state | status: :cancelled})
     end
@@ -267,7 +278,13 @@ defmodule HighSociety.Games.BattleshipMatch do
   defp settle_if_won(state), do: state
 
   defp credit_winner(state, winner_user_id) do
-    {:ok, _user} = Accounts.adjust_balance(Accounts.get_user!(winner_user_id), state.wager * 2)
+    {:ok, _user} =
+      Accounts.adjust_tokens_balance(
+        Accounts.get_user!(winner_user_id),
+        state.wager * 2,
+        "battleship_match_payout"
+      )
+
     state
   end
 

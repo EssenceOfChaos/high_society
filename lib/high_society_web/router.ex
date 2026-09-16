@@ -65,16 +65,31 @@ defmodule HighSocietyWeb.Router do
       live "/badges", BadgesLive, :index
       live "/games/war", GameLive.War, :show
       live "/games/blackjack", GameLive.Blackjack, :show
+      live "/games/blackjack/leaderboard", GameLive.Leaderboard, :blackjack
       live "/games/poker", GameLive.PokerLobby, :index
+      live "/games/poker/leaderboard", GameLive.Leaderboard, :poker
       live "/games/poker/:slug", GameLive.PokerTable, :show
       live "/games/battleship", GameLive.Battleship, :show
       live "/games/battleship/lobby", GameLive.BattleshipLobby, :index
       live "/games/battleship/lobby/:slug", GameLive.BattleshipMatch, :show
       live "/games/slots", GameLive.Slots, :show
       live "/games/roulette", GameLive.Roulette, :show
+      live "/games/zombie-attack", GameLive.ZombieAttack, :show
     end
 
     post "/users/update-password", UserSessionController, :update_password
+  end
+
+  scope "/admin", HighSocietyWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :require_admin,
+      on_mount: [
+        {HighSocietyWeb.UserAuth, :require_authenticated},
+        {HighSocietyWeb.UserAuth, :require_admin}
+      ] do
+      live "/token-transactions", AdminLive.TokenTransactions, :index
+    end
   end
 
   scope "/", HighSocietyWeb do
@@ -84,6 +99,7 @@ defmodule HighSocietyWeb.Router do
     live_session :current_user,
       on_mount: [{HighSocietyWeb.UserAuth, :mount_current_scope}] do
       live "/", DashboardLive, :index
+      live "/tokens", TokensLive, :index
       live "/support", SupportLive, :new
       live "/users/register", UserLive.Registration, :new
       live "/users/log-in", UserLive.Login, :new

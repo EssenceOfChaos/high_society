@@ -21,31 +21,31 @@ defmodule HighSocietyWeb.GameLive.BattleshipTest do
     assert has_element?(view, "form[phx-submit='start_game']")
   end
 
-  test "claiming the one-time chips credits the balance", %{conn: conn} do
+  test "claiming the one-time tokens credits the balance", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/games/battleship")
 
-    assert render(element(view, "#balance")) =~ "$0"
-    view |> element("#claim-chips-button") |> render_click()
+    assert render(element(view, "#tokens-balance")) =~ "0 Tokens"
+    view |> element("#claim-battleship-tokens-button") |> render_click()
 
-    refute has_element?(view, "#claim-chips-button")
-    assert render(element(view, "#balance")) =~ "$10,000"
+    refute has_element?(view, "#claim-battleship-tokens-button")
+    assert render(element(view, "#tokens-balance")) =~ "500,000 Tokens"
   end
 
   test "starting a game debits the wager and shows the placement screen", %{
     conn: conn,
     user: user
   } do
-    {:ok, _user} = Accounts.adjust_balance(user, 100_000)
+    {:ok, _user} = Accounts.adjust_tokens_balance(user, 100_000, "test_funding")
     {:ok, view, _html} = live(conn, ~p"/games/battleship")
 
     view |> element("form[phx-submit='start_game']") |> render_submit(%{"wager" => "10000"})
 
     assert has_element?(view, "h2", "Place your fleet")
-    assert render(element(view, "#balance")) =~ "$900"
+    assert render(element(view, "#tokens-balance")) =~ "90,000 Tokens"
   end
 
   test "randomizing and readying up starts the battle", %{conn: conn, user: user} do
-    {:ok, _user} = Accounts.adjust_balance(user, 1000)
+    {:ok, _user} = Accounts.adjust_tokens_balance(user, 1000, "test_funding")
     {:ok, view, _html} = live(conn, ~p"/games/battleship")
 
     view |> element("form[phx-submit='start_game']") |> render_submit(%{"wager" => "100"})
@@ -62,7 +62,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipTest do
   end
 
   test "the computer's unsunk ships are never sent to the client", %{conn: conn, user: user} do
-    {:ok, _user} = Accounts.adjust_balance(user, 1000)
+    {:ok, _user} = Accounts.adjust_tokens_balance(user, 1000, "test_funding")
     {:ok, view, _html} = live(conn, ~p"/games/battleship")
 
     view |> element("form[phx-submit='start_game']") |> render_submit(%{"wager" => "100"})
@@ -82,7 +82,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipTest do
   end
 
   test "clearing placement empties the board so ships can be re-placed", %{conn: conn, user: user} do
-    {:ok, _user} = Accounts.adjust_balance(user, 1000)
+    {:ok, _user} = Accounts.adjust_tokens_balance(user, 1000, "test_funding")
     {:ok, view, _html} = live(conn, ~p"/games/battleship")
 
     view |> element("form[phx-submit='start_game']") |> render_submit(%{"wager" => "100"})
@@ -100,7 +100,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipTest do
   end
 
   test "firing at the computer's board resolves a shot", %{conn: conn, user: user} do
-    {:ok, _user} = Accounts.adjust_balance(user, 1000)
+    {:ok, _user} = Accounts.adjust_tokens_balance(user, 1000, "test_funding")
     {:ok, view, _html} = live(conn, ~p"/games/battleship")
 
     view |> element("form[phx-submit='start_game']") |> render_submit(%{"wager" => "100"})
@@ -135,7 +135,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipTest do
     user: user,
     scope: scope
   } do
-    {:ok, _user} = Accounts.adjust_balance(user, 100_000)
+    {:ok, _user} = Accounts.adjust_tokens_balance(user, 100_000, "test_funding")
     {:ok, game} = BattleshipContext.start_battleship_game(scope, 100)
 
     # every cell has already been "shot" by the computer except {1, 1}

@@ -192,12 +192,44 @@ defmodule HighSociety.Games do
         total = bets |> Map.values() |> Enum.sum()
 
         Repo.transact(fn ->
-          with {:ok, _user} <- Accounts.adjust_balance(user, -total) do
+          with {:ok, _user} <- Accounts.adjust_tokens_balance(user, -total, "blackjack_bet") do
             Repo.delete_all(from bg in BlackjackGame, where: bg.user_id == ^user.id)
             {:ok, persist_blackjack(user, Blackjack.new(bets))}
           end
         end)
     end
+  end
+
+  @doc """
+  Takes insurance on a persisted Blackjack round showing a dealer Ace,
+  debiting half the total original wager and - since taking insurance
+  immediately peeks the dealer's hole card - crediting the 2-to-1 insurance
+  payout on the spot if that peek reveals a dealer blackjack (which also
+  settles the round: see `HighSociety.Games.Blackjack.take_insurance/1`).
+  Fails without touching the game if the player can't cover the insurance
+  bet.
+  """
+  @spec take_insurance(Scope.t(), BlackjackGame.t()) ::
+          {:ok, BlackjackGame.t(), User.t()} | {:error, :insufficient_funds}
+  def take_insurance(%Scope{user: user}, %BlackjackGame{} = game) do
+    bj = to_blackjack(game)
+    amount = Blackjack.insurance_amount(bj)
+    updated_bj = Blackjack.take_insurance(bj)
+
+    case debit_and_settle(updated_bj, user, game, amount, "blackjack_insurance_bet") do
+      {:ok, {game, user}} -> {:ok, game, user}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Declines insurance on a persisted Blackjack round showing a dealer Ace,
+  carrying on to whatever the player would otherwise face next with no
+  change to their balance.
+  """
+  @spec decline_insurance(Scope.t(), BlackjackGame.t()) :: {BlackjackGame.t(), User.t()}
+  def decline_insurance(%Scope{user: user}, %BlackjackGame{} = game) do
+    game |> to_blackjack() |> Blackjack.decline_insurance() |> settle_and_persist(user, game)
   end
 
   @doc """
@@ -229,6 +261,26 @@ defmodule HighSociety.Games do
   end
 
   @doc """
+  Surrenders the active hand of a persisted Blackjack round, forfeiting
+  half its bet and ending that hand's turn immediately, saves the result,
+  and - if that settled the round - credits the returned half (and any
+  other hands' payouts) to the user's balance. Fails without touching the
+  game if the active hand isn't eligible (see `can_surrender?/1`).
+  """
+  @spec surrender(Scope.t(), BlackjackGame.t()) ::
+          {:ok, BlackjackGame.t(), User.t()} | {:error, :invalid_action}
+  def surrender(%Scope{user: user}, %BlackjackGame{} = game) do
+    bj = to_blackjack(game)
+
+    if Blackjack.can_surrender?(bj, game.active_hand) do
+      {game, user} = bj |> Blackjack.surrender(game.active_hand) |> settle_and_persist(user, game)
+      {:ok, game, user}
+    else
+      {:error, :invalid_action}
+    end
+  end
+
+  @doc """
   Doubles the active hand's bet, debiting the matching additional amount
   from the user's balance, then draws its single extra card and saves the
   result (crediting any winnings if that ended the round). Fails without
@@ -244,7 +296,7 @@ defmodule HighSociety.Games do
       hand = Enum.find(bj.hands, &(&1.id == game.active_hand))
       updated_bj = Blackjack.double_down(bj, game.active_hand)
 
-      case debit_and_settle(updated_bj, user, game, hand.bet) do
+      case debit_and_settle(updated_bj, user, game, hand.bet, "blackjack_double_down_bet") do
         {:ok, {game, user}} -> {:ok, game, user}
         {:error, reason} -> {:error, reason}
       end
@@ -269,7 +321,7 @@ defmodule HighSociety.Games do
       hand = Enum.find(bj.hands, &(&1.id == game.active_hand))
       updated_bj = Blackjack.split(bj, game.active_hand)
 
-      case debit_and_settle(updated_bj, user, game, hand.bet) do
+      case debit_and_settle(updated_bj, user, game, hand.bet, "blackjack_split_bet") do
         {:ok, {game, user}} -> {:ok, game, user}
         {:error, reason} -> {:error, reason}
       end
@@ -277,6 +329,13 @@ defmodule HighSociety.Games do
       {:error, :invalid_action}
     end
   end
+
+  @doc "Whether the active hand of a persisted round is eligible to surrender."
+  @spec can_surrender?(BlackjackGame.t() | nil) :: boolean()
+  def can_surrender?(nil), do: false
+
+  def can_surrender?(%BlackjackGame{} = game),
+    do: game |> to_blackjack() |> Blackjack.can_surrender?(game.active_hand)
 
   @doc "Whether the active hand of a persisted round is eligible for a double down."
   @spec can_double_down?(BlackjackGame.t() | nil) :: boolean()
@@ -329,7 +388,8 @@ defmodule HighSociety.Games do
           actual_wager = if free_spin?, do: previous.triggering_wager, else: wager
           feature_multiplier = if free_spin?, do: previous.free_spin_multiplier, else: 1
 
-          with {:ok, user} <- maybe_debit(user, if(free_spin?, do: 0, else: actual_wager)) do
+          with {:ok, user} <-
+                 maybe_debit(user, if(free_spin?, do: 0, else: actual_wager), "slots_wager") do
             result = Slots.spin(feature_multiplier)
 
             remaining_after_this_spin =
@@ -363,7 +423,7 @@ defmodule HighSociety.Games do
               })
               |> Repo.insert!()
 
-            {:ok, user} = Accounts.adjust_balance(user, total_win)
+            {:ok, user} = Accounts.adjust_tokens_balance(user, total_win, "slots_payout")
 
             {:ok, {game, user}}
           end
@@ -420,7 +480,7 @@ defmodule HighSociety.Games do
 
       true ->
         Repo.transact(fn ->
-          with {:ok, user} <- maybe_debit(user, total) do
+          with {:ok, user} <- maybe_debit(user, total, "roulette_wager") do
             winning_number = Roulette.spin()
             settled = Roulette.evaluate(winning_number, bets)
             total_payout = settled |> Enum.map(& &1.payout) |> Enum.sum()
@@ -438,7 +498,7 @@ defmodule HighSociety.Games do
               })
               |> Repo.insert!()
 
-            {:ok, user} = Accounts.adjust_balance(user, total_payout)
+            {:ok, user} = Accounts.adjust_tokens_balance(user, total_payout, "roulette_payout")
 
             {:ok, {game, user}}
           end
@@ -460,7 +520,9 @@ defmodule HighSociety.Games do
       hands: Enum.map(game.hands, &atomize_hand/1),
       active_hand: game.active_hand,
       dealer_hand: game.dealer_hand,
-      status: String.to_existing_atom(game.status)
+      status: String.to_existing_atom(game.status),
+      insurance_bet: game.insurance_bet,
+      insurance_outcome: game.insurance_outcome && String.to_existing_atom(game.insurance_outcome)
     }
   end
 
@@ -501,7 +563,9 @@ defmodule HighSociety.Games do
       hands: Enum.map(bj.hands, &stringify_hand/1),
       active_hand: bj.active_hand,
       dealer_hand: bj.dealer_hand,
-      round_number: 0
+      round_number: 0,
+      insurance_bet: bj.insurance_bet,
+      insurance_outcome: bj.insurance_outcome && Atom.to_string(bj.insurance_outcome)
     })
     |> Repo.insert!()
   end
@@ -514,25 +578,35 @@ defmodule HighSociety.Games do
       hands: Enum.map(bj.hands, &stringify_hand/1),
       active_hand: bj.active_hand,
       dealer_hand: bj.dealer_hand,
-      round_number: game.round_number + 1
+      round_number: game.round_number + 1,
+      insurance_bet: bj.insurance_bet,
+      insurance_outcome: bj.insurance_outcome && Atom.to_string(bj.insurance_outcome)
     })
     |> Repo.update!()
   end
 
   defp settle_and_persist(%Blackjack{} = bj, user, %BlackjackGame{} = game) do
-    {:ok, result} = debit_and_settle(bj, user, game, 0)
+    {:ok, result} = debit_and_settle(bj, user, game, 0, nil)
     result
   end
 
-  defp debit_and_settle(%Blackjack{} = bj, user, %BlackjackGame{} = game, debit_amount) do
+  defp debit_and_settle(
+         %Blackjack{} = bj,
+         user,
+         %BlackjackGame{} = game,
+         debit_amount,
+         debit_source
+       ) do
     Repo.transact(fn ->
-      with {:ok, user} <- maybe_debit(user, debit_amount) do
+      with {:ok, user} <- maybe_debit(user, debit_amount, debit_source) do
         game = save_blackjack_round(game, bj)
 
         user =
           if bj.status == :round_over do
-            total_payout = bj.hands |> Enum.map(& &1.payout) |> Enum.sum()
-            {:ok, user} = Accounts.adjust_balance(user, total_payout)
+            total_payout =
+              (bj.hands |> Enum.map(& &1.payout) |> Enum.sum()) + Blackjack.insurance_payout(bj)
+
+            {:ok, user} = Accounts.adjust_tokens_balance(user, total_payout, "blackjack_payout")
             user
           else
             user
@@ -543,6 +617,8 @@ defmodule HighSociety.Games do
     end)
   end
 
-  defp maybe_debit(user, 0), do: {:ok, user}
-  defp maybe_debit(user, amount), do: Accounts.adjust_balance(user, -amount)
+  defp maybe_debit(user, 0, _source), do: {:ok, user}
+
+  defp maybe_debit(user, amount, source),
+    do: Accounts.adjust_tokens_balance(user, -amount, source)
 end

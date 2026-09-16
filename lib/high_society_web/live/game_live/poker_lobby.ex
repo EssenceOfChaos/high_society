@@ -3,7 +3,7 @@ defmodule HighSocietyWeb.GameLive.PokerLobby do
 
   alias HighSociety.Games.PokerTable
   alias HighSociety.Games.PokerTables
-  alias HighSociety.Money
+  alias HighSociety.Tokens
 
   @impl true
   def mount(_params, _session, socket) do
@@ -38,9 +38,17 @@ defmodule HighSocietyWeb.GameLive.PokerLobby do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="mx-auto max-w-4xl">
-        <.link navigate={~p"/#games"} class="text-sm text-base-content/60 hover:text-base-content">
-          &larr; All games
-        </.link>
+        <div class="flex items-center justify-between">
+          <.link navigate={~p"/#games"} class="text-sm text-base-content/60 hover:text-base-content">
+            &larr; All games
+          </.link>
+          <.link
+            navigate={~p"/games/poker/leaderboard"}
+            class="flex items-center gap-1.5 text-sm text-base-content/60 hover:text-base-content"
+          >
+            <.icon name="hero-trophy" class="size-4" /> Leaderboard
+          </.link>
+        </div>
         <h1 class="mt-1 text-3xl font-bold tracking-tight">Poker</h1>
         <p class="mt-2 text-base-content/70">
           No-Limit Texas Hold'em cash games. Pick a table to watch, or sit down when a seat opens up.
@@ -55,9 +63,9 @@ defmodule HighSocietyWeb.GameLive.PokerLobby do
           >
             <h2 class="text-2xl font-semibold">{table.config.name}</h2>
             <p class="text-sm font-medium text-base-content/50">
-              Blinds ${Money.format(table.config.small_blind)} / ${Money.format(
+              Blinds {Tokens.format(table.config.small_blind)} / {Tokens.format(
                 table.config.big_blind
-              )}
+              )} Tokens
             </p>
             <div class="mt-4 flex items-center gap-2 text-sm">
               <span class="flex items-center gap-1.5 rounded-full bg-base-200 px-3 py-1 font-semibold">

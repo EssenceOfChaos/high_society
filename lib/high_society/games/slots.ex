@@ -13,9 +13,9 @@ defmodule HighSociety.Games.Slots do
   paylines.
 
   All payouts are expressed as integer "hundredths of the wager" (e.g. `30`
-  means 0.30x the wager) rather than floats, so money math downstream stays
-  exact integer-cents arithmetic (`HighSociety.Money`) with no floating
-  point anywhere near it.
+  means 0.30x the wager) rather than floats, so Token math downstream stays
+  exact integer arithmetic (`HighSociety.Tokens`) with no floating point
+  anywhere near it.
   """
 
   @rows 4
@@ -122,6 +122,16 @@ defmodule HighSociety.Games.Slots do
   @doc "The per-reel symbol weights (identical on all reels), for RTP tuning/tests."
   @spec reel_weights() :: keyword(pos_integer())
   def reel_weights, do: @reel_weights
+
+  @doc """
+  The full symbol x run-length payout table (payouts in hundredths of the
+  wager, same units as `win.multiplier_hundredths`), for display in the
+  in-game paytable and for tests - sourced from the same data the payline
+  evaluator itself reads, so a displayed payout can never drift from the
+  actual one.
+  """
+  @spec paytable() :: %{kind() => %{(3..6) => pos_integer()}}
+  def paytable, do: @paytable
 
   @doc "The board's column/row dimensions, `{columns, rows}`."
   @spec dimensions() :: {pos_integer(), pos_integer()}
