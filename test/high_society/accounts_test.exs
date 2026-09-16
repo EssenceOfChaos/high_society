@@ -4,7 +4,7 @@ defmodule HighSociety.AccountsTest do
   alias HighSociety.Accounts
 
   import HighSociety.AccountsFixtures
-  alias HighSociety.Accounts.{User, UserToken}
+  alias HighSociety.Accounts.{User, UserToken, TokenTransaction}
 
   describe "get_user_by_email/1" do
     test "does not return the user if the email does not exist" do
@@ -48,48 +48,159 @@ defmodule HighSociety.AccountsTest do
     end
   end
 
-  describe "claim_starting_chips/1" do
-    test "grants the starting chip amount and records when it was claimed" do
+  describe "claim_blackjack_tokens/1" do
+    test "grants the starting token amount and records when it was claimed" do
       user = user_fixture()
-      assert user.balance == 0
-      assert user.claimed_starting_chips_at == nil
+      assert user.tokens_balance == 0
+      assert user.claimed_blackjack_tokens_at == nil
 
-      assert {:ok, updated} = Accounts.claim_starting_chips(user)
+      assert {:ok, updated} = Accounts.claim_blackjack_tokens(user)
 
-      assert updated.balance == Accounts.starting_chip_amount()
-      assert updated.claimed_starting_chips_at != nil
+      assert updated.tokens_balance == Accounts.blackjack_starting_token_amount()
+      assert updated.claimed_blackjack_tokens_at != nil
     end
 
     test "cannot be claimed a second time" do
       user = user_fixture()
-      {:ok, updated} = Accounts.claim_starting_chips(user)
+      {:ok, updated} = Accounts.claim_blackjack_tokens(user)
 
-      assert {:error, :already_claimed} = Accounts.claim_starting_chips(updated)
-      assert Accounts.get_user!(user.id).balance == Accounts.starting_chip_amount()
+      assert {:error, :already_claimed} = Accounts.claim_blackjack_tokens(updated)
+
+      assert Accounts.get_user!(user.id).tokens_balance ==
+               Accounts.blackjack_starting_token_amount()
+    end
+
+    test "writes exactly one ledger row on first claim, none on a repeat" do
+      user = user_fixture()
+      {:ok, updated} = Accounts.claim_blackjack_tokens(user)
+
+      assert [transaction] = Repo.all(TokenTransaction)
+      assert transaction.user_id == user.id
+      assert transaction.amount == Accounts.blackjack_starting_token_amount()
+      assert transaction.source == "starting_grant_blackjack"
+
+      assert {:error, :already_claimed} = Accounts.claim_blackjack_tokens(updated)
+      assert Repo.aggregate(TokenTransaction, :count) == 1
     end
   end
 
-  describe "adjust_balance/2" do
-    test "credits the user's balance" do
+  describe "adjust_tokens_balance/4" do
+    test "credits the user's tokens_balance" do
       user = user_fixture()
-      assert {:ok, updated} = Accounts.adjust_balance(user, 500)
-      assert updated.balance == 500
+      assert {:ok, updated} = Accounts.adjust_tokens_balance(user, 500, "test_funding")
+      assert updated.tokens_balance == 500
     end
 
-    test "debits the user's balance when funds are sufficient" do
+    test "debits the user's tokens_balance when funds are sufficient" do
       user = user_fixture()
-      {:ok, user} = Accounts.adjust_balance(user, 1_000)
+      {:ok, user} = Accounts.adjust_tokens_balance(user, 1_000, "test_funding")
 
-      assert {:ok, updated} = Accounts.adjust_balance(user, -400)
-      assert updated.balance == 600
+      assert {:ok, updated} = Accounts.adjust_tokens_balance(user, -400, "blackjack_bet")
+      assert updated.tokens_balance == 600
     end
 
     test "rejects a debit that would overdraw the balance, leaving it unchanged" do
       user = user_fixture()
-      {:ok, user} = Accounts.adjust_balance(user, 100)
+      {:ok, user} = Accounts.adjust_tokens_balance(user, 100, "test_funding")
 
-      assert {:error, :insufficient_funds} = Accounts.adjust_balance(user, -101)
-      assert Accounts.get_user!(user.id).balance == 100
+      assert {:error, :insufficient_funds} =
+               Accounts.adjust_tokens_balance(user, -101, "blackjack_bet")
+
+      assert Accounts.get_user!(user.id).tokens_balance == 100
+    end
+
+    test "writes a TokenTransaction ledger row with the given source and metadata on success" do
+      user = user_fixture()
+
+      assert {:ok, _updated} =
+               Accounts.adjust_tokens_balance(user, 500, "blackjack_payout", %{hand_id: "abc"})
+
+      assert [transaction] = Repo.all(TokenTransaction)
+      assert transaction.user_id == user.id
+      assert transaction.amount == 500
+      assert transaction.source == "blackjack_payout"
+      assert transaction.metadata == %{"hand_id" => "abc"}
+    end
+
+    test "writes no ledger row when the adjustment is rejected" do
+      user = user_fixture()
+      {:ok, user} = Accounts.adjust_tokens_balance(user, 100, "test_funding")
+
+      assert {:error, :insufficient_funds} =
+               Accounts.adjust_tokens_balance(user, -101, "blackjack_bet")
+
+      assert Repo.aggregate(TokenTransaction, :count) == 1
+    end
+  end
+
+  describe "list_token_transactions/2" do
+    test "returns the user's transactions, most recent first" do
+      user = user_fixture()
+      {:ok, user} = Accounts.adjust_tokens_balance(user, 100, "test_funding")
+      {:ok, user} = Accounts.adjust_tokens_balance(user, -50, "blackjack_bet")
+      {:ok, _user} = Accounts.adjust_tokens_balance(user, 75, "blackjack_payout")
+
+      assert [third, second, first] = Accounts.list_token_transactions(user)
+      assert {third.source, third.amount} == {"blackjack_payout", 75}
+      assert {second.source, second.amount} == {"blackjack_bet", -50}
+      assert {first.source, first.amount} == {"test_funding", 100}
+    end
+
+    test "only returns the given user's own transactions" do
+      user = user_fixture()
+      other_user = user_fixture()
+      {:ok, user} = Accounts.adjust_tokens_balance(user, 100, "test_funding")
+      {:ok, _other_user} = Accounts.adjust_tokens_balance(other_user, 100, "test_funding")
+
+      assert [transaction] = Accounts.list_token_transactions(user)
+      assert transaction.user_id == user.id
+    end
+
+    test "respects the :limit option" do
+      user = user_fixture()
+
+      for _ <- 1..3 do
+        {:ok, user} = Accounts.adjust_tokens_balance(user, 10, "test_funding")
+        user
+      end
+
+      assert length(Accounts.list_token_transactions(user, limit: 2)) == 2
+    end
+
+    test "respects the :source option" do
+      user = user_fixture()
+      {:ok, user} = Accounts.adjust_tokens_balance(user, 100, "blackjack_bet")
+      {:ok, _user} = Accounts.adjust_tokens_balance(user, 50, "blackjack_payout")
+
+      assert [transaction] = Accounts.list_token_transactions(user, source: "blackjack_payout")
+      assert transaction.source == "blackjack_payout"
+    end
+
+    test "returns an empty list for a user with no transactions" do
+      assert Accounts.list_token_transactions(user_fixture()) == []
+    end
+  end
+
+  describe "admin?/1" do
+    setup do
+      previous = Application.get_env(:high_society, :admin_emails, [])
+      on_exit(fn -> Application.put_env(:high_society, :admin_emails, previous) end)
+      :ok
+    end
+
+    test "is false for a user not on the admin_emails list" do
+      refute Accounts.admin?(user_fixture())
+    end
+
+    test "is false for nil" do
+      refute Accounts.admin?(nil)
+    end
+
+    test "is true for a user whose email is on the admin_emails list" do
+      user = user_fixture(%{email: "admin@example.com"})
+      Application.put_env(:high_society, :admin_emails, ["admin@example.com"])
+
+      assert Accounts.admin?(user)
     end
   end
 
@@ -330,6 +441,92 @@ defmodule HighSociety.AccountsTest do
         })
 
       refute Repo.get_by(UserToken, user_id: user.id)
+    end
+  end
+
+  describe "change_user_display_name/3" do
+    test "returns a user changeset" do
+      assert %Ecto.Changeset{} = changeset = Accounts.change_user_display_name(%User{})
+      assert changeset.required == [:display_name]
+    end
+
+    test "allows fields to be set" do
+      changeset =
+        Accounts.change_user_display_name(%User{}, %{"display_name" => "Freddy"},
+          validate_unique: false
+        )
+
+      assert changeset.valid?
+      assert get_change(changeset, :display_name) == "Freddy"
+    end
+  end
+
+  describe "update_user_display_name/2" do
+    setup do
+      %{user: user_fixture()}
+    end
+
+    test "updates the display name", %{user: user} do
+      assert {:ok, updated} = Accounts.update_user_display_name(user, %{display_name: "Freddy"})
+      assert updated.display_name == "Freddy"
+      assert Repo.get!(User, user.id).display_name == "Freddy"
+    end
+
+    test "trims surrounding whitespace", %{user: user} do
+      assert {:ok, updated} =
+               Accounts.update_user_display_name(user, %{display_name: "  Freddy  "})
+
+      assert updated.display_name == "Freddy"
+    end
+
+    test "rejects a name that's too short", %{user: user} do
+      assert {:error, changeset} = Accounts.update_user_display_name(user, %{display_name: "ab"})
+      assert "should be at least 3 character(s)" in errors_on(changeset).display_name
+    end
+
+    test "rejects a name that's too long", %{user: user} do
+      too_long = String.duplicate("a", 21)
+
+      assert {:error, changeset} =
+               Accounts.update_user_display_name(user, %{display_name: too_long})
+
+      assert "should be at most 20 character(s)" in errors_on(changeset).display_name
+    end
+
+    test "rejects characters outside letters/numbers/spaces/underscores/hyphens", %{user: user} do
+      assert {:error, changeset} =
+               Accounts.update_user_display_name(user, %{display_name: "bad@name!"})
+
+      assert changeset.errors[:display_name]
+    end
+
+    test "rejects profanity", %{user: user} do
+      assert {:error, changeset} =
+               Accounts.update_user_display_name(user, %{display_name: "shit"})
+
+      assert "is not allowed" in errors_on(changeset).display_name
+    end
+
+    test "rejects profanity embedded as a whole word but allows innocent substrings", %{
+      user: user
+    } do
+      assert {:error, _changeset} =
+               Accounts.update_user_display_name(user, %{display_name: "big ass fan"})
+
+      assert {:ok, _updated} =
+               Accounts.update_user_display_name(user, %{display_name: "classy player"})
+    end
+
+    test "rejects a display name already taken by another user (case-insensitively)", %{
+      user: user
+    } do
+      other = user_fixture()
+      {:ok, _} = Accounts.update_user_display_name(other, %{display_name: "Freddy"})
+
+      assert {:error, changeset} =
+               Accounts.update_user_display_name(user, %{display_name: "freddy"})
+
+      assert "has already been taken" in errors_on(changeset).display_name
     end
   end
 

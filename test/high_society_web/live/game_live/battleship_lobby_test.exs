@@ -23,25 +23,25 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobbyTest do
     assert render(view) =~ "No open matches"
   end
 
-  test "claiming the one-time chips credits the balance", %{conn: conn} do
+  test "claiming the one-time tokens credits the balance", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/games/battleship/lobby")
 
-    assert render(element(view, "#balance")) =~ "$0"
-    view |> element("#claim-chips-button") |> render_click()
+    assert render(element(view, "#tokens-balance")) =~ "0 Tokens"
+    view |> element("#claim-battleship-tokens-button") |> render_click()
 
-    refute has_element?(view, "#claim-chips-button")
-    assert render(element(view, "#balance")) =~ "$10,000"
+    refute has_element?(view, "#claim-battleship-tokens-button")
+    assert render(element(view, "#tokens-balance")) =~ "500,000 Tokens"
   end
 
   test "creating a match debits the wager and navigates into it", %{conn: conn, user: user} do
-    {:ok, _user} = Accounts.adjust_balance(user, 1000)
+    {:ok, _user} = Accounts.adjust_tokens_balance(user, 1000, "test_funding")
     {:ok, view, _html} = live(conn, ~p"/games/battleship/lobby")
 
     view |> element("form[phx-submit='create_match']") |> render_submit(%{"wager" => "100"})
 
     {path, _flash} = assert_redirect(view)
     assert path =~ ~r"^/games/battleship/lobby/\w+$"
-    assert Accounts.get_user!(user.id).balance == 900
+    assert Accounts.get_user!(user.id).tokens_balance == 900
   end
 
   test "rejects creating a match without enough balance", %{conn: conn} do

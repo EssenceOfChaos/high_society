@@ -28,8 +28,8 @@ defmodule HighSociety.Games.Blackjack do
   @type card :: String.t()
   @type box :: 0 | 1
   @type hand_id :: non_neg_integer()
-  @type hand_status :: :active | :standing | :busted | :blackjack
-  @type outcome :: :win | :blackjack_win | :push | :loss | nil
+  @type hand_status :: :active | :standing | :busted | :blackjack | :surrendered
+  @type outcome :: :win | :blackjack_win | :push | :loss | :surrender | nil
   @type hand :: %{
           id: hand_id,
           box: box,
@@ -41,18 +41,27 @@ defmodule HighSociety.Games.Blackjack do
           split?: boolean(),
           doubled?: boolean()
         }
-  @type round_status :: :player_turn | :dealer_turn | :round_over
+  @type round_status :: :insurance_offered | :player_turn | :dealer_turn | :round_over
   @type bets :: %{required(box) => pos_integer}
+  @type insurance_outcome :: :win | :loss | nil
 
   @type t :: %__MODULE__{
           shoe: [card],
           hands: [hand],
           active_hand: hand_id | nil,
           dealer_hand: [card],
-          status: round_status
+          status: round_status,
+          insurance_bet: non_neg_integer() | nil,
+          insurance_outcome: insurance_outcome
         }
 
-  defstruct shoe: [], hands: [], active_hand: nil, dealer_hand: [], status: :player_turn
+  defstruct shoe: [],
+            hands: [],
+            active_hand: nil,
+            dealer_hand: [],
+            status: :player_turn,
+            insurance_bet: nil,
+            insurance_outcome: nil
 
   @doc "The maximum bet allowed per hand/box."
   @spec max_bet() :: pos_integer()
@@ -68,6 +77,12 @@ defmodule HighSociety.Games.Blackjack do
   offering the player any action - mirroring a real dealer peeking at the
   hole card before play begins, so no one can hit, double, or split into a
   bet that's already lost.
+
+  The one exception: if the dealer's up-card is an Ace, the round instead
+  pauses in `:insurance_offered` - real money is already on the table and
+  whether the dealer is peeked at all now hinges on the player's insurance
+  choice, so that decision has to come first. See `take_insurance/1` and
+  `decline_insurance/1`.
   """
   @spec new(bets) :: t()
   def new(bets) when map_size(bets) in 1..2 do
@@ -79,11 +94,71 @@ defmodule HighSociety.Games.Blackjack do
 
     game = %__MODULE__{shoe: shoe, hands: hands, dealer_hand: dealer_hand}
 
+    if dealer_shows_ace?(dealer_hand) do
+      %{game | status: :insurance_offered}
+    else
+      resolve_after_insurance(game)
+    end
+  end
+
+  @doc """
+  The cost to insure the current round: half the total original wager
+  across every dealt box. Only meaningful while `status` is
+  `:insurance_offered`.
+  """
+  @spec insurance_amount(t()) :: pos_integer()
+  def insurance_amount(%__MODULE__{hands: hands}) do
+    div(Enum.sum(Enum.map(hands, & &1.bet)), 2)
+  end
+
+  @doc """
+  Takes insurance for half the total original wager (see
+  `insurance_amount/1`) and immediately resolves it against the dealer's
+  now-peeked hole card: a dealer blackjack settles the round on the spot
+  (the insurance more than covers the now-lost main bet - see
+  `insurance_payout/1`), while a non-blackjack dealer hand carries on to
+  whatever action the player would otherwise face next. Only legal while
+  `status` is `:insurance_offered`. Callers are responsible for debiting
+  `insurance_amount/1` from the player's balance beforehand.
+  """
+  @spec take_insurance(t()) :: t()
+  def take_insurance(%__MODULE__{status: :insurance_offered} = game) do
+    outcome = if blackjack?(game.dealer_hand), do: :win, else: :loss
+
+    %{game | insurance_bet: insurance_amount(game), insurance_outcome: outcome}
+    |> resolve_after_insurance()
+  end
+
+  @doc """
+  Declines insurance, carrying on to whatever action the player would
+  otherwise face next. Only legal while `status` is `:insurance_offered`.
+  """
+  @spec decline_insurance(t()) :: t()
+  def decline_insurance(%__MODULE__{status: :insurance_offered} = game) do
+    resolve_after_insurance(game)
+  end
+
+  @doc """
+  The total credited back for insurance: 2-to-1 on top of the insurance
+  stake itself (so a winning insurance bet nets exactly enough to offset
+  the matching loss on the now-doomed main hand(s)). Zero unless insurance
+  was taken and paid off.
+  """
+  @spec insurance_payout(t()) :: non_neg_integer()
+  def insurance_payout(%__MODULE__{insurance_outcome: :win, insurance_bet: bet}), do: bet * 3
+  def insurance_payout(%__MODULE__{}), do: 0
+
+  defp dealer_shows_ace?([up_card | _]) do
+    {rank, _suit} = split_card(up_card)
+    rank == "A"
+  end
+
+  defp resolve_after_insurance(%__MODULE__{dealer_hand: dealer_hand} = game) do
     cond do
       blackjack?(dealer_hand) ->
         settle(game)
 
-      hand = Enum.find(hands, &(&1.status == :active)) ->
+      hand = Enum.find(game.hands, &(&1.status == :active)) ->
         %{game | active_hand: hand.id, status: :player_turn}
 
       true ->
@@ -146,6 +221,36 @@ defmodule HighSociety.Games.Blackjack do
   end
 
   def can_double_down?(%__MODULE__{}, _id), do: false
+
+  @doc """
+  Surrenders the active hand, forfeiting half its bet and ending that
+  hand's turn immediately - the other half is returned once the round
+  settles (see `settle_hand/2`). Only legal as the very first action on a
+  hand - see `can_surrender?/2`. Callers are responsible for crediting the
+  returned half once the round settles, same as any other payout.
+  """
+  @spec surrender(t(), hand_id) :: t()
+  def surrender(%__MODULE__{status: :player_turn, active_hand: id} = game, id) do
+    hand = get_hand(game, id)
+
+    game
+    |> put_hand(%{hand | status: :surrendered})
+    |> advance_turn()
+  end
+
+  @doc """
+  Whether the active hand is eligible to surrender: it must still hold
+  just its original two cards (i.e. this would be its first action), and -
+  matching standard casino rules - must not itself be the result of a
+  split.
+  """
+  @spec can_surrender?(t(), hand_id) :: boolean()
+  def can_surrender?(%__MODULE__{status: :player_turn, active_hand: id} = game, id) do
+    hand = get_hand(game, id)
+    hand.status == :active and length(hand.cards) == 2 and !hand.split?
+  end
+
+  def can_surrender?(%__MODULE__{}, _id), do: false
 
   @doc """
   Splits the active hand into two hands with matching bets, one per
@@ -337,6 +442,9 @@ defmodule HighSociety.Games.Blackjack do
 
   defp settle_hand(%{status: :busted} = hand, _dealer_hand),
     do: %{hand | outcome: :loss, payout: 0}
+
+  defp settle_hand(%{status: :surrendered, bet: bet} = hand, _dealer_hand),
+    do: %{hand | outcome: :surrender, payout: div(bet, 2)}
 
   # Reached only when the dealer's own natural blackjack settles the round
   # before the player got to act (see `new/1`) - a still-untouched hand is

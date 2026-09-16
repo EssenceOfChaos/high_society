@@ -49,7 +49,7 @@ defmodule HighSociety.Games.BattleshipContext do
           {:ok, BattleshipGame.t()} | {:error, :insufficient_funds}
   def start_battleship_game(%Scope{user: user}, wager) when is_integer(wager) and wager > 0 do
     Repo.transact(fn ->
-      with {:ok, _user} <- Accounts.adjust_balance(user, -wager) do
+      with {:ok, _user} <- Accounts.adjust_tokens_balance(user, -wager, "battleship_wager") do
         Repo.delete_all(
           from bg in BattleshipGame,
             where: bg.user_id == ^user.id and bg.status in ^@unresolved_statuses
@@ -130,7 +130,9 @@ defmodule HighSociety.Games.BattleshipContext do
       payout = payout_for(battleship, game.wager)
 
       {:ok, user} =
-        if payout > 0, do: Accounts.adjust_balance(user, payout), else: {:ok, user}
+        if payout > 0,
+          do: Accounts.adjust_tokens_balance(user, payout, "battleship_payout"),
+          else: {:ok, user}
 
       game = save(game, battleship, %{payout: (payout > 0 && payout) || game.payout})
       {:ok, game, user, %{player: player_result, computer: computer_result}}

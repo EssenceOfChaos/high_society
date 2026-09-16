@@ -21,11 +21,11 @@ defmodule HighSociety.Games.PokerBots do
     %{email: "bot-alice@example.com", seat: 0},
     %{email: "bot-bob@example.com", seat: 1}
   ]
-  @starting_balance 100_000
+  @starting_token_balance 100_000
   @buy_in 200
   @table_slug "new-york"
-  @min_think_ms 800
-  @max_think_ms 2_500
+  @min_think_ms 500
+  @max_think_ms 1_500
 
   @doc "Whether the dev poker bots are turned on."
   @spec enabled?() :: boolean()
@@ -84,7 +84,9 @@ defmodule HighSociety.Games.PokerBots do
   defp create_user!(email) do
     case Accounts.register_user(%{email: email}) do
       {:ok, user} ->
-        {:ok, user} = Accounts.adjust_balance(user, @starting_balance)
+        {:ok, user} =
+          Accounts.adjust_tokens_balance(user, @starting_token_balance, "dev_bot_funding")
+
         user
 
       {:error, %Ecto.Changeset{}} ->

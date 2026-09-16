@@ -10,20 +10,20 @@ defmodule HighSociety.BadgesTest do
     end
 
     test "climbs the Fibonacci thresholds as active days grow" do
-      assert Badges.for_active_days(2).slug == "apprentice"
-      assert Badges.for_active_days(3).slug == "player"
-      assert Badges.for_active_days(5).slug == "skilled"
-      assert Badges.for_active_days(8).slug == "expert"
-      assert Badges.for_active_days(13).slug == "master"
-      assert Badges.for_active_days(21).slug == "grandmaster"
-      assert Badges.for_active_days(34).slug == "champion"
-      assert Badges.for_active_days(55).slug == "legend"
-      assert Badges.for_active_days(89).slug == "high-society"
+      assert Badges.for_active_days(5).slug == "apprentice"
+      assert Badges.for_active_days(8).slug == "player"
+      assert Badges.for_active_days(13).slug == "skilled"
+      assert Badges.for_active_days(21).slug == "expert"
+      assert Badges.for_active_days(34).slug == "master"
+      assert Badges.for_active_days(55).slug == "grandmaster"
+      assert Badges.for_active_days(89).slug == "champion"
+      assert Badges.for_active_days(144).slug == "legend"
+      assert Badges.for_active_days(233).slug == "high-society"
     end
 
     test "stays on the previous badge until its threshold is reached" do
-      assert Badges.for_active_days(4).slug == "player"
-      assert Badges.for_active_days(20).slug == "master"
+      assert Badges.for_active_days(7).slug == "apprentice"
+      assert Badges.for_active_days(33).slug == "expert"
     end
 
     test "caps at the top badge beyond its threshold" do

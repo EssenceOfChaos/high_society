@@ -5,16 +5,18 @@ defmodule HighSociety.Accounts.User do
   """
   @type t :: %__MODULE__{
           email: String.t(),
+          display_name: String.t() | nil,
           password: String.t() | nil,
           hashed_password: String.t() | nil,
           confirmed_at: DateTime.t() | nil,
           authenticated_at: DateTime.t() | nil,
-          balance: integer(),
-          claimed_starting_chips_at: DateTime.t() | nil,
-          claimed_poker_chips_at: DateTime.t() | nil,
-          claimed_battleship_chips_at: DateTime.t() | nil,
-          claimed_slots_chips_at: DateTime.t() | nil,
-          claimed_roulette_chips_at: DateTime.t() | nil,
+          tokens_balance: integer(),
+          claimed_blackjack_tokens_at: DateTime.t() | nil,
+          claimed_poker_tokens_at: DateTime.t() | nil,
+          claimed_battleship_tokens_at: DateTime.t() | nil,
+          claimed_slots_tokens_at: DateTime.t() | nil,
+          claimed_roulette_tokens_at: DateTime.t() | nil,
+          claimed_zombie_attack_tokens_at: DateTime.t() | nil,
           active_days_count: integer(),
           last_active_on: Date.t() | nil
         }
@@ -22,18 +24,25 @@ defmodule HighSociety.Accounts.User do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias HighSociety.Accounts.ProfanityFilter
+
+  @display_name_min_length 3
+  @display_name_max_length 20
+
   schema "users" do
     field :email, :string
+    field :display_name, :string
     field :password, :string, virtual: true, redact: true
     field :hashed_password, :string, redact: true
     field :confirmed_at, :utc_datetime
     field :authenticated_at, :utc_datetime, virtual: true
-    field :balance, :integer, default: 0
-    field :claimed_starting_chips_at, :utc_datetime
-    field :claimed_poker_chips_at, :utc_datetime
-    field :claimed_battleship_chips_at, :utc_datetime
-    field :claimed_slots_chips_at, :utc_datetime
-    field :claimed_roulette_chips_at, :utc_datetime
+    field :tokens_balance, :integer, default: 0
+    field :claimed_blackjack_tokens_at, :utc_datetime
+    field :claimed_poker_tokens_at, :utc_datetime
+    field :claimed_battleship_tokens_at, :utc_datetime
+    field :claimed_slots_tokens_at, :utc_datetime
+    field :claimed_roulette_tokens_at, :utc_datetime
+    field :claimed_zombie_attack_tokens_at, :utc_datetime
     field :active_days_count, :integer, default: 0
     field :last_active_on, :date
 
@@ -81,6 +90,61 @@ defmodule HighSociety.Accounts.User do
       add_error(changeset, :email, "did not change")
     else
       changeset
+    end
+  end
+
+  @doc """
+  A user changeset for setting/changing the display name shown at the
+  poker table and (eventually) on leaderboards, in place of the
+  email-derived name every user falls back to until they set one - see
+  `HighSociety.Games.PokerTable.username/1`.
+
+  ## Options
+
+    * `:validate_unique` - Set to false if you don't want to validate the
+      uniqueness of the display name, useful when displaying live
+      validations. Defaults to `true`.
+  """
+  def display_name_changeset(user, attrs, opts \\ []) do
+    user
+    |> cast(attrs, [:display_name])
+    |> update_change(:display_name, &(&1 && String.trim(&1)))
+    |> validate_display_name(opts)
+  end
+
+  defp validate_display_name(changeset, opts) do
+    changeset =
+      changeset
+      |> validate_required([:display_name])
+      |> validate_length(:display_name,
+        min: @display_name_min_length,
+        max: @display_name_max_length
+      )
+      |> validate_format(:display_name, ~r/^[\p{L}\p{N} _-]+$/u,
+        message: "can only contain letters, numbers, spaces, underscores, and hyphens"
+      )
+      |> validate_display_name_not_blocked()
+
+    if Keyword.get(opts, :validate_unique, true) do
+      changeset
+      |> unsafe_validate_unique(:display_name, HighSociety.Repo)
+      |> unique_constraint(:display_name)
+    else
+      changeset
+    end
+  end
+
+  defp validate_display_name_not_blocked(changeset) do
+    case get_change(changeset, :display_name) do
+      nil ->
+        changeset
+
+      display_name ->
+        if ProfanityFilter.blocked?(display_name) do
+          add_error(changeset, :display_name, "is not allowed")
+        else
+          changeset
+        end
     end
   end
 

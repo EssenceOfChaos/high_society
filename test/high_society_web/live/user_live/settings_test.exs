@@ -89,6 +89,66 @@ defmodule HighSocietyWeb.UserLive.SettingsTest do
     end
   end
 
+  describe "update display name form" do
+    setup %{conn: conn} do
+      user = user_fixture()
+      %{conn: log_in_user(conn, user), user: user}
+    end
+
+    test "updates the user display name", %{conn: conn, user: user} do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      result =
+        lv
+        |> form("#display_name_form", %{"user" => %{"display_name" => "Freddy"}})
+        |> render_submit()
+
+      assert result =~ "Display name updated successfully"
+      assert Accounts.get_user!(user.id).display_name == "Freddy"
+    end
+
+    test "renders errors with invalid data (phx-change)", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      result =
+        lv
+        |> element("#display_name_form")
+        |> render_change(%{"user" => %{"display_name" => "ab"}})
+
+      assert result =~ "Save Display Name"
+      assert result =~ "should be at least 3 character(s)"
+    end
+
+    test "rejects a display name already taken by another user (phx-submit)", %{
+      conn: conn,
+      user: user
+    } do
+      other = user_fixture()
+      {:ok, _} = Accounts.update_user_display_name(other, %{display_name: "Freddy"})
+
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      result =
+        lv
+        |> form("#display_name_form", %{"user" => %{"display_name" => "Freddy"}})
+        |> render_submit()
+
+      assert result =~ "has already been taken"
+      refute Accounts.get_user!(user.id).display_name == "Freddy"
+    end
+
+    test "rejects profanity (phx-submit)", %{conn: conn} do
+      {:ok, lv, _html} = live(conn, ~p"/users/settings")
+
+      result =
+        lv
+        |> form("#display_name_form", %{"user" => %{"display_name" => "shit"}})
+        |> render_submit()
+
+      assert result =~ "is not allowed"
+    end
+  end
+
   describe "update password form" do
     setup %{conn: conn} do
       user = user_fixture()

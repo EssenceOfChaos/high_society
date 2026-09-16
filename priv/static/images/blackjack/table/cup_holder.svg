@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+  <defs>
+    <radialGradient id="rim" cx="35%" cy="28%" r="80%">
+      <stop offset="0%" stop-color="#F8DE9B"/>
+      <stop offset="45%" stop-color="#C8A24D"/>
+      <stop offset="80%" stop-color="#8B6A28"/>
+      <stop offset="100%" stop-color="#4A3512"/>
+    </radialGradient>
+    <radialGradient id="wall" cx="50%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#3a3a3a"/>
+      <stop offset="55%" stop-color="#161616"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+    <radialGradient id="hole" cx="50%" cy="38%" r="65%">
+      <stop offset="0%" stop-color="#0d0d0d"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000000" flood-opacity="0.65"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <circle cx="100" cy="100" r="92" fill="url(#rim)"/>
+    <circle cx="100" cy="100" r="92" fill="none" stroke="#3a2a0a" stroke-width="2" opacity="0.45"/>
+    <circle cx="100" cy="100" r="70" fill="url(#wall)"/>
+    <circle cx="100" cy="100" r="70" fill="none" stroke="#000000" stroke-width="3" opacity="0.55"/>
+    <circle cx="100" cy="100" r="50" fill="url(#hole)"/>
+  </g>
+  <path d="M42,58 A92,92 0 0 1 148,52" fill="none" stroke="#FFE9B0" stroke-width="4" stroke-linecap="round" opacity="0.32"/>
+</svg>

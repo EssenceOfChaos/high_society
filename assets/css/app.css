@@ -156,8 +156,8 @@
   grid-template-rows: repeat(3, 52px) 44px 44px;
 }
 
-/* Blackjack action icons (priv/static/images/blackjack/*.png), masked with
-   the current text color so they match each button's fill/hover state
+/* Blackjack Rebet icon (priv/static/images/blackjack/rebet.png), masked with
+   the current text color so it matches the button's fill/hover state
    without needing separate light/dark image assets. */
 .blackjack-action-icon {
   display: inline-block;
@@ -168,26 +168,6 @@
   -webkit-mask-repeat: no-repeat;
   mask-position: center;
   -webkit-mask-position: center;
-}
-
-.blackjack-action-icon-hit {
-  mask-image: url(/images/blackjack/hit.png);
-  -webkit-mask-image: url(/images/blackjack/hit.png);
-}
-
-.blackjack-action-icon-stand {
-  mask-image: url(/images/blackjack/stay.png);
-  -webkit-mask-image: url(/images/blackjack/stay.png);
-}
-
-.blackjack-action-icon-double {
-  mask-image: url(/images/blackjack/double.png);
-  -webkit-mask-image: url(/images/blackjack/double.png);
-}
-
-.blackjack-action-icon-split {
-  mask-image: url(/images/blackjack/split.png);
-  -webkit-mask-image: url(/images/blackjack/split.png);
 }
 
 .blackjack-action-icon-rebet {

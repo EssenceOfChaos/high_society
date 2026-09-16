@@ -38,13 +38,13 @@ defmodule HighSocietyWeb.BadgesLiveTest do
   end
 
   test "marks badges beyond the player's current status as locked", %{conn: conn, user: user} do
-    user |> Ecto.Changeset.change(active_days_count: 5) |> Repo.update!()
+    user |> Ecto.Changeset.change(active_days_count: 21) |> Repo.update!()
 
     {:ok, view, _html} = live(conn, ~p"/badges")
 
-    assert has_element?(view, "#badge-skilled", "Current")
+    assert has_element?(view, "#badge-expert", "Current")
     refute has_element?(view, "#badge-novice", "Current")
-    assert has_element?(view, "#badge-master .hero-lock-closed")
-    refute has_element?(view, "#badge-skilled .hero-lock-closed")
+    assert has_element?(view, "#badge-grandmaster .hero-lock-closed")
+    refute has_element?(view, "#badge-expert .hero-lock-closed")
   end
 end

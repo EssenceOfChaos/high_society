@@ -5,7 +5,7 @@ defmodule HighSocietyWeb.GameLive.Roulette do
   alias HighSociety.Accounts.Scope
   alias HighSociety.Games
   alias HighSociety.Games.Roulette
-  alias HighSociety.Money
+  alias HighSociety.Tokens
 
   import HighSocietyWeb.GameLive.RouletteComponents
 
@@ -108,8 +108,8 @@ defmodule HighSocietyWeb.GameLive.Roulette do
     end
   end
 
-  def handle_event("claim_roulette_chips", _params, socket) do
-    case Accounts.claim_roulette_chips(socket.assigns.current_scope.user) do
+  def handle_event("claim_roulette_tokens", _params, socket) do
+    case Accounts.claim_roulette_tokens(socket.assigns.current_scope.user) do
       {:ok, user} -> {:noreply, assign(socket, current_scope: Scope.for_user(user))}
       {:error, :already_claimed} -> {:noreply, socket}
     end
@@ -152,9 +152,9 @@ defmodule HighSocietyWeb.GameLive.Roulette do
   defp spin_error_message(:invalid_bet), do: "That bet isn't valid."
 
   defp spin_error_message(:bet_too_large),
-    do: "Max bet is $#{Money.format(Roulette.max_bet())} per spot."
+    do: "Max bet is #{Tokens.format(Roulette.max_bet())} Tokens per spot."
 
-  defp spin_error_message(:insufficient_funds), do: "You don't have enough chips for that bet."
+  defp spin_error_message(:insufficient_funds), do: "You don't have enough Tokens for that bet."
 
   defp spin_reveal_delay,
     do: Application.get_env(:high_society, :roulette_spin_reveal_delay_ms, 3200)
@@ -222,18 +222,16 @@ defmodule HighSocietyWeb.GameLive.Roulette do
               <div class="text-xs font-medium uppercase tracking-wide text-base-content/50">
                 Balance
               </div>
-              <div id="balance" class="text-lg font-bold">
-                ${Money.format(@current_scope.user.balance)}
-              </div>
+              <.token_balance amount={@current_scope.user.tokens_balance} />
             </div>
             <button
-              :if={is_nil(@current_scope.user.claimed_roulette_chips_at)}
-              id="claim-chips-button"
+              :if={is_nil(@current_scope.user.claimed_roulette_tokens_at)}
+              id="claim-roulette-tokens-button"
               type="button"
-              phx-click="claim_roulette_chips"
+              phx-click="claim_roulette_tokens"
               class="btn btn-success btn-sm animate-pulse"
             >
-              Claim ${Money.format(Accounts.roulette_starting_chip_amount())}
+              Claim {Tokens.format(Accounts.roulette_starting_token_amount())} Tokens
             </button>
             <button
               id="sound-toggle-button"
@@ -273,7 +271,7 @@ defmodule HighSocietyWeb.GameLive.Roulette do
             Winning number: {@display_game.winning_number} ({color_label(@display_game.winning_number)})
           </p>
           <p :if={@display_game.total_payout > 0} class="text-xl font-bold text-success">
-            You won ${Money.format(@display_game.total_payout)}!
+            You won {Tokens.format(@display_game.total_payout)} Tokens!
           </p>
           <p :if={@display_game.total_payout == 0} class="text-base-content/60">
             No win this spin.
@@ -295,14 +293,14 @@ defmodule HighSocietyWeb.GameLive.Roulette do
                 @selected_chip == chip && "ring-2 ring-offset-2 ring-offset-base-100 ring-amber-400"
               ]}
             >
-              ${Money.format(chip)}
+              {Tokens.format(chip)} Tokens
             </button>
           </div>
 
           <div class="flex items-center gap-4">
             <div class="text-sm text-base-content/70">
               Total bet:
-              <span class="font-bold text-base-content">${Money.format(total_bet(@pending_bets))}</span>
+              <span class="font-bold text-base-content">{Tokens.format(total_bet(@pending_bets))} Tokens</span>
             </div>
             <button
               id="clear-bets-button"
@@ -384,7 +382,7 @@ defmodule HighSocietyWeb.GameLive.Roulette do
                 return
               }
 
-              new Audio(`/audio/${sound}.aac`).play().catch(() => {})
+              new Audio(`/audio/roulette/${sound}.aac`).play().catch(() => {})
             })
           },
           stopCurrent() {

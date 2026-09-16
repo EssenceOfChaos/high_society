@@ -24,7 +24,7 @@ defmodule HighSociety.Games.PokerTable do
   alias HighSociety.Repo
 
   @action_seconds 20
-  @hand_over_pause_ms 4_000
+  @hand_over_pause_ms 7_000
 
   ## Public API
 
@@ -90,7 +90,7 @@ defmodule HighSociety.Games.PokerTable do
         {:reply, {:error, :invalid_buy_in}, state}
 
       true ->
-        case Accounts.adjust_balance(user, -buy_in) do
+        case Accounts.adjust_tokens_balance(user, -buy_in, "poker_buy_in") do
           {:ok, _user} ->
             entry = %{user_id: user.id, username: username(user), stack: buy_in}
 
@@ -114,7 +114,10 @@ defmodule HighSociety.Games.PokerTable do
 
       seat_index ->
         {cash_out, state} = leave_seat(state, seat_index)
-        {:ok, _user} = Accounts.adjust_balance(Accounts.get_user!(user_id), cash_out)
+
+        {:ok, _user} =
+          Accounts.adjust_tokens_balance(Accounts.get_user!(user_id), cash_out, "poker_cash_out")
+
         state = state |> maybe_start_hand() |> finalize()
         {:reply, {:ok, public_view(state)}, state}
     end
@@ -257,7 +260,7 @@ defmodule HighSociety.Games.PokerTable do
     end
   end
 
-  defp username(user), do: user.email |> String.split("@") |> hd()
+  defp username(user), do: Accounts.display_name(user)
 
   ## Actions
 

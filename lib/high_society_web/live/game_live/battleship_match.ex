@@ -3,6 +3,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
 
   alias HighSociety.Games.Battleship
   alias HighSociety.Games.BattleshipMatch
+  alias HighSociety.Tokens
 
   import HighSocietyWeb.GameLive.BattleshipComponents
 
@@ -291,7 +292,9 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
             >
               &larr; All matches
             </.link>
-            <h1 class="mt-1 text-3xl font-bold tracking-tight">Battleship — ${@view.wager} match</h1>
+            <h1 class="mt-1 text-3xl font-bold tracking-tight">
+              Battleship — {Tokens.format(@view.wager)} Tokens match
+            </h1>
           </div>
           <div class="flex items-center gap-3">
             <span class="flex items-center gap-1.5 rounded-full bg-base-200 px-3 py-1 text-sm font-semibold">
@@ -321,7 +324,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
             phx-click="join"
             class="btn btn-primary mt-4"
           >
-            Join this match for ${@view.wager}
+            Join this match for {Tokens.format(@view.wager)} Tokens
           </button>
           <div :if={@p.seat == 0}>
             <button type="button" phx-click="cancel" class="btn btn-ghost btn-sm mt-4 text-error">
@@ -499,9 +502,9 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
         export default {
           mounted() {
             this.sounds = {
-              "artillery-shot": new Audio("/audio/artillery-shot.aac"),
-              "direct-hit": new Audio("/audio/direct-hit.aac"),
-              "water-splash": new Audio("/audio/water-splash.aac")
+              "artillery-shot": new Audio("/audio/battleship/artillery-shot.aac"),
+              "direct-hit": new Audio("/audio/battleship/direct-hit.aac"),
+              "water-splash": new Audio("/audio/battleship/water-splash.aac")
             }
 
             this.handleEvent("play_sound", ({sound}) => {

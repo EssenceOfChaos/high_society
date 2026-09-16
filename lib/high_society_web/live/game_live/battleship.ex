@@ -5,7 +5,7 @@ defmodule HighSocietyWeb.GameLive.Battleship do
   alias HighSociety.Accounts.Scope
   alias HighSociety.Games.Battleship
   alias HighSociety.Games.BattleshipContext
-  alias HighSociety.Money
+  alias HighSociety.Tokens
 
   import HighSocietyWeb.GameLive.BattleshipComponents
 
@@ -179,8 +179,8 @@ defmodule HighSocietyWeb.GameLive.Battleship do
      )}
   end
 
-  def handle_event("claim_starting_chips", _params, socket) do
-    case Accounts.claim_battleship_chips(socket.assigns.current_scope.user) do
+  def handle_event("claim_battleship_tokens", _params, socket) do
+    case Accounts.claim_battleship_tokens(socket.assigns.current_scope.user) do
       {:ok, user} -> {:noreply, assign(socket, current_scope: Scope.for_user(user))}
       {:error, :already_claimed} -> {:noreply, socket}
     end
@@ -218,18 +218,16 @@ defmodule HighSocietyWeb.GameLive.Battleship do
               <div class="text-xs font-medium uppercase tracking-wide text-base-content/50">
                 Balance
               </div>
-              <div id="balance" class="text-lg font-bold">
-                ${Money.format(@current_scope.user.balance)}
-              </div>
+              <.token_balance amount={@current_scope.user.tokens_balance} />
             </div>
             <button
-              :if={is_nil(@current_scope.user.claimed_battleship_chips_at)}
-              id="claim-chips-button"
+              :if={is_nil(@current_scope.user.claimed_battleship_tokens_at)}
+              id="claim-battleship-tokens-button"
               type="button"
-              phx-click="claim_starting_chips"
+              phx-click="claim_battleship_tokens"
               class="btn btn-success btn-sm animate-pulse"
             >
-              Claim ${Money.format(Accounts.battleship_starting_chip_amount())}
+              Claim {Tokens.format(Accounts.battleship_starting_token_amount())} Tokens
             </button>
             <.link navigate={~p"/games/battleship/lobby"} class="btn btn-ghost btn-sm">
               <.icon name="hero-user-group" class="size-4" /> Play a live opponent
@@ -254,7 +252,9 @@ defmodule HighSocietyWeb.GameLive.Battleship do
           <p class="text-base-content/70">Choose a wager to start a game against the computer.</p>
           <form phx-submit="start_game" class="flex items-center gap-2">
             <select name="wager" class="select select-bordered">
-              <option :for={amount <- @wager_options} value={amount}>${Money.format(amount)}</option>
+              <option :for={amount <- @wager_options} value={amount}>
+                {Tokens.format(amount)} Tokens
+              </option>
             </select>
             <button type="submit" class="btn btn-primary">Start game</button>
           </form>
@@ -342,7 +342,7 @@ defmodule HighSocietyWeb.GameLive.Battleship do
 
           <div :if={@battleship.status == :player_won} class="text-center">
             <p class="text-2xl font-bold text-success">You sank their fleet! 🎉</p>
-            <p class="text-base-content/70">You won ${Money.format(@game.payout)}.</p>
+            <p class="text-base-content/70">You won {Tokens.format(@game.payout)} Tokens.</p>
           </div>
 
           <div :if={@battleship.status == :opponent_won} class="text-center">
@@ -420,9 +420,9 @@ defmodule HighSocietyWeb.GameLive.Battleship do
         export default {
           mounted() {
             this.sounds = {
-              "artillery-shot": new Audio("/audio/artillery-shot.aac"),
-              "direct-hit": new Audio("/audio/direct-hit.aac"),
-              "water-splash": new Audio("/audio/water-splash.aac")
+              "artillery-shot": new Audio("/audio/battleship/artillery-shot.aac"),
+              "direct-hit": new Audio("/audio/battleship/direct-hit.aac"),
+              "water-splash": new Audio("/audio/battleship/water-splash.aac")
             }
 
             this.handleEvent("play_sound", ({sound}) => {

@@ -8,20 +8,20 @@ defmodule HighSociety.Badges do
 
   @badges [
     %{slug: "novice", name: "Novice", tagline: "Just getting started.", threshold: 0},
-    %{slug: "apprentice", name: "Apprentice", tagline: "Learning the game.", threshold: 2},
-    %{slug: "player", name: "Player", tagline: "Getting the hang of it.", threshold: 3},
-    %{slug: "skilled", name: "Skilled", tagline: "Playing with purpose.", threshold: 5},
-    %{slug: "expert", name: "Expert", tagline: "Consistent and confident.", threshold: 8},
-    %{slug: "master", name: "Master", tagline: "Mastering the odds.", threshold: 13},
+    %{slug: "apprentice", name: "Apprentice", tagline: "Learning the game.", threshold: 5},
+    %{slug: "player", name: "Player", tagline: "Getting the hang of it.", threshold: 8},
+    %{slug: "skilled", name: "Skilled", tagline: "Playing with purpose.", threshold: 13},
+    %{slug: "expert", name: "Expert", tagline: "Consistent and confident.", threshold: 21},
+    %{slug: "master", name: "Master", tagline: "Mastering the odds.", threshold: 34},
     %{
       slug: "grandmaster",
       name: "Grandmaster",
       tagline: "Precision and strategy.",
-      threshold: 21
+      threshold: 55
     },
-    %{slug: "champion", name: "Champion", tagline: "Rising above the rest.", threshold: 34},
-    %{slug: "legend", name: "Legend", tagline: "A true force at the table.", threshold: 55},
-    %{slug: "high-society", name: "High Society", tagline: "Among the elite.", threshold: 89}
+    %{slug: "champion", name: "Champion", tagline: "Rising above the rest.", threshold: 89},
+    %{slug: "legend", name: "Legend", tagline: "A true force at the table.", threshold: 144},
+    %{slug: "high-society", name: "High Society", tagline: "Among the elite.", threshold: 233}
   ]
 
   @type badge :: %{
@@ -44,7 +44,7 @@ defmodule HighSociety.Badges do
       iex> for_active_days(0)
       %{slug: "novice", name: "Novice", ...}
 
-      iex> for_active_days(21)
+      iex> for_active_days(55)
       %{slug: "grandmaster", name: "Grandmaster", ...}
 
   """

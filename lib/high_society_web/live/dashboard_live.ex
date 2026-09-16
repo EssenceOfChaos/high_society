@@ -62,6 +62,16 @@ defmodule HighSocietyWeb.DashboardLive do
       accent: "from-red-500 to-rose-400",
       path: "/games/roulette",
       available: true
+    },
+    %{
+      slug: "zombie-attack",
+      name: "Zombie Attack",
+      tagline: "Defend the house",
+      description: "Place defenders across the lawn and hold the line through five waves.",
+      icon: "hero-shield-exclamation",
+      accent: "from-lime-500 to-emerald-600",
+      path: "/games/zombie-attack",
+      available: true
     }
   ]
 
@@ -94,8 +104,8 @@ defmodule HighSocietyWeb.DashboardLive do
         <div class="relative z-10 flex h-[78vh] min-h-[520px] flex-col justify-center px-4 sm:px-6 lg:px-8">
           <div class="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-b from-transparent to-base-100 sm:h-40" />
 
-          <div class="relative mx-auto w-full max-w-5xl">
-            <div class="flex items-center gap-3">
+          <div id="hero-copy" phx-hook=".HeroReveal" class="relative mx-auto w-full max-w-5xl">
+            <div data-reveal class="flex items-center gap-3 opacity-0 motion-reduce:opacity-100">
               <span class="h-px w-8 bg-zinc-300/70" />
               <p class="text-xs font-semibold uppercase tracking-[0.3em] text-zinc-200/90">
                 Play, curated to a higher standard.
@@ -103,19 +113,28 @@ defmodule HighSocietyWeb.DashboardLive do
             </div>
 
             <h1 class="mt-4">
-              <span class="block text-6xl leading-[1.15] font-bold tracking-tight text-white sm:text-7xl lg:text-8xl">
+              <span
+                data-reveal
+                class="block text-6xl leading-[1.15] font-bold tracking-tight text-white opacity-0 motion-reduce:opacity-100 sm:text-7xl lg:text-8xl"
+              >
                 High
               </span>
-              <span class="block bg-gradient-to-r from-zinc-100 via-slate-200 to-zinc-300 bg-clip-text text-6xl leading-[1.15] font-serif text-transparent italic [text-shadow:0_2px_30px_rgba(0,0,0,0.45)] sm:text-7xl lg:text-8xl">
+              <span
+                data-reveal
+                class="block bg-gradient-to-r from-zinc-100 via-slate-200 to-zinc-300 bg-clip-text text-6xl leading-[1.15] font-serif text-transparent italic opacity-0 [text-shadow:0_2px_30px_rgba(0,0,0,0.45)] motion-reduce:opacity-100 sm:text-7xl lg:text-8xl"
+              >
                 Society
               </span>
             </h1>
 
-            <p class="mt-6 max-w-md text-base text-white/75 sm:text-lg">
+            <p
+              data-reveal
+              class="mt-6 max-w-md text-base text-white/75 opacity-0 motion-reduce:opacity-100 sm:text-lg"
+            >
               Pick a table. Every game here is ready when you are.
             </p>
 
-            <div class="mt-8">
+            <div data-reveal class="mt-8 opacity-0 motion-reduce:opacity-100">
               <a
                 href="#games"
                 class="inline-flex items-center rounded-sm border border-zinc-300/50 px-6 py-3 text-sm font-semibold text-zinc-100 backdrop-blur-sm transition-colors hover:border-zinc-200 hover:bg-zinc-300/10"
@@ -124,6 +143,28 @@ defmodule HighSocietyWeb.DashboardLive do
               </a>
             </div>
           </div>
+
+          <script :type={Phoenix.LiveView.ColocatedHook} name=".HeroReveal">
+            import { animate, stagger } from "@/vendor/anime.js"
+
+            export default {
+              mounted() {
+                if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                  return
+                }
+
+                const targets = this.el.querySelectorAll("[data-reveal]")
+
+                animate(targets, {
+                  opacity: [0, 1],
+                  translateY: [16, 0],
+                  delay: stagger(90, { start: 150 }),
+                  duration: 700,
+                  ease: "outQuad",
+                })
+              }
+            }
+          </script>
 
           <a
             href="#games"
@@ -134,9 +175,14 @@ defmodule HighSocietyWeb.DashboardLive do
         </div>
       </:hero>
 
-      <div id="games" class="mx-auto max-w-5xl scroll-mt-10">
+      <div id="games" phx-hook=".CardsReveal" class="mx-auto max-w-5xl scroll-mt-10">
         <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <div :for={game <- @games} id={"game-card-#{game.slug}"} class="group relative">
+          <div
+            :for={game <- @games}
+            id={"game-card-#{game.slug}"}
+            data-reveal-card
+            class="group relative opacity-0 motion-reduce:opacity-100"
+          >
             <div class={[
               "absolute -inset-1 rounded-box bg-gradient-to-br opacity-0 blur-lg transition-opacity duration-300",
               game.available && "group-hover:opacity-40",
@@ -177,6 +223,35 @@ defmodule HighSocietyWeb.DashboardLive do
           More games coming soon&hellip;
         </p>
       </div>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".CardsReveal">
+        import { animate, stagger, onScroll } from "@/vendor/anime.js"
+
+        export default {
+          mounted() {
+            if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+              return
+            }
+
+            const cards = this.el.querySelectorAll("[data-reveal-card]")
+
+            this.animation = animate(cards, {
+              opacity: [0, 1],
+              translateY: [24, 0],
+              delay: stagger(80),
+              duration: 600,
+              ease: "outQuad",
+              autoplay: onScroll({
+                target: this.el,
+                repeat: false,
+              }),
+            })
+          },
+          destroyed() {
+            this.animation?.revert()
+          }
+        }
+      </script>
     </Layouts.app>
     """
   end

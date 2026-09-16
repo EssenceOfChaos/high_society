@@ -194,6 +194,10 @@ defmodule HighSocietyWeb.UserAuth do
       on user_token.
       Redirects to login page if there's no logged user.
 
+    * `:require_admin` - Restricts access to `Accounts.admin?/1`. Chain this
+      after `:require_authenticated` in the same `on_mount` list so
+      `current_scope.user` is already guaranteed set.
+
   ## Examples
 
   Use the `on_mount` lifecycle macro in LiveViews to mount or authenticate
@@ -226,6 +230,19 @@ defmodule HighSocietyWeb.UserAuth do
         socket
         |> Phoenix.LiveView.put_flash(:error, "You must log in to access this page.")
         |> Phoenix.LiveView.redirect(to: ~p"/users/log-in")
+
+      {:halt, socket}
+    end
+  end
+
+  def on_mount(:require_admin, _params, _session, socket) do
+    if Accounts.admin?(socket.assigns.current_scope.user) do
+      {:cont, socket}
+    else
+      socket =
+        socket
+        |> Phoenix.LiveView.put_flash(:error, "You don't have access to that page.")
+        |> Phoenix.LiveView.redirect(to: ~p"/")
 
       {:halt, socket}
     end

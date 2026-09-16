@@ -26,7 +26,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatchTest do
   end
 
   test "the creator sees a waiting screen with no join button", %{conn: conn, user: user} do
-    {:ok, _user} = Accounts.adjust_balance(user, 1000)
+    {:ok, _user} = Accounts.adjust_tokens_balance(user, 1000, "test_funding")
     slug = BattleshipFixtures.create_match_for_test!(user, 100)
 
     {:ok, view, _html} = live(conn, ~p"/games/battleship/lobby/#{slug}")
@@ -37,7 +37,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatchTest do
   end
 
   test "the creator can cancel a waiting match and gets refunded", %{conn: conn, user: user} do
-    {:ok, user} = Accounts.adjust_balance(user, 1000)
+    {:ok, user} = Accounts.adjust_tokens_balance(user, 1000, "test_funding")
     slug = BattleshipFixtures.create_match_for_test!(user, 100)
 
     {:ok, view, _html} = live(conn, ~p"/games/battleship/lobby/#{slug}")
@@ -46,7 +46,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatchTest do
 
     {path, _flash} = assert_redirect(view)
     assert path == ~p"/games/battleship/lobby"
-    assert Accounts.get_user!(user.id).balance == 1000
+    assert Accounts.get_user!(user.id).tokens_balance == 1000
   end
 
   test "a spectator watching a match gets redirected when the creator cancels it", %{
@@ -75,7 +75,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatchTest do
     view2 |> element("button", "Join this match") |> render_click()
 
     assert has_element?(view2, "h2", "Place your fleet")
-    assert Accounts.get_user!(joiner.id).balance == 10_000 - 100
+    assert Accounts.get_user!(joiner.id).tokens_balance == 10_000 - 100
   end
 
   test "clearing placement empties the board so ships can be re-placed", %{conn: _conn} do
@@ -98,7 +98,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatchTest do
     conn: conn,
     user: creator
   } do
-    {:ok, creator} = Accounts.adjust_balance(creator, 1000)
+    {:ok, creator} = Accounts.adjust_tokens_balance(creator, 1000, "test_funding")
     slug = BattleshipFixtures.create_match_for_test!(creator, 100)
 
     joiner = BattleshipFixtures.funded_user()
@@ -135,7 +135,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatchTest do
     conn: conn,
     user: creator
   } do
-    {:ok, creator} = Accounts.adjust_balance(creator, 1000)
+    {:ok, creator} = Accounts.adjust_tokens_balance(creator, 1000, "test_funding")
     slug = BattleshipFixtures.create_match_for_test!(creator, 100)
 
     joiner = BattleshipFixtures.funded_user()
@@ -144,11 +144,11 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatchTest do
     BattleshipFixtures.ready_with_random_fleet!(slug, joiner.id)
 
     {:ok, view, _html} = live(conn, ~p"/games/battleship/lobby/#{slug}")
-    creator_balance_before = Accounts.get_user!(creator.id).balance
+    creator_balance_before = Accounts.get_user!(creator.id).tokens_balance
 
     view |> element("button", "Forfeit match") |> render_click()
 
-    assert Accounts.get_user!(joiner.id).balance == 10_000 - 100 + 200
-    assert Accounts.get_user!(creator.id).balance == creator_balance_before
+    assert Accounts.get_user!(joiner.id).tokens_balance == 10_000 - 100 + 200
+    assert Accounts.get_user!(creator.id).tokens_balance == creator_balance_before
   end
 end

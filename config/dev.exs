@@ -95,3 +95,6 @@ config :phoenix_live_view,
 
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
+
+# Whitelist email addresses for admin access
+config :high_society, :admin_emails, ["fjschiller@gmail.com"]

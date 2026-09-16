@@ -7,13 +7,15 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   alias HighSociety.Games.Poker.HandEvaluator
   alias HighSociety.Games.PokerTable
   alias HighSociety.Games.PokerTables
-  alias HighSociety.Money
+  alias HighSociety.Tokens
   alias HighSocietyWeb.Presence
 
   # Screen slots for up to 8 seats, arranged clockwise around the felt
-  # starting at bottom-center - seat 0 always renders there so a seated
-  # viewer sees their own seat in the conventional "you're at the bottom"
-  # spot, with the rest following clockwise from it.
+  # starting at bottom-center (index 0). Which raw seat_index lands in
+  # which slot is rotated per viewer by `display_seat_index/2` so every
+  # seated player sees themselves in the conventional "you're at the
+  # bottom" spot, with the rest of the table following clockwise from
+  # them - not a single fixed layout everyone shares.
   @seat_positions [
     %{top: 94, left: 50},
     %{top: 80, left: 90},
@@ -28,6 +30,64 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   # The felt's center, where the pot sits - used to place each seat's bet
   # chips partway between that seat and the pot.
   @center %{top: 50, left: 50}
+
+  # Static reference content for the hand-rankings modal (`hand_rankings_modal/1`)
+  # - best hand first, worst last - each with an example 5-card hand
+  # illustrating it. Purely educational display data, unrelated to
+  # `HandEvaluator`'s own category numbering (which doesn't distinguish a
+  # royal flush from any other ace-high straight flush).
+  @hand_rankings [
+    %{
+      name: "Royal Flush",
+      cards: ~w(AS KS QS JS 10S),
+      description: "An ace-high straight flush - the best possible hand."
+    },
+    %{
+      name: "Straight Flush",
+      cards: ~w(9H 8H 7H 6H 5H),
+      description: "Five consecutive cards, all the same suit."
+    },
+    %{
+      name: "Four of a Kind",
+      cards: ~w(9S 9H 9D 9C 2H),
+      description: "Four cards of the same rank."
+    },
+    %{
+      name: "Full House",
+      cards: ~w(KS KH KD 4C 4S),
+      description: "Three cards of one rank plus two of another."
+    },
+    %{
+      name: "Flush",
+      cards: ~w(AS JS 8S 5S 2S),
+      description: "Five cards of the same suit, in any order."
+    },
+    %{
+      name: "Straight",
+      cards: ~w(9C 8H 7S 6D 5C),
+      description: "Five consecutive cards of different suits."
+    },
+    %{
+      name: "Three of a Kind",
+      cards: ~w(7H 7S 7D KC 4H),
+      description: "Three cards of the same rank."
+    },
+    %{
+      name: "Two Pair",
+      cards: ~w(AS AH KD KC 2S),
+      description: "Two cards of one rank and two of another."
+    },
+    %{
+      name: "Pair",
+      cards: ~w(JS JH 8D 6C 2H),
+      description: "Two cards of the same rank."
+    },
+    %{
+      name: "High Card",
+      cards: ~w(QS JH 8D 6C 3H),
+      description: "No combination - the highest card plays."
+    }
+  ]
 
   @impl true
   def mount(%{"slug" => slug}, _session, socket) do
@@ -69,7 +129,8 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
             viewer_count: viewer_count,
             join_seat: nil,
             buy_in_amount: nil,
-            action_error: nil
+            action_error: nil,
+            hand_rankings_open?: false
           )
 
         {:ok, socket}
@@ -105,6 +166,12 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
 
   def handle_event("close_join", _params, socket),
     do: {:noreply, assign(socket, join_seat: nil, action_error: nil)}
+
+  def handle_event("open_hand_rankings", _params, socket),
+    do: {:noreply, assign(socket, :hand_rankings_open?, true)}
+
+  def handle_event("close_hand_rankings", _params, socket),
+    do: {:noreply, assign(socket, :hand_rankings_open?, false)}
 
   def handle_event("set_buy_in", %{"amount" => amount}, socket) do
     {:noreply, assign(socket, :buy_in_amount, String.to_integer(amount))}
@@ -157,8 +224,8 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     perform_action(socket, action, String.to_integer(amount))
   end
 
-  def handle_event("claim_poker_chips", _params, socket) do
-    case Accounts.claim_poker_chips(socket.assigns.current_scope.user) do
+  def handle_event("claim_poker_tokens", _params, socket) do
+    case Accounts.claim_poker_tokens(socket.assigns.current_scope.user) do
       {:ok, user} -> {:noreply, assign(socket, current_scope: Scope.for_user(user))}
       {:error, :already_claimed} -> {:noreply, socket}
     end
@@ -188,7 +255,10 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   defp join_error_message(:seat_taken), do: "Someone just took that seat."
   defp join_error_message(:already_seated), do: "You're already seated at this table."
   defp join_error_message(:invalid_buy_in), do: "That buy-in is outside the table's range."
-  defp join_error_message(:insufficient_funds), do: "You don't have enough chips for that buy-in."
+
+  defp join_error_message(:insufficient_funds),
+    do: "You don't have enough Tokens for that buy-in."
+
   defp join_error_message(_reason), do: "Couldn't sit down."
 
   defp action_error_message(:not_your_turn), do: "It's not your turn."
@@ -202,12 +272,17 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   defp action_error_message(:below_minimum), do: "That's below the minimum bet."
   defp action_error_message(:below_minimum_raise), do: "That's below the minimum raise."
   defp action_error_message(:must_exceed_current_bet), do: "A raise must exceed the current bet."
-  defp action_error_message(:exceeds_stack), do: "You don't have that many chips."
+  defp action_error_message(:exceeds_stack), do: "You don't have that many Tokens."
   defp action_error_message(_reason), do: "Couldn't complete that action."
 
   @impl true
   def render(assigns) do
-    assigns = assign(assigns, :my_turn?, my_turn?(assigns.state, assigns.current_scope.user.id))
+    my_seat_index = my_seat(assigns.state, assigns.current_scope.user.id)
+
+    assigns =
+      assigns
+      |> assign(:my_turn?, my_turn?(assigns.state, assigns.current_scope.user.id))
+      |> assign(:my_seat_index, my_seat_index)
 
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
@@ -226,7 +301,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
             </.link>
             <h1 class="mt-1 text-3xl font-bold tracking-tight">{@table.name}</h1>
             <p class="text-sm text-base-content/50">
-              Blinds ${Money.format(@table.small_blind)} / ${Money.format(@table.big_blind)} &middot;
+              Blinds {Tokens.format(@table.small_blind)} / {Tokens.format(@table.big_blind)} Tokens &middot;
               <.icon name="hero-eye" class="-mt-0.5 inline size-4" /> {@viewer_count} watching
             </p>
           </div>
@@ -235,18 +310,16 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
               <div class="text-xs font-medium uppercase tracking-wide text-base-content/50">
                 Balance
               </div>
-              <div id="balance" class="text-lg font-bold">
-                ${Money.format(@current_scope.user.balance)}
-              </div>
+              <.token_balance amount={@current_scope.user.tokens_balance} />
             </div>
             <button
-              :if={is_nil(@current_scope.user.claimed_poker_chips_at)}
-              id="claim-poker-chips-button"
+              :if={is_nil(@current_scope.user.claimed_poker_tokens_at)}
+              id="claim-poker-tokens-button"
               type="button"
-              phx-click="claim_poker_chips"
+              phx-click="claim_poker_tokens"
               class="btn btn-success btn-sm animate-pulse"
             >
-              Claim ${Money.format(Accounts.poker_starting_chip_amount())}
+              Claim {Tokens.format(Accounts.poker_starting_token_amount())} Tokens
             </button>
             <button
               id="sound-toggle-button"
@@ -259,6 +332,22 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
               <.icon name="hero-speaker-wave" class="size-4 sound-on-icon" />
               <.icon name="hero-speaker-x-mark" class="size-4 sound-off-icon hidden" />
             </button>
+            <button
+              id="hand-rankings-button"
+              type="button"
+              phx-click="open_hand_rankings"
+              class="btn btn-ghost btn-sm btn-circle"
+              aria-label="Poker hand rankings"
+            >
+              <.icon name="hero-question-mark-circle" class="size-5" />
+            </button>
+            <.link
+              navigate={~p"/games/poker/leaderboard"}
+              class="btn btn-ghost btn-sm btn-circle"
+              aria-label="Leaderboard"
+            >
+              <.icon name="hero-trophy" class="size-5" />
+            </.link>
           </div>
         </div>
 
@@ -283,7 +372,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
           <p
             :if={@state.hand && @state.hand.status == :hand_over}
             id="winner-banner"
-            class="absolute inset-x-0 top-3 mx-auto w-fit animate-bounce rounded-full bg-black/60 px-4 py-1 text-center text-sm font-bold text-amber-300 [animation-iteration-count:2]"
+            class="absolute inset-x-0 top-3 z-30 mx-auto w-fit animate-bounce rounded-full bg-black/80 px-4 py-1 text-center text-sm font-bold text-amber-300 shadow-lg [animation-iteration-count:2]"
           >
             {winner_text(@state.hand)}
           </p>
@@ -293,31 +382,31 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
             id="pot-chips"
             class="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 transition-all duration-700 ease-out"
             phx-hook=".InlineStyle"
-            data-style={"top: #{pot_chip_position(@state.hand).top}%; left: #{pot_chip_position(@state.hand).left}%;"}
+            data-style={"top: #{pot_chip_position(@state.hand, @my_seat_index).top}%; left: #{pot_chip_position(@state.hand, @my_seat_index).left}%;"}
           >
             <.chip_stack id="pot-chips-stack" amount={pot_total(@state.hand)} chip_size="size-7" />
             <div class="rounded-full bg-black/50 px-4 py-1 text-sm font-semibold text-amber-200">
-              Pot: ${Money.format(pot_total(@state.hand))}
+              Pot: {Tokens.format(pot_total(@state.hand))} Tokens
             </div>
           </div>
 
           <.seat
             :for={seat_index <- 0..(PokerTables.seats() - 1)}
             seat_index={seat_index}
-            position={seat_position(seat_index)}
+            position={seat_position(seat_index, @my_seat_index)}
             seat={Map.get(@state.seats, seat_index)}
             hand={@state.hand}
             button_seat={@state.button_seat}
             action_deadline={@state.action_deadline}
             action_seconds={PokerTable.action_seconds()}
             viewer_user_id={@current_scope.user.id}
-            my_seat_taken?={not is_nil(my_seat(@state, @current_scope.user.id))}
+            my_seat_taken?={not is_nil(@my_seat_index)}
           />
 
           <.bet_chips
             :for={{seat_index, amount} <- active_bets(@state.hand)}
             id={"bet-chips-#{seat_index}"}
-            position={bet_chip_position(seat_index)}
+            position={bet_chip_position(seat_index, @my_seat_index)}
             amount={amount}
           />
         </div>
@@ -349,10 +438,12 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
         :if={@join_seat}
         seat_index={@join_seat}
         table={@table}
-        balance={@current_scope.user.balance}
+        tokens_balance={@current_scope.user.tokens_balance}
         amount={@buy_in_amount}
         error={@action_error}
       />
+
+      <.hand_rankings_modal :if={@hand_rankings_open?} />
 
       <script :type={Phoenix.LiveView.ColocatedHook} name=".ActionTimer">
         export default {
@@ -387,7 +478,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
             this.stopTick()
             if (localStorage.getItem("high_society:sound_muted") === "true") return
 
-            this.tickAudio = new Audio("/audio/clock-ticking.aac")
+            this.tickAudio = new Audio("/audio/poker/clock-ticking.aac")
             this.tickAudio.volume = 0.35
             this.tickAudio.play().catch(() => {})
             this.tickStopTimer = setTimeout(() => this.stopTick(), maxMs)
@@ -443,7 +534,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
             // clip; check/fold/raise/all-in are synthesized on the fly
             // via Web Audio, since no clip exists for them yet.
             this.fileSrc = {
-              bet: "/audio/poker-bet.aac"
+              bet: "/audio/poker/poker-bet.aac"
             }
             this.synth = {
               check: () => this.playCheck(),
@@ -460,7 +551,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
                 return
               }
 
-              const src = this.fileSrc[sound] || `/audio/${sound}.aac`
+              const src = this.fileSrc[sound] || `/audio/poker/${sound}.aac`
               new Audio(src).play().catch(() => {})
             })
           },
@@ -643,27 +734,27 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
         assigns.hand.action_on == assigns.seat_index
 
     folded? = hand_seat && hand_seat.status == :folded
+    mine? = assigns.seat.user_id == assigns.viewer_user_id
 
     assigns =
       assigns
       |> assign(:hand_seat, hand_seat)
       |> assign(:acting?, acting?)
       |> assign(:folded?, folded?)
-      |> assign(:mine?, assigns.seat.user_id == assigns.viewer_user_id)
+      |> assign(:mine?, mine?)
+      |> assign(:reveal?, reveal_hole_cards?(hand_seat, mine?, assigns.hand))
       |> assign(
-        :reveal?,
-        reveal_hole_cards?(
-          hand_seat,
-          assigns.seat.user_id == assigns.viewer_user_id,
-          assigns.hand
-        )
+        :category,
+        !folded? && mine? && hand_seat && my_hand_category(hand_seat, assigns.hand)
       )
 
     ~H"""
     <div
       id={"seat-#{@seat_index}"}
       class={[
-        "absolute flex w-56 -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 rounded-xl p-2 transition-opacity",
+        "absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 rounded-xl p-2 transition-opacity",
+        @mine? && "w-80",
+        !@mine? && "w-56",
         @acting? && "bg-amber-400/10 ring-2 ring-amber-400",
         @folded? && "opacity-40"
       ]}
@@ -679,10 +770,23 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
         </span>
         <span class="truncate">{@seat.username}</span>
       </div>
-      <div class="text-[11px] text-amber-200">${Money.format(current_stack(@seat, @hand_seat))}</div>
+      <div class="text-[11px] text-amber-200">{Tokens.format(current_stack(@seat, @hand_seat))}</div>
 
-      <div :if={@hand_seat} class="flex w-40 gap-2">
-        <.card_face :for={card <- @hand_seat.hole_cards} card={card} face_down={not @reveal?} />
+      <div :if={@hand_seat} class="indicator">
+        <span
+          :if={@category}
+          class="indicator-item indicator-bottom indicator-center z-20 badge badge-sm border-none bg-amber-400 font-bold text-amber-950 shadow"
+        >
+          {@category}
+        </span>
+        <div class={["flex gap-2", @mine? && "w-72", !@mine? && "w-40"]}>
+          <.card_face
+            :for={card <- @hand_seat.hole_cards}
+            card={card}
+            face_down={not @reveal?}
+            size={if @mine?, do: :large, else: :normal}
+          />
+        </div>
       </div>
 
       <div
@@ -720,7 +824,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     >
       <.chip_stack id={"#{@id}-stack"} amount={@amount} chip_size="size-5" />
       <span class="rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
-        ${Money.format(@amount)}
+        {Tokens.format(@amount)}
       </span>
     </div>
     """
@@ -813,7 +917,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
           phx-value-action="call"
           class="btn btn-sm border-none bg-emerald-600 text-white hover:bg-emerald-500"
         >
-          Call ${Money.format(@to_call)}
+          Call {Tokens.format(@to_call)} Tokens
         </button>
       </div>
 
@@ -828,9 +932,9 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
           phx-hook=".BetSlider"
           class="range range-sm w-48"
         />
-        <output id="bet-amount-output" class="w-16 text-right text-sm font-semibold">${Money.format(
+        <output id="bet-amount-output" class="w-16 text-right text-sm font-semibold">{Tokens.format(
           @min_amount
-        )}</output>
+        )} Tokens</output>
         <button
           type="submit"
           id="bet-raise-button"
@@ -846,11 +950,8 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
         mounted() {
           this.output = this.el.parentElement.querySelector("output")
           this.el.addEventListener("input", () => {
-            const dollars = Number(this.el.value) / 100
-          this.output.textContent = "$" + dollars.toLocaleString("en-US", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-          })
+            const amount = Number(this.el.value)
+            this.output.textContent = amount.toLocaleString("en-US") + " Tokens"
           })
         }
       }
@@ -860,22 +961,25 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
 
   attr :seat_index, :integer, required: true
   attr :table, :map, required: true
-  attr :balance, :integer, required: true
+  attr :tokens_balance, :integer, required: true
   attr :amount, :integer, required: true
   attr :error, :string, default: nil
 
   defp join_modal(assigns) do
     min_buy_in = PokerTables.min_buy_in(assigns.table)
-    max_buy_in = min(PokerTables.max_buy_in(assigns.table), assigns.balance)
+    max_buy_in = min(PokerTables.max_buy_in(assigns.table), assigns.tokens_balance)
 
     assigns = assigns |> assign(:min_buy_in, min_buy_in) |> assign(:max_buy_in, max_buy_in)
 
     ~H"""
     <div id="join-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div class="w-full max-w-sm rounded-2xl bg-base-100 p-6 shadow-xl">
+      <div
+        phx-click-away="close_join"
+        class="w-full max-w-sm rounded-2xl bg-base-100 p-6 shadow-xl"
+      >
         <h2 class="text-lg font-bold">Buy in for seat {@seat_index + 1}</h2>
         <p class="mt-1 text-sm text-base-content/60">
-          Between ${Money.format(@min_buy_in)} and ${Money.format(@max_buy_in)}.
+          Between {Tokens.format(@min_buy_in)} and {Tokens.format(@max_buy_in)} Tokens.
         </p>
 
         <p :if={@error} id="join-error" class="mt-3 text-sm font-medium text-error">{@error}</p>
@@ -892,7 +996,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
               phx-change="set_buy_in"
               class="range range-sm w-full"
             />
-            <div id="buy-in-amount" class="text-2xl font-bold">${Money.format(@amount)}</div>
+            <div id="buy-in-amount" class="text-2xl font-bold">{Tokens.format(@amount)} Tokens</div>
             <div class="mt-2 flex gap-2">
               <button type="button" phx-click="close_join" class="btn btn-ghost btn-sm">Cancel</button>
               <button type="submit" id="confirm-join-button" class="btn btn-primary btn-sm">Sit down</button>
@@ -900,7 +1004,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
           </form>
         <% else %>
           <p class="mt-4 text-sm text-error">
-            You don't have enough chips for this table's minimum buy-in.
+            You don't have enough Tokens for this table's minimum buy-in.
           </p>
           <button type="button" phx-click="close_join" class="btn btn-ghost btn-sm mt-4">Close</button>
         <% end %>
@@ -909,13 +1013,77 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     """
   end
 
-  defp seat_position(seat_index), do: Enum.at(@seat_positions, seat_index)
+  defp hand_rankings_modal(assigns) do
+    assigns = assign(assigns, :rankings, @hand_rankings)
+
+    ~H"""
+    <div
+      id="hand-rankings-modal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+    >
+      <div
+        phx-click-away="close_hand_rankings"
+        class="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-base-100 p-6 shadow-xl"
+      >
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold">Poker Hand Rankings</h2>
+            <p class="mt-1 text-sm text-base-content/60">
+              Best hand at the top, worst at the bottom.
+            </p>
+          </div>
+          <button
+            type="button"
+            phx-click="close_hand_rankings"
+            class="btn btn-ghost btn-sm btn-circle shrink-0"
+            aria-label="Close"
+          >
+            <.icon name="hero-x-mark" class="size-4" />
+          </button>
+        </div>
+
+        <ol class="mt-4 flex flex-col gap-3">
+          <li
+            :for={{ranking, index} <- Enum.with_index(@rankings, 1)}
+            class="flex flex-col items-center gap-2 rounded-xl bg-base-200 p-3"
+          >
+            <div class="flex items-center gap-2 self-start">
+              <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-base-300 text-xs font-bold">
+                {index}
+              </span>
+              <span class="font-semibold">{ranking.name}</span>
+            </div>
+            <div class="flex justify-center -space-x-8">
+              <.card_face :for={card <- ranking.cards} card={card} />
+            </div>
+            <p class="text-center text-xs text-base-content/60">{ranking.description}</p>
+          </li>
+        </ol>
+      </div>
+    </div>
+    """
+  end
+
+  # The screen slot a seat renders in - always relative to the viewer's own
+  # seat, so every player sees themselves anchored at `@seat_positions`'
+  # bottom-center slot (index 0) with the rest of the table rotated around
+  # them the same way it would be at a real table, rather than everyone
+  # sharing one fixed, absolute layout. `my_seat_index` is `nil` for a
+  # spectator with no seat of their own, who just sees the natural,
+  # unrotated seat order.
+  defp seat_position(seat_index, my_seat_index),
+    do: Enum.at(@seat_positions, display_seat_index(seat_index, my_seat_index))
+
+  defp display_seat_index(seat_index, nil), do: seat_index
+
+  defp display_seat_index(seat_index, my_seat_index),
+    do: rem(seat_index - my_seat_index + PokerTables.seats(), PokerTables.seats())
 
   # Midway between the seat and the felt's center - far enough from the
   # (fairly wide) seat marker to read as its own thing, short of actually
   # sitting in the pot.
-  defp bet_chip_position(seat_index) do
-    seat = seat_position(seat_index)
+  defp bet_chip_position(seat_index, my_seat_index) do
+    seat = seat_position(seat_index, my_seat_index)
     %{top: along(seat.top, @center.top), left: along(seat.left, @center.left)}
   end
 
@@ -948,6 +1116,17 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   defp reveal_hole_cards?(hand_seat, false, hand),
     do: hand.status == :hand_over and hand_seat.status != :folded
 
+  # The viewer's own live "what do I have" read - only once there's
+  # something to rank (the flop is down: 2 hole + at least 3 community
+  # cards) and only while the hand's still being played, since a finished
+  # hand's category is already called out in the showdown/winner banner.
+  defp my_hand_category(hand_seat, %Poker{status: :in_progress, community_cards: community})
+       when length(community) >= 3 do
+    (hand_seat.hole_cards ++ community) |> HandEvaluator.rank() |> HandEvaluator.category_name()
+  end
+
+  defp my_hand_category(_hand_seat, _hand), do: nil
+
   defp current_stack(seat, nil), do: seat.stack
   defp current_stack(_seat, hand_seat), do: hand_seat.stack
 
@@ -972,9 +1151,9 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   # multiple ways or separate side pots going to different seats) has no
   # single destination to animate toward, so it just stays put and lets
   # the winner banner's text explain it instead.
-  defp pot_chip_position(hand) do
+  defp pot_chip_position(hand, my_seat_index) do
     case winning_seats(hand) do
-      [seat] -> seat_position(seat)
+      [seat] -> seat_position(seat, my_seat_index)
       _ -> @center
     end
   end
@@ -999,7 +1178,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     names = pot.winners |> Enum.map(&Map.fetch!(hand.seats, &1).username) |> Enum.join(" & ")
     plural = if length(pot.winners) == 1, do: "s", else: ""
     suffix = if name = showdown_hand_name(pot, hand), do: " with a #{name}", else: ""
-    "#{names} win#{plural} $#{Money.format(pot.amount)}#{suffix}"
+    "#{names} win#{plural} #{Tokens.format(pot.amount)} Tokens#{suffix}"
   end
 
   defp showdown_hand_name(%{eligible: eligible, winners: [seat | _]}, hand)

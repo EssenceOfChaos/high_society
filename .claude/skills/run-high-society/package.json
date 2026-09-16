@@ -1,0 +1,9 @@
+{
+  "name": "run-high-society",
+  "private": true,
+  "description": "Playwright driver for the run-high-society Claude Code skill",
+  "type": "module",
+  "dependencies": {
+    "playwright": "^1.55.1"
+  }
+}

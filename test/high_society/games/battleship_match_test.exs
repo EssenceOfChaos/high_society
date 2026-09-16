@@ -24,7 +24,7 @@ defmodule HighSociety.Games.BattleshipMatchTest do
       assert view.seats[0].user_id == creator.id
       assert view.seats[1] == nil
 
-      assert Accounts.get_user!(creator.id).balance == 10_000 - 100
+      assert Accounts.get_user!(creator.id).tokens_balance == 10_000 - 100
     end
 
     test "rejects a wager the creator can't afford" do
@@ -42,7 +42,7 @@ defmodule HighSociety.Games.BattleshipMatchTest do
       assert {:ok, view} = BattleshipMatch.join(slug, joiner)
       assert view.status == :placing_fleets
       assert view.seats[1].user_id == joiner.id
-      assert Accounts.get_user!(joiner.id).balance == 10_000 - 100
+      assert Accounts.get_user!(joiner.id).tokens_balance == 10_000 - 100
     end
 
     test "rejects a third player" do
@@ -74,11 +74,11 @@ defmodule HighSociety.Games.BattleshipMatchTest do
     test "refunds the creator's wager and ends the match while still waiting" do
       creator = funded_user()
       slug = create_match_for_test!(creator, 100)
-      balance_before = Accounts.get_user!(creator.id).balance
+      balance_before = Accounts.get_user!(creator.id).tokens_balance
 
       assert {:ok, view} = BattleshipMatch.cancel(slug, creator.id)
       assert view.status == :cancelled
-      assert Accounts.get_user!(creator.id).balance == balance_before + 100
+      assert Accounts.get_user!(creator.id).tokens_balance == balance_before + 100
 
       Process.sleep(10)
       assert GenServer.whereis(BattleshipMatch.via(slug)) == nil
@@ -178,14 +178,14 @@ defmodule HighSociety.Games.BattleshipMatchTest do
       firer: firer,
       waiter: waiter
     } do
-      firer_balance_before = Accounts.get_user!(firer.id).balance
-      waiter_balance_before = Accounts.get_user!(waiter.id).balance
+      firer_balance_before = Accounts.get_user!(firer.id).tokens_balance
+      waiter_balance_before = Accounts.get_user!(waiter.id).tokens_balance
 
       assert {:ok, view} = BattleshipMatch.forfeit(slug, firer.id)
       assert view.status == :forfeited
 
-      assert Accounts.get_user!(waiter.id).balance == waiter_balance_before + 200
-      assert Accounts.get_user!(firer.id).balance == firer_balance_before
+      assert Accounts.get_user!(waiter.id).tokens_balance == waiter_balance_before + 200
+      assert Accounts.get_user!(firer.id).tokens_balance == firer_balance_before
 
       # The match should have stopped itself.
       Process.sleep(10)

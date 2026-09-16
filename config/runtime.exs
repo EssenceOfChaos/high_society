@@ -168,4 +168,10 @@ if config_env() == :prod do
   if support_email = System.get_env("SUPPORT_EMAIL") do
     config :high_society, :support_email, support_email
   end
+
+  if admin_emails = System.get_env("ADMIN_EMAILS") do
+    config :high_society,
+           :admin_emails,
+           admin_emails |> String.split(",") |> Enum.map(&String.trim/1)
+  end
 end

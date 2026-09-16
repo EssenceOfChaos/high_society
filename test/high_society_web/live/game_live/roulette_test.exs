@@ -28,13 +28,13 @@ defmodule HighSocietyWeb.GameLive.RouletteTest do
   test "shows the claim button pre-claim, and the updated balance post-claim", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/games/roulette")
 
-    assert render(element(view, "#balance")) =~ "$0"
-    assert has_element?(view, "#claim-chips-button")
+    assert render(element(view, "#tokens-balance")) =~ "0 Tokens"
+    assert has_element?(view, "#claim-roulette-tokens-button")
 
-    view |> element("#claim-chips-button") |> render_click()
+    view |> element("#claim-roulette-tokens-button") |> render_click()
 
-    refute has_element?(view, "#claim-chips-button")
-    assert render(element(view, "#balance")) =~ "$10,000"
+    refute has_element?(view, "#claim-roulette-tokens-button")
+    assert render(element(view, "#tokens-balance")) =~ "500,000 Tokens"
   end
 
   test "the spin button starts disabled until a bet is placed", %{conn: conn} do
@@ -51,13 +51,13 @@ defmodule HighSocietyWeb.GameLive.RouletteTest do
     {:ok, view, _html} = live(conn, ~p"/games/roulette")
 
     view |> element("#bet-cell-red") |> render_click()
-    assert render(element(view, "#bet-cell-red")) =~ "$1.00"
+    assert render(element(view, "#bet-cell-red")) =~ "100"
     assert render(element(view, "#roulette-screen")) =~ "Total bet:"
 
     view |> element("#chip-500") |> render_click()
     view |> element("#bet-cell-red") |> render_click()
 
-    assert render(element(view, "#bet-cell-red")) =~ "$6.00"
+    assert render(element(view, "#bet-cell-red")) =~ "600"
   end
 
   test "clear bets resets every pending bet", %{conn: conn} do
@@ -69,8 +69,8 @@ defmodule HighSocietyWeb.GameLive.RouletteTest do
     view |> element("#clear-bets-button") |> render_click()
 
     assert render(element(view, "#spin-button")) =~ "disabled"
-    refute render(element(view, "#bet-cell-red")) =~ "$"
-    refute render(element(view, "#bet-cell-black")) =~ "$"
+    refute render(element(view, "#bet-cell-red")) =~ "bg-amber-500/90"
+    refute render(element(view, "#bet-cell-black")) =~ "bg-amber-500/90"
   end
 
   test "spinning without enough balance shows an inline error and takes no chips", %{conn: conn} do
@@ -79,18 +79,18 @@ defmodule HighSocietyWeb.GameLive.RouletteTest do
     view |> element("#bet-cell-red") |> render_click()
     html = view |> element("#spin-button") |> render_click()
 
-    assert html =~ "don&#39;t have enough chips"
+    assert html =~ "don&#39;t have enough Tokens"
   end
 
   test "a full spin debits the total stake, disables the button meanwhile, and reveals a result",
        %{conn: conn, user: user} do
     {:ok, view, _html} = live(conn, ~p"/games/roulette")
-    view |> element("#claim-chips-button") |> render_click()
+    view |> element("#claim-roulette-tokens-button") |> render_click()
 
     view |> element("#bet-cell-red") |> render_click()
     view |> element("#bet-cell-straight-17") |> render_click()
 
-    balance_before = Accounts.get_user!(user.id).balance
+    balance_before = Accounts.get_user!(user.id).tokens_balance
 
     html = view |> element("#spin-button") |> render_click()
     assert html =~ "disabled"
@@ -102,13 +102,13 @@ defmodule HighSocietyWeb.GameLive.RouletteTest do
 
     assert game.total_wager == 200
     assert game.winning_number in 0..36
-    assert updated_user.balance == balance_before - 200 + game.total_payout
+    assert updated_user.tokens_balance == balance_before - 200 + game.total_payout
     assert has_element?(view, "#roulette-table")
 
     # bets are consumed by the spin, and the button resets for the next one
     assert render(element(view, "#spin-button")) =~ "disabled"
-    refute render(element(view, "#bet-cell-red")) =~ "$"
-    refute render(element(view, "#bet-cell-straight-17")) =~ "$"
+    refute render(element(view, "#bet-cell-red")) =~ "bg-amber-500/90"
+    refute render(element(view, "#bet-cell-straight-17")) =~ "bg-amber-500/90"
   end
 
   test "rebet only appears after a spin, and restores exactly that spin's bets", %{
@@ -116,7 +116,7 @@ defmodule HighSocietyWeb.GameLive.RouletteTest do
     user: user
   } do
     {:ok, view, _html} = live(conn, ~p"/games/roulette")
-    view |> element("#claim-chips-button") |> render_click()
+    view |> element("#claim-roulette-tokens-button") |> render_click()
 
     refute has_element?(view, "#rebet-button")
 
@@ -131,16 +131,18 @@ defmodule HighSocietyWeb.GameLive.RouletteTest do
 
     view |> element("#rebet-button") |> render_click()
 
-    assert render(element(view, "#bet-cell-red")) =~ "$1.00"
-    assert render(element(view, "#bet-cell-straight-17")) =~ "$5.00"
+    assert render(element(view, "#bet-cell-red")) =~ "100"
+    assert render(element(view, "#bet-cell-straight-17")) =~ "500"
     refute render(element(view, "#spin-button")) =~ "disabled"
 
-    balance_before = Accounts.get_user!(user.id).balance
+    balance_before = Accounts.get_user!(user.id).tokens_balance
     view |> element("#spin-button") |> render_click()
     await_reveal(view)
 
     game = Repo.get_by!(RouletteGame, user_id: user.id)
     assert game.total_wager == 600
-    assert Accounts.get_user!(user.id).balance == balance_before - 600 + game.total_payout
+
+    assert Accounts.get_user!(user.id).tokens_balance ==
+             balance_before - 600 + game.total_payout
   end
 end

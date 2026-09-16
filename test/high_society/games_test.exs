@@ -90,7 +90,7 @@ defmodule HighSociety.GamesTest do
 
   describe "start_blackjack_round/2" do
     test "debits the total bet and deals a fresh round", %{scope: scope} do
-      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
       scope = %{scope | user: user}
 
       assert {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500, 1 => 5_000})
@@ -98,12 +98,12 @@ defmodule HighSociety.GamesTest do
       assert game.user_id == scope.user.id
       assert length(game.hands) == 2
 
-      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).balance ==
-               Accounts.starting_chip_amount() - 7_500
+      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).tokens_balance ==
+               Accounts.blackjack_starting_token_amount() - 7_500
     end
 
     test "rejects an empty bet map", %{scope: scope} do
-      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
       scope = %{scope | user: user}
 
       assert {:error, :no_bets} = Games.start_blackjack_round(scope, %{0 => 0, 1 => 0})
@@ -111,26 +111,26 @@ defmodule HighSociety.GamesTest do
     end
 
     test "rejects a bet over the $500 max, leaving balance and DB untouched", %{scope: scope} do
-      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
       scope = %{scope | user: user}
 
       assert {:error, :bet_too_large} =
                Games.start_blackjack_round(scope, %{0 => Blackjack.max_bet() + 1})
 
-      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).balance ==
-               Accounts.starting_chip_amount()
+      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).tokens_balance ==
+               Accounts.blackjack_starting_token_amount()
 
       assert Games.get_active_blackjack_game(scope) == nil
     end
 
     test "rejects a total bet exceeding the user's balance", %{scope: scope} do
-      assert scope.user.balance == 0
+      assert scope.user.tokens_balance == 0
       assert {:error, :insufficient_funds} = Games.start_blackjack_round(scope, %{0 => 2_500})
       assert Games.get_active_blackjack_game(scope) == nil
     end
 
     test "discards any previous round for the user", %{scope: scope} do
-      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
       scope = %{scope | user: user}
 
       {:ok, first} = Games.start_blackjack_round(scope, %{0 => 2_500})
@@ -147,7 +147,7 @@ defmodule HighSociety.GamesTest do
     end
 
     test "returns the latest round for the user regardless of status", %{scope: scope} do
-      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
       scope = %{scope | user: user}
 
       {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
@@ -155,7 +155,7 @@ defmodule HighSociety.GamesTest do
     end
 
     test "does not return another user's round", %{scope: scope} do
-      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
       scope = %{scope | user: user}
       Games.start_blackjack_round(scope, %{0 => 2_500})
 
@@ -164,11 +164,210 @@ defmodule HighSociety.GamesTest do
     end
   end
 
+  describe "take_insurance/2" do
+    test "debits half the bet and credits the 2-to-1 payout when the dealer has blackjack", %{
+      scope: scope
+    } do
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
+      scope = %{scope | user: user}
+      {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
+      scope = %{scope | user: Accounts.get_user!(user.id)}
+
+      game =
+        game
+        |> Games.BlackjackGame.changeset(%{
+          status: "insurance_offered",
+          hands: [
+            %{
+              "id" => 0,
+              "box" => 0,
+              "bet" => 2_500,
+              "cards" => ["9H", "8D"],
+              "status" => "active",
+              "outcome" => nil,
+              "payout" => nil
+            }
+          ],
+          dealer_hand: ["AS", "KD"]
+        })
+        |> HighSociety.Repo.update!()
+
+      balance_after_deal = scope.user.tokens_balance
+      assert {:ok, updated_game, updated_user} = Games.take_insurance(scope, game)
+
+      assert updated_game.status == "round_over"
+      assert updated_game.insurance_bet == 1_250
+      assert updated_game.insurance_outcome == "win"
+
+      hand = hd(updated_game.hands)
+      assert hand["outcome"] == "loss"
+      assert hand["payout"] == 0
+
+      # debited 1,250 for insurance, then credited the 2-to-1 payout of
+      # 3,750 (1,250 back plus 2,500 profit) - net +2,500, exactly offsetting
+      # the now-lost main bet
+      assert updated_user.tokens_balance == balance_after_deal - 1_250 + 3_750
+      assert Accounts.get_user!(user.id).tokens_balance == updated_user.tokens_balance
+    end
+
+    test "debits half the bet and carries on when the dealer does not have blackjack", %{
+      scope: scope
+    } do
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
+      scope = %{scope | user: user}
+      {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
+      scope = %{scope | user: Accounts.get_user!(user.id)}
+
+      game =
+        game
+        |> Games.BlackjackGame.changeset(%{
+          status: "insurance_offered",
+          hands: [
+            %{
+              "id" => 0,
+              "box" => 0,
+              "bet" => 2_500,
+              "cards" => ["9H", "8D"],
+              "status" => "active",
+              "outcome" => nil,
+              "payout" => nil
+            }
+          ],
+          dealer_hand: ["AS", "5D"]
+        })
+        |> HighSociety.Repo.update!()
+
+      balance_after_deal = scope.user.tokens_balance
+      assert {:ok, updated_game, updated_user} = Games.take_insurance(scope, game)
+
+      assert updated_game.status == "player_turn"
+      assert updated_game.insurance_bet == 1_250
+      assert updated_game.insurance_outcome == "loss"
+      assert updated_user.tokens_balance == balance_after_deal - 1_250
+      assert Accounts.get_user!(user.id).tokens_balance == updated_user.tokens_balance
+    end
+
+    test "rejects insurance without enough balance to cover it, leaving the game untouched", %{
+      scope: scope
+    } do
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
+      scope = %{scope | user: user}
+      {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
+      scope = %{scope | user: Accounts.get_user!(user.id)}
+
+      game =
+        game
+        |> Games.BlackjackGame.changeset(%{
+          status: "insurance_offered",
+          hands: [
+            %{
+              "id" => 0,
+              "box" => 0,
+              "bet" => 2_500,
+              "cards" => ["9H", "8D"],
+              "status" => "active",
+              "outcome" => nil,
+              "payout" => nil
+            }
+          ],
+          dealer_hand: ["AS", "5D"]
+        })
+        |> HighSociety.Repo.update!()
+
+      {:ok, poor_user} =
+        Accounts.adjust_tokens_balance(
+          scope.user,
+          -(scope.user.tokens_balance - 10),
+          "test_funding"
+        )
+
+      scope = %{scope | user: poor_user}
+
+      assert {:error, :insufficient_funds} = Games.take_insurance(scope, game)
+      assert Games.get_active_blackjack_game(scope).status == "insurance_offered"
+      assert Accounts.get_user!(user.id).tokens_balance == poor_user.tokens_balance
+    end
+  end
+
+  describe "decline_insurance/2" do
+    test "leaves the balance untouched and carries on to the player's turn", %{scope: scope} do
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
+      scope = %{scope | user: user}
+      {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
+      scope = %{scope | user: Accounts.get_user!(user.id)}
+
+      game =
+        game
+        |> Games.BlackjackGame.changeset(%{
+          status: "insurance_offered",
+          hands: [
+            %{
+              "id" => 0,
+              "box" => 0,
+              "bet" => 2_500,
+              "cards" => ["9H", "8D"],
+              "status" => "active",
+              "outcome" => nil,
+              "payout" => nil
+            }
+          ],
+          dealer_hand: ["AS", "5D"]
+        })
+        |> HighSociety.Repo.update!()
+
+      balance_after_deal = scope.user.tokens_balance
+      {updated_game, updated_user} = Games.decline_insurance(scope, game)
+
+      assert updated_game.status == "player_turn"
+      assert updated_game.insurance_bet == nil
+      assert updated_game.insurance_outcome == nil
+      assert updated_user.tokens_balance == balance_after_deal
+      assert Accounts.get_user!(user.id).tokens_balance == balance_after_deal
+    end
+
+    test "still settles immediately, with no insurance payout, if the dealer has blackjack", %{
+      scope: scope
+    } do
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
+      scope = %{scope | user: user}
+      {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
+      scope = %{scope | user: Accounts.get_user!(user.id)}
+
+      game =
+        game
+        |> Games.BlackjackGame.changeset(%{
+          status: "insurance_offered",
+          hands: [
+            %{
+              "id" => 0,
+              "box" => 0,
+              "bet" => 2_500,
+              "cards" => ["9H", "8D"],
+              "status" => "active",
+              "outcome" => nil,
+              "payout" => nil
+            }
+          ],
+          dealer_hand: ["AS", "KD"]
+        })
+        |> HighSociety.Repo.update!()
+
+      balance_after_deal = scope.user.tokens_balance
+      {updated_game, updated_user} = Games.decline_insurance(scope, game)
+
+      assert updated_game.status == "round_over"
+      assert updated_game.insurance_bet == nil
+      assert updated_game.insurance_outcome == nil
+      assert hd(updated_game.hands)["payout"] == 0
+      assert updated_user.tokens_balance == balance_after_deal
+    end
+  end
+
   describe "hit/2 and stand/2" do
     test "standing advances the round, persists it, and credits a winning payout", %{
       scope: scope
     } do
-      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
       scope = %{scope | user: user}
       {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
 
@@ -209,15 +408,15 @@ defmodule HighSociety.GamesTest do
       assert hand["outcome"] == "win"
       assert hand["payout"] == 5_000
 
-      balance_after_bet = Accounts.starting_chip_amount() - 2_500
-      assert updated_user.balance == balance_after_bet + 5_000
+      balance_after_bet = Accounts.blackjack_starting_token_amount() - 2_500
+      assert updated_user.tokens_balance == balance_after_bet + 5_000
 
-      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).balance ==
-               updated_user.balance
+      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).tokens_balance ==
+               updated_user.tokens_balance
     end
 
     test "hitting persists the drawn card without crediting balance mid-round", %{scope: scope} do
-      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
       scope = %{scope | user: user}
       {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
       # start_blackjack_round debited the bet - refresh the scope the same
@@ -245,18 +444,130 @@ defmodule HighSociety.GamesTest do
         })
         |> HighSociety.Repo.update!()
 
-      balance_before = Accounts.starting_chip_amount() - 2_500
+      balance_before = Accounts.blackjack_starting_token_amount() - 2_500
       {updated_game, updated_user} = Games.hit(scope, game)
 
       assert updated_game.status == "player_turn"
       assert hd(updated_game.hands)["cards"] == ["5H", "5D", "2S"]
-      assert updated_user.balance == balance_before
+      assert updated_user.tokens_balance == balance_before
+    end
+  end
+
+  describe "surrender/2" do
+    test "forfeits half the bet, ends the hand immediately, and credits the returned half", %{
+      scope: scope
+    } do
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
+      scope = %{scope | user: user}
+      {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
+      scope = %{scope | user: Accounts.get_user!(user.id)}
+
+      game =
+        game
+        |> Games.BlackjackGame.changeset(%{
+          status: "player_turn",
+          hands: [
+            %{
+              "id" => 0,
+              "box" => 0,
+              "bet" => 2_500,
+              "cards" => ["6H", "5D"],
+              "status" => "active",
+              "outcome" => nil,
+              "payout" => nil
+            }
+          ],
+          active_hand: 0,
+          dealer_hand: ["7H", "7D"]
+        })
+        |> HighSociety.Repo.update!()
+
+      balance_before_surrender = Accounts.blackjack_starting_token_amount() - 2_500
+      assert {:ok, updated_game, updated_user} = Games.surrender(scope, game)
+      assert updated_game.status == "dealer_turn"
+
+      {updated_game, updated_user} =
+        Stream.iterate({updated_game, updated_user}, fn {game, _user} ->
+          Games.dealer_step(scope, game)
+        end)
+        |> Enum.find(fn {game, _user} -> game.status == "round_over" end)
+
+      assert updated_game.status == "round_over"
+      hand = hd(updated_game.hands)
+      assert hand["status"] == "surrendered"
+      assert hand["outcome"] == "surrender"
+      assert hand["payout"] == 1_250
+      assert updated_user.tokens_balance == balance_before_surrender + 1_250
+
+      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).tokens_balance ==
+               updated_user.tokens_balance
+    end
+
+    test "rejects surrendering once the hand has already been hit", %{scope: scope} do
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
+      scope = %{scope | user: user}
+      {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
+      scope = %{scope | user: Accounts.get_user!(user.id)}
+
+      game =
+        game
+        |> Games.BlackjackGame.changeset(%{
+          status: "player_turn",
+          hands: [
+            %{
+              "id" => 0,
+              "box" => 0,
+              "bet" => 2_500,
+              "cards" => ["6H", "5D", "2S"],
+              "status" => "active",
+              "outcome" => nil,
+              "payout" => nil
+            }
+          ],
+          active_hand: 0,
+          dealer_hand: ["7H", "7D"]
+        })
+        |> HighSociety.Repo.update!()
+
+      assert {:error, :invalid_action} = Games.surrender(scope, game)
+      assert Accounts.get_user!(user.id).tokens_balance == scope.user.tokens_balance
+    end
+
+    test "rejects surrendering a hand created by a split", %{scope: scope} do
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
+      scope = %{scope | user: user}
+      {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
+      scope = %{scope | user: Accounts.get_user!(user.id)}
+
+      game =
+        game
+        |> Games.BlackjackGame.changeset(%{
+          status: "player_turn",
+          hands: [
+            %{
+              "id" => 0,
+              "box" => 0,
+              "bet" => 2_500,
+              "cards" => ["8H", "2S"],
+              "status" => "active",
+              "outcome" => nil,
+              "payout" => nil,
+              "split" => true
+            }
+          ],
+          active_hand: 0,
+          dealer_hand: ["7H", "7D"]
+        })
+        |> HighSociety.Repo.update!()
+
+      assert {:error, :invalid_action} = Games.surrender(scope, game)
+      assert Accounts.get_user!(user.id).tokens_balance == scope.user.tokens_balance
     end
   end
 
   describe "double_down/2" do
     test "debits the matching extra bet, doubles the hand, and draws one card", %{scope: scope} do
-      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
       scope = %{scope | user: user}
       {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
       scope = %{scope | user: Accounts.get_user!(user.id)}
@@ -282,7 +593,7 @@ defmodule HighSociety.GamesTest do
         })
         |> HighSociety.Repo.update!()
 
-      balance_before_double = Accounts.starting_chip_amount() - 2_500
+      balance_before_double = Accounts.blackjack_starting_token_amount() - 2_500
       assert {:ok, updated_game, updated_user} = Games.double_down(scope, game)
 
       hand = hd(updated_game.hands)
@@ -290,15 +601,15 @@ defmodule HighSociety.GamesTest do
       assert hand["bet"] == 5_000
       assert hand["doubled"] == true
       assert updated_game.status == "dealer_turn"
-      assert updated_user.balance == balance_before_double - 2_500
+      assert updated_user.tokens_balance == balance_before_double - 2_500
 
-      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).balance ==
-               updated_user.balance
+      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).tokens_balance ==
+               updated_user.tokens_balance
     end
 
     test "rejects doubling down without enough balance to match the bet, leaving the game untouched",
          %{scope: scope} do
-      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
       scope = %{scope | user: user}
       {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
       scope = %{scope | user: Accounts.get_user!(user.id)}
@@ -326,16 +637,22 @@ defmodule HighSociety.GamesTest do
 
       # drain the user down to less than the bet, so the matching extra bet
       # required to double down can't be covered
-      {:ok, poor_user} = Accounts.adjust_balance(scope.user, -(scope.user.balance - 10))
+      {:ok, poor_user} =
+        Accounts.adjust_tokens_balance(
+          scope.user,
+          -(scope.user.tokens_balance - 10),
+          "test_funding"
+        )
+
       scope = %{scope | user: poor_user}
 
       assert {:error, :insufficient_funds} = Games.double_down(scope, game)
       assert Games.get_active_blackjack_game(scope).active_hand == game.active_hand
-      assert Accounts.get_user!(user.id).balance == poor_user.balance
+      assert Accounts.get_user!(user.id).tokens_balance == poor_user.tokens_balance
     end
 
     test "rejects doubling down once the hand has already been hit", %{scope: scope} do
-      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
       scope = %{scope | user: user}
       {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
       scope = %{scope | user: Accounts.get_user!(user.id)}
@@ -362,13 +679,13 @@ defmodule HighSociety.GamesTest do
         |> HighSociety.Repo.update!()
 
       assert {:error, :invalid_action} = Games.double_down(scope, game)
-      assert Accounts.get_user!(user.id).balance == scope.user.balance
+      assert Accounts.get_user!(user.id).tokens_balance == scope.user.tokens_balance
     end
   end
 
   describe "split/2" do
     test "debits a matching bet and deals each resulting hand one card", %{scope: scope} do
-      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
       scope = %{scope | user: user}
       {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
       scope = %{scope | user: Accounts.get_user!(user.id)}
@@ -394,21 +711,21 @@ defmodule HighSociety.GamesTest do
         })
         |> HighSociety.Repo.update!()
 
-      balance_before_split = Accounts.starting_chip_amount() - 2_500
+      balance_before_split = Accounts.blackjack_starting_token_amount() - 2_500
       assert {:ok, updated_game, updated_user} = Games.split(scope, game)
 
       assert length(updated_game.hands) == 2
       assert Enum.map(updated_game.hands, & &1["bet"]) == [2_500, 2_500]
       assert Enum.map(updated_game.hands, & &1["cards"]) == [["8H", "2S"], ["8D", "3H"]]
-      assert updated_user.balance == balance_before_split - 2_500
+      assert updated_user.tokens_balance == balance_before_split - 2_500
 
-      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).balance ==
-               updated_user.balance
+      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).tokens_balance ==
+               updated_user.tokens_balance
     end
 
     test "rejects splitting without enough balance to match the bet, leaving the game untouched",
          %{scope: scope} do
-      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
       scope = %{scope | user: user}
       {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
       scope = %{scope | user: Accounts.get_user!(user.id)}
@@ -434,16 +751,22 @@ defmodule HighSociety.GamesTest do
         })
         |> HighSociety.Repo.update!()
 
-      {:ok, poor_user} = Accounts.adjust_balance(scope.user, -(scope.user.balance - 10))
+      {:ok, poor_user} =
+        Accounts.adjust_tokens_balance(
+          scope.user,
+          -(scope.user.tokens_balance - 10),
+          "test_funding"
+        )
+
       scope = %{scope | user: poor_user}
 
       assert {:error, :insufficient_funds} = Games.split(scope, game)
       assert length(Games.get_active_blackjack_game(scope).hands) == 1
-      assert Accounts.get_user!(user.id).balance == poor_user.balance
+      assert Accounts.get_user!(user.id).tokens_balance == poor_user.tokens_balance
     end
 
     test "rejects splitting two cards of different value", %{scope: scope} do
-      {:ok, user} = Accounts.claim_starting_chips(scope.user)
+      {:ok, user} = Accounts.claim_blackjack_tokens(scope.user)
       scope = %{scope | user: user}
       {:ok, game} = Games.start_blackjack_round(scope, %{0 => 2_500})
       scope = %{scope | user: Accounts.get_user!(user.id)}
@@ -470,7 +793,7 @@ defmodule HighSociety.GamesTest do
         |> HighSociety.Repo.update!()
 
       assert {:error, :invalid_action} = Games.split(scope, game)
-      assert Accounts.get_user!(user.id).balance == scope.user.balance
+      assert Accounts.get_user!(user.id).tokens_balance == scope.user.tokens_balance
     end
   end
 
@@ -482,38 +805,38 @@ defmodule HighSociety.GamesTest do
 
   describe "spin/2" do
     test "rejects a wager that isn't one of the fixed options", %{scope: scope} do
-      {:ok, user} = Accounts.claim_slots_chips(scope.user)
+      {:ok, user} = Accounts.claim_slots_tokens(scope.user)
       scope = %{scope | user: user}
 
       assert {:error, :invalid_wager} = Games.spin(scope, 99)
-      assert Accounts.get_user!(user.id).balance == user.balance
+      assert Accounts.get_user!(user.id).tokens_balance == user.tokens_balance
       assert Games.get_active_slots_game(scope) == nil
     end
 
     test "rejects a wager exceeding the user's balance", %{scope: scope} do
-      assert scope.user.balance == 0
+      assert scope.user.tokens_balance == 0
       assert {:error, :insufficient_funds} = Games.spin(scope, 25)
       assert Games.get_active_slots_game(scope) == nil
     end
 
     test "debits the wager, persists the spin, and credits any win", %{scope: scope} do
-      {:ok, user} = Accounts.claim_slots_chips(scope.user)
+      {:ok, user} = Accounts.claim_slots_tokens(scope.user)
       scope = %{scope | user: user}
-      balance_before = user.balance
+      balance_before = user.tokens_balance
 
       assert {:ok, game, updated_user} = Games.spin(scope, 100)
 
       assert game.wager == 100
       assert game.spins_taken == 1
       assert length(game.grid) == 24
-      assert updated_user.balance == balance_before - 100 + game.total_win
+      assert updated_user.tokens_balance == balance_before - 100 + game.total_win
 
-      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).balance ==
-               updated_user.balance
+      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).tokens_balance ==
+               updated_user.tokens_balance
     end
 
     test "discards the user's previous spin", %{scope: scope} do
-      {:ok, user} = Accounts.claim_slots_chips(scope.user)
+      {:ok, user} = Accounts.claim_slots_tokens(scope.user)
       scope = %{scope | user: user}
 
       {:ok, first, user} = Games.spin(scope, 100)
@@ -526,7 +849,7 @@ defmodule HighSociety.GamesTest do
     test "during an active free-spins round, replays at the triggering wager without a debit", %{
       scope: scope
     } do
-      {:ok, user} = Accounts.claim_slots_chips(scope.user)
+      {:ok, user} = Accounts.claim_slots_tokens(scope.user)
       scope = %{scope | user: user}
 
       %SlotsGame{}
@@ -542,13 +865,13 @@ defmodule HighSociety.GamesTest do
       })
       |> HighSociety.Repo.insert!()
 
-      balance_before = Accounts.get_user!(user.id).balance
+      balance_before = Accounts.get_user!(user.id).tokens_balance
 
       # pass a wager that doesn't match the triggering one, to prove it's ignored
       assert {:ok, game, updated_user} = Games.spin(scope, 500)
 
       assert game.wager == 100
-      assert updated_user.balance == balance_before + game.total_win
+      assert updated_user.tokens_balance == balance_before + game.total_win
     end
   end
 
@@ -560,7 +883,7 @@ defmodule HighSociety.GamesTest do
 
   describe "spin_roulette/2" do
     test "rejects an empty bet map", %{scope: scope} do
-      {:ok, user} = Accounts.claim_roulette_chips(scope.user)
+      {:ok, user} = Accounts.claim_roulette_tokens(scope.user)
       scope = %{scope | user: user}
 
       assert {:error, :no_bets} = Games.spin_roulette(scope, %{})
@@ -568,35 +891,35 @@ defmodule HighSociety.GamesTest do
     end
 
     test "rejects a bet key it doesn't recognize", %{scope: scope} do
-      {:ok, user} = Accounts.claim_roulette_chips(scope.user)
+      {:ok, user} = Accounts.claim_roulette_tokens(scope.user)
       scope = %{scope | user: user}
 
       assert {:error, :invalid_bet} = Games.spin_roulette(scope, %{"straight:37" => 100})
-      assert Accounts.get_user!(user.id).balance == user.balance
+      assert Accounts.get_user!(user.id).tokens_balance == user.tokens_balance
       assert Games.get_active_roulette_game(scope) == nil
     end
 
     test "rejects a single bet over the max, leaving balance and DB untouched", %{scope: scope} do
-      {:ok, user} = Accounts.claim_roulette_chips(scope.user)
+      {:ok, user} = Accounts.claim_roulette_tokens(scope.user)
       scope = %{scope | user: user}
 
       assert {:error, :bet_too_large} =
                Games.spin_roulette(scope, %{"red" => Roulette.max_bet() + 1})
 
-      assert Accounts.get_user!(user.id).balance == user.balance
+      assert Accounts.get_user!(user.id).tokens_balance == user.tokens_balance
       assert Games.get_active_roulette_game(scope) == nil
     end
 
     test "rejects a total bet exceeding the user's balance", %{scope: scope} do
-      assert scope.user.balance == 0
+      assert scope.user.tokens_balance == 0
       assert {:error, :insufficient_funds} = Games.spin_roulette(scope, %{"red" => 100})
       assert Games.get_active_roulette_game(scope) == nil
     end
 
     test "debits the total stake, persists the spin, and credits any payout", %{scope: scope} do
-      {:ok, user} = Accounts.claim_roulette_chips(scope.user)
+      {:ok, user} = Accounts.claim_roulette_tokens(scope.user)
       scope = %{scope | user: user}
-      balance_before = user.balance
+      balance_before = user.tokens_balance
 
       assert {:ok, game, updated_user} =
                Games.spin_roulette(scope, %{"red" => 100, "black" => 50})
@@ -604,14 +927,14 @@ defmodule HighSociety.GamesTest do
       assert game.total_wager == 150
       assert game.winning_number in 0..36
       assert length(game.bets) == 2
-      assert updated_user.balance == balance_before - 150 + game.total_payout
+      assert updated_user.tokens_balance == balance_before - 150 + game.total_payout
 
-      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).balance ==
-               updated_user.balance
+      assert HighSociety.Repo.get!(HighSociety.Accounts.User, user.id).tokens_balance ==
+               updated_user.tokens_balance
     end
 
     test "discards the user's previous spin", %{scope: scope} do
-      {:ok, user} = Accounts.claim_roulette_chips(scope.user)
+      {:ok, user} = Accounts.claim_roulette_tokens(scope.user)
       scope = %{scope | user: user}
 
       {:ok, first, user} = Games.spin_roulette(scope, %{"red" => 100})

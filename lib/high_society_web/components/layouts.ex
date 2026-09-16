@@ -125,6 +125,9 @@ defmodule HighSocietyWeb.Layouts do
         </div>
 
         <div class="flex items-center gap-4 text-sm text-base-content/70">
+          <.link navigate={~p"/tokens"} class="link link-hover">
+            Tokens
+          </.link>
           <.link navigate={~p"/support"} class="link link-hover">
             Support
           </.link>

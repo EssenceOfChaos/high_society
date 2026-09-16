@@ -1,7 +1,8 @@
 defmodule HighSociety.Games.Poker.HandEvaluator do
   @moduledoc """
-  Pure 7-card hand evaluation: ranks the best 5-card poker hand achievable
-  from any 7 cards (2 hole cards + 5 community cards), using the same
+  Pure hand evaluation: ranks the best 5-card poker hand achievable from a
+  player's cards - 7 at showdown (2 hole cards + 5 community cards), or as
+  few as 5 while community cards are still coming out - using the same
   card-string encoding as `HighSociety.Games.Blackjack` ("AS", "10H", "KD" -
   rank then suit; parsed via `HighSociety.Games.Blackjack.split_card/1`).
 
@@ -20,9 +21,14 @@ defmodule HighSociety.Games.Poker.HandEvaluator do
   @type card :: String.t()
   @type hand_rank :: {non_neg_integer(), [non_neg_integer()]}
 
-  @doc "The best 5-card hand rank achievable from the given 7 cards."
+  @doc """
+  The best 5-card hand rank achievable from the given cards - 7 at a
+  showdown (2 hole + 5 community), or fewer while community cards are
+  still coming out (5 once the flop is down, 6 after the turn), for a
+  live "what do I have so far" read.
+  """
   @spec rank([card]) :: hand_rank
-  def rank(cards) when length(cards) == 7 do
+  def rank(cards) when length(cards) in 5..7 do
     cards
     |> combinations(5)
     |> Enum.map(&rank_five/1)
