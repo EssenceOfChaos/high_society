@@ -26,6 +26,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
 
         socket =
           assign(socket,
+            page_title: "Battleship Match",
             slug: slug,
             view: view,
             watching: watching_count(slug),

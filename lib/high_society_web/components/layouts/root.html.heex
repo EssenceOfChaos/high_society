@@ -45,34 +45,31 @@
         });
       })();
     </script>
+    <%= if ga_id = Layouts.google_analytics_id() do %>
+      <script async src={"https://www.googletagmanager.com/gtag/js?id=#{ga_id}"}>
+      </script>
+      <script nonce={@csp_nonce}>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', '<%= ga_id %>');
+
+        // LiveView navigates over its socket instead of a full page load, so
+        // gtag's automatic pageview above only ever fires once per session.
+        // Send a pageview on every subsequent live navigation too - deferred
+        // a frame so document.title has caught up with the new page.
+        window.addEventListener("phx:navigate", (e) => {
+          requestAnimationFrame(() => {
+            gtag('event', 'page_view', {
+              page_location: e.detail.href || window.location.href,
+              page_title: document.title
+            });
+          });
+        });
+      </script>
+    <% end %>
   </head>
   <body>
-    <ul class={[
-      "menu menu-horizontal w-full relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end",
-      assigns[:hero_video?] && "text-white"
-    ]}>
-      <%= if @current_scope do %>
-        <li class="flex flex-row items-center gap-2">
-          <.link navigate={~p"/badges"} class="flex">
-            <.player_badge active_days_count={@current_scope.user.active_days_count} />
-          </.link>
-          {@current_scope.user.email}
-        </li>
-        <li>
-          <.link href={~p"/users/settings"}>Settings</.link>
-        </li>
-        <li>
-          <.link href={~p"/users/log-out"} method="delete">Log out</.link>
-        </li>
-      <% else %>
-        <li>
-          <.link href={~p"/users/register"}>Register</.link>
-        </li>
-        <li>
-          <.link href={~p"/users/log-in"}>Log in</.link>
-        </li>
-      <% end %>
-    </ul>
     {@inner_content}
   </body>
 </html>

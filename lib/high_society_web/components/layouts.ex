@@ -39,6 +39,33 @@ defmodule HighSocietyWeb.Layouts do
 
   def app(assigns) do
     ~H"""
+    <ul class={[
+      "menu menu-horizontal w-full relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end",
+      @hero != [] && "text-white"
+    ]}>
+      <%= if @current_scope do %>
+        <li class="flex flex-row items-center gap-2">
+          <.link navigate={~p"/badges"} class="flex">
+            <.player_badge active_days_count={@current_scope.user.active_days_count} />
+          </.link>
+          {@current_scope.user.display_name || @current_scope.user.email}
+        </li>
+        <li>
+          <.link href={~p"/users/settings"}>Settings</.link>
+        </li>
+        <li>
+          <.link href={~p"/users/log-out"} method="delete">Log out</.link>
+        </li>
+      <% else %>
+        <li>
+          <.link href={~p"/users/register"}>Register</.link>
+        </li>
+        <li>
+          <.link href={~p"/users/log-in"}>Log in</.link>
+        </li>
+      <% end %>
+    </ul>
+
     <header class={[
       "navbar relative z-10 px-4 sm:px-6 lg:px-8",
       @hero != [] && "text-white"
@@ -51,7 +78,7 @@ defmodule HighSocietyWeb.Layouts do
               "size-7",
               if(@hero != [],
                 do: "bg-gradient-to-r from-zinc-100 via-slate-200 to-zinc-300",
-                else: "text-primary"
+                else: "text-primary [[data-theme=dark]_&]:text-secondary"
               )
             ]}
           />
@@ -89,7 +116,10 @@ defmodule HighSocietyWeb.Layouts do
     <footer class="relative z-10 border-t border-base-300 bg-base-100 px-4 py-10 sm:px-6 lg:px-8">
       <div class="mx-auto flex max-w-3xl flex-col items-center gap-6 text-center sm:flex-row sm:justify-between sm:text-left">
         <a href="/" class="flex items-center gap-2">
-          <.icon name="hero-rectangle-stack-solid" class="size-5 text-primary" />
+          <.icon
+            name="hero-rectangle-stack-solid"
+            class="size-5 text-primary [[data-theme=dark]_&]:text-secondary"
+          />
           <span class="font-semibold tracking-tight">High Society</span>
         </a>
 
@@ -134,9 +164,34 @@ defmodule HighSocietyWeb.Layouts do
           <span>&copy; {Date.utc_today().year} High Society</span>
         </div>
       </div>
+
+      <div class="mx-auto mt-8 flex max-w-3xl flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-base-300 pt-6 text-xs text-base-content/50">
+        <.link navigate={~p"/terms"} class="link link-hover">
+          Terms and Conditions
+        </.link>
+        <.link navigate={~p"/privacy"} class="link link-hover">
+          Privacy Policy
+        </.link>
+        <.link navigate={~p"/cookies"} class="link link-hover">
+          Cookies Policy
+        </.link>
+        <.link navigate={~p"/responsible-gaming"} class="link link-hover">
+          Responsible Gaming
+        </.link>
+        <.link navigate={~p"/age-restriction"} class="link link-hover">
+          18+
+        </.link>
+      </div>
     </footer>
     """
   end
+
+  @doc """
+  The GA4 measurement ID (e.g. `"G-XXXXXXXXXX"`) to load Google Analytics
+  for, or `nil` to skip it - see `root.html.heex` and the
+  `:google_analytics_id` config in `config/config.exs`/`config/runtime.exs`.
+  """
+  def google_analytics_id, do: Application.get_env(:high_society, :google_analytics_id)
 
   attr :name, :string, required: true
 

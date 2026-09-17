@@ -15,6 +15,7 @@ defmodule HighSocietyWeb.GameLive.Slots do
 
     socket =
       assign(socket,
+        page_title: "Slots",
         slots_game: slots_game,
         pending_slots_game: nil,
         spinning?: false,

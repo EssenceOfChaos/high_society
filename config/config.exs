@@ -61,6 +61,11 @@ config :high_society, :support_email, "support@highsociety.cc"
 # config/runtime.exs).
 config :high_society, :admin_emails, []
 
+# GA4 measurement ID (e.g. "G-XXXXXXXXXX") for the gtag.js snippet in
+# root.html.heex. nil by default so dev/test never load it - set
+# GOOGLE_ANALYTICS_ID in prod (see config/runtime.exs) to turn it on.
+config :high_society, :google_analytics_id, nil
+
 # Configure esbuild (the version is required)
 config :esbuild,
   version: "0.25.4",

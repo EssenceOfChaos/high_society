@@ -23,6 +23,7 @@ defmodule HighSocietyWeb.GameLive.Roulette do
 
     socket =
       assign(socket,
+        page_title: "Roulette",
         roulette_game: roulette_game,
         pending_roulette_game: nil,
         spinning?: false,
@@ -293,7 +294,7 @@ defmodule HighSocietyWeb.GameLive.Roulette do
                 @selected_chip == chip && "ring-2 ring-offset-2 ring-offset-base-100 ring-amber-400"
               ]}
             >
-              {Tokens.format(chip)} Tokens
+              {Tokens.format(chip)}
             </button>
           </div>
 

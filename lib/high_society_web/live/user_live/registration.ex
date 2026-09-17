@@ -51,7 +51,8 @@ defmodule HighSocietyWeb.UserLive.Registration do
   def mount(_params, _session, socket) do
     changeset = Accounts.change_user_email(%User{}, %{}, validate_unique: false)
 
-    {:ok, assign_form(socket, changeset), temporary_assigns: [form: nil]}
+    {:ok, socket |> assign(:page_title, "Register") |> assign_form(changeset),
+     temporary_assigns: [form: nil]}
   end
 
   @impl true
