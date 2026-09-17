@@ -42,7 +42,10 @@ defmodule HighSocietyWeb.SupportLive do
 
     changeset = Support.change_report(%Report{}, %{"email" => default_email})
 
-    {:ok, assign_form(socket, changeset)}
+    {:ok,
+     socket
+     |> assign(:page_title, "Support")
+     |> assign_form(changeset)}
   end
 
   @impl true

@@ -174,4 +174,8 @@ if config_env() == :prod do
            :admin_emails,
            admin_emails |> String.split(",") |> Enum.map(&String.trim/1)
   end
+
+  if google_analytics_id = System.get_env("GOOGLE_ANALYTICS_ID") do
+    config :high_society, :google_analytics_id, google_analytics_id
+  end
 end

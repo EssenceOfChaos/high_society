@@ -24,7 +24,7 @@ defmodule HighSocietyWeb.GameLive.PokerLobby do
       end)
       |> Map.new()
 
-    {:ok, assign(socket, :tables, tables)}
+    {:ok, assign(socket, page_title: "Poker", tables: tables)}
   end
 
   @impl true

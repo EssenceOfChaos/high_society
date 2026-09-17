@@ -18,6 +18,7 @@ defmodule HighSocietyWeb.GameLive.Battleship do
 
     socket =
       assign(socket,
+        page_title: "Battleship",
         game: game,
         battleship: battleship,
         selected_ship_type: next_unplaced_type(battleship),

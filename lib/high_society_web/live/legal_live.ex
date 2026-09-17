@@ -1,0 +1,406 @@
+defmodule HighSocietyWeb.LegalLive do
+  @moduledoc """
+  Static legal/compliance pages - Terms and Conditions, Privacy Policy,
+  Cookies Policy, Responsible Gaming Statement, and Age Restriction -
+  picked by `@live_action` (see the five routes in the router). These are
+  plain informational content with no state beyond the current scope (for
+  the shared layout's nav), so one LiveView with a page per action is
+  simpler than five near-identical modules.
+  """
+  use HighSocietyWeb, :live_view
+
+  @last_updated "September 17, 2026"
+
+  @impl true
+  def mount(_params, _session, socket) do
+    {:ok, assign(socket, :page_title, page_title(socket.assigns.live_action))}
+  end
+
+  defp page_title(:terms), do: "Terms and Conditions"
+  defp page_title(:privacy), do: "Privacy Policy"
+  defp page_title(:cookies), do: "Cookies Policy"
+  defp page_title(:responsible_gaming), do: "Responsible Gaming Statement"
+  defp page_title(:age_restriction), do: "Age Restriction"
+
+  @impl true
+  def render(%{live_action: :terms} = assigns) do
+    ~H"""
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
+      <.legal_page title="Terms and Conditions" updated_on={last_updated()}>
+        <p>
+          These Terms and Conditions ("Terms") govern your access to and use of High Society
+          (the "Service"). By creating an account or using the Service, you agree to these
+          Terms. If you do not agree, please do not use the Service.
+        </p>
+
+        <h2>Eligibility</h2>
+        <p>
+          You must be at least 18 years old to create an account or use the Service. See our
+          <.link navigate={~p"/age-restriction"} class="link">Age Restriction</.link>
+          page for details. By using the Service, you represent that you meet this requirement.
+        </p>
+
+        <h2>Tokens</h2>
+        <p>
+          High Society awards a closed-loop virtual currency called Tokens for play within the
+          Service. Tokens:
+        </p>
+        <ul>
+          <li>have no cash value and cannot be purchased with real money;</li>
+          <li>
+            cannot be redeemed, exchanged, sold, or transferred for money, goods, or anything of
+            value outside the Service;
+          </li>
+          <li>are awarded as a starting stake or won through gameplay; and</li>
+          <li>
+            may be adjusted, reset, or removed at our discretion, including to correct errors or
+            prevent abuse.
+          </li>
+        </ul>
+
+        <h2>Your Account</h2>
+        <p>
+          You're responsible for maintaining accurate account information and for activity that
+          happens under your account. We may suspend or terminate accounts that violate these
+          Terms, attempt to circumvent the age requirement above, or abuse the Service.
+        </p>
+
+        <h2>Acceptable Use</h2>
+        <p>When using the Service, you agree not to:</p>
+        <ul>
+          <li>cheat, exploit bugs, or use automation/bots to play on your behalf;</li>
+          <li>harass, threaten, or abuse other players, including through display names; or</li>
+          <li>attempt to access another user's account or circumvent account restrictions.</li>
+        </ul>
+
+        <h2>Multiplayer Conduct</h2>
+        <p>
+          Poker and Battleship seat you with other real players. Play fairly and treat other
+          players with respect — the same rules above apply at the table.
+        </p>
+
+        <h2>Intellectual Property</h2>
+        <p>
+          The Service, including its design, graphics, and game content, is owned by High
+          Society and protected by intellectual property law. You may not copy, modify, or
+          distribute it without permission.
+        </p>
+
+        <h2>Disclaimer of Warranties</h2>
+        <p>
+          The Service is provided "as is" without warranties of any kind. We don't guarantee
+          uninterrupted, error-free, or continuously available play.
+        </p>
+
+        <h2>Limitation of Liability</h2>
+        <p>
+          Because Tokens have no cash value, using the Service carries no risk of monetary loss
+          through Token play. To the fullest extent permitted by law, High Society is not liable
+          for any indirect, incidental, or consequential damages arising from your use of the
+          Service.
+        </p>
+
+        <h2>Changes</h2>
+        <p>
+          We may update these Terms from time to time. We'll update the date at the top of this
+          page when we do. Continued use of the Service after a change means you accept the
+          updated Terms.
+        </p>
+
+        <h2>Contact</h2>
+        <p>
+          Questions about these Terms? Reach out through our
+          <.link navigate={~p"/support"} class="link">Support</.link>
+          page.
+        </p>
+      </.legal_page>
+    </Layouts.app>
+    """
+  end
+
+  def render(%{live_action: :privacy} = assigns) do
+    ~H"""
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
+      <.legal_page title="Privacy Policy" updated_on={last_updated()}>
+        <p>
+          This Privacy Policy explains what information High Society collects, how we use it,
+          and the choices you have.
+        </p>
+
+        <h2>Information We Collect</h2>
+        <ul>
+          <li>
+            <strong>Email address</strong>
+            — used to sign you in via a magic link and to identify your account.
+          </li>
+          <li>
+            <strong>Display name</strong>
+            — optional, chosen by you, shown at multiplayer tables and on leaderboards instead
+            of your email.
+          </li>
+          <li>
+            <strong>Gameplay data</strong>
+            — your Token balance, bets, and game/transaction history, so your progress and
+            balance are saved between visits.
+          </li>
+          <li>
+            <strong>Technical data</strong>
+            — standard web request information (such as IP address and browser type) used for
+            security and troubleshooting.
+          </li>
+          <li>
+            <strong>Analytics data</strong>
+            — we use Google Analytics to see which pages are viewed and where traffic comes
+            from, so we can improve the Service.
+          </li>
+        </ul>
+        <p>
+          Your theme preference (light/dark) is stored only in your browser's local storage and
+          is never sent to us. See our
+          <.link navigate={~p"/cookies"} class="link">Cookies Policy</.link>
+          for more on what we store in your browser, including Google Analytics.
+        </p>
+
+        <h2>How We Use Information</h2>
+        <p>We use the information above to:</p>
+        <ul>
+          <li>operate and maintain the Service, including signing you in;</li>
+          <li>track Token balances, game history, and leaderboards;</li>
+          <li>respond to support requests; and</li>
+          <li>detect and prevent abuse of the Service.</li>
+        </ul>
+
+        <h2>How We Share Information</h2>
+        <p>
+          We do not sell your personal information. We may share it with service providers who
+          help us operate the Service — for example, delivering login emails, or Google
+          Analytics for traffic and usage insights (governed by
+          <span class="font-medium">policies.google.com/privacy</span>
+          ) — or when required by law.
+        </p>
+
+        <h2>Data Retention</h2>
+        <p>
+          We retain account information for as long as your account is active. Token transaction
+          records are kept as an append-only ledger to preserve the integrity of balances and
+          leaderboards.
+        </p>
+
+        <h2>Your Choices</h2>
+        <p>
+          You can update your display name and email at any time from <.link
+            navigate={~p"/users/settings"}
+            class="link"
+          >Settings</.link>. To request account
+          deletion, contact us through <.link navigate={~p"/support"} class="link">Support</.link>.
+        </p>
+
+        <h2>Children's Privacy</h2>
+        <p>
+          The Service is not directed to anyone under 18 (see our
+          <.link navigate={~p"/age-restriction"} class="link">Age Restriction</.link>
+          page) and we do not knowingly collect information from minors.
+        </p>
+
+        <h2>Security</h2>
+        <p>
+          We take reasonable measures to protect your information, but no method of transmission
+          or storage is perfectly secure.
+        </p>
+
+        <h2>Changes</h2>
+        <p>
+          We may update this Policy from time to time. We'll update the date at the top of this
+          page when we do.
+        </p>
+
+        <h2>Contact</h2>
+        <p>
+          Questions about this Policy? Reach out through our
+          <.link navigate={~p"/support"} class="link">Support</.link>
+          page.
+        </p>
+      </.legal_page>
+    </Layouts.app>
+    """
+  end
+
+  def render(%{live_action: :cookies} = assigns) do
+    ~H"""
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
+      <.legal_page title="Cookies Policy" updated_on={last_updated()}>
+        <p>
+          Cookies are small pieces of data websites store in your browser. This page explains
+          how High Society uses them.
+        </p>
+
+        <h2>What We Use</h2>
+        <ul>
+          <li>
+            <strong>Essential session cookie</strong>
+            — keeps you signed in and is required for the Service to work. Without it, you can't
+            stay logged in.
+          </li>
+          <li>
+            <strong>Theme preference</strong>
+            — your light/dark/system choice is stored in your browser's local storage, not a
+            cookie, and is never sent to us.
+          </li>
+          <li>
+            <strong>Google Analytics</strong>
+            — we use Google Analytics to understand how visitors use the Service (for example,
+            which pages are viewed and general traffic sources). It sets cookies such as
+            <code>_ga</code>
+            to distinguish visitors. See <span class="font-medium">policies.google.com/privacy</span>
+            for how Google handles this data, and the
+            <span class="font-medium">Google Analytics Opt-out Browser Add-on</span>
+            if you'd like to opt out.
+          </li>
+        </ul>
+        <p>
+          High Society enforces a strict content security policy that only allows scripts and
+          styles to load from our own domain and Google Analytics — we don't load any other
+          third-party advertising or tracking scripts.
+        </p>
+
+        <h2>Managing Cookies</h2>
+        <p>
+          You can control or delete cookies through your browser settings. Blocking the
+          essential session cookie will prevent you from signing in; blocking analytics cookies
+          won't affect your ability to use the Service.
+        </p>
+
+        <h2>Changes</h2>
+        <p>
+          We may update this Policy from time to time. We'll update the date at the top of this
+          page when we do.
+        </p>
+
+        <h2>Contact</h2>
+        <p>
+          Questions about this Policy? Reach out through our
+          <.link navigate={~p"/support"} class="link">Support</.link>
+          page.
+        </p>
+      </.legal_page>
+    </Layouts.app>
+    """
+  end
+
+  def render(%{live_action: :responsible_gaming} = assigns) do
+    ~H"""
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
+      <.legal_page title="Responsible Gaming Statement" updated_on={last_updated()}>
+        <p>
+          High Society's games are modeled on classic casino games for entertainment. Tokens are
+          a free, closed-loop rewards currency with no cash value — they can't be purchased with
+          real money or redeemed for money, goods, or anything of value. No real-money wagering
+          happens on High Society.
+        </p>
+
+        <h2>Play Responsibly</h2>
+        <p>
+          Even without money at stake, casino-style games are designed to be engaging, so we
+          encourage healthy habits:
+        </p>
+        <ul>
+          <li>set a time limit for your sessions and take breaks;</li>
+          <li>treat Token wins and losses as part of a game, not a measure of real-world value;</li>
+          <li>play because it's fun, not to chase a streak; and</li>
+          <li>stop if it stops feeling fun.</li>
+        </ul>
+
+        <h2>Signs to Watch For</h2>
+        <p>
+          If playing starts to feel compulsive, or is affecting your sleep, work, or
+          relationships, take a step back.
+        </p>
+
+        <h2>Support Resources</h2>
+        <p>
+          If gambling more broadly — including for real money elsewhere — is a concern for you
+          or someone you know, free, confidential help is available 24/7 from the National
+          Council on Problem Gambling: call or text 1-800-522-4700, or visit <span class="font-medium">ncpgambling.org</span>.
+        </p>
+
+        <h2>Taking a Break</h2>
+        <p>
+          If you'd like help pausing or closing your account, contact us through
+          <.link navigate={~p"/support"} class="link">Support</.link>
+          and we'll assist you.
+        </p>
+
+        <h2>Age Requirement</h2>
+        <p>
+          High Society is only available to users 18 and older. See our
+          <.link navigate={~p"/age-restriction"} class="link">Age Restriction</.link>
+          page for details.
+        </p>
+      </.legal_page>
+    </Layouts.app>
+    """
+  end
+
+  def render(%{live_action: :age_restriction} = assigns) do
+    ~H"""
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
+      <.legal_page title="Age Restriction" updated_on={last_updated()}>
+        <div class="flex items-center gap-4 rounded-box border border-base-300 bg-base-200 p-4">
+          <span class="flex size-14 shrink-0 items-center justify-center rounded-full bg-primary text-xl font-bold text-primary-content">
+            18+
+          </span>
+          <p class="text-base-content">
+            You must be at least <strong>18 years old</strong>
+            to create an account or use High Society.
+          </p>
+        </div>
+
+        <h2>Why We Have This Rule</h2>
+        <p>
+          High Society's games are modeled on classic casino games. Regardless of whether Tokens
+          have any cash value (they don't — see our
+          <.link navigate={~p"/terms"} class="link">Terms</.link>
+          and
+          <.link navigate={~p"/responsible-gaming"} class="link">Responsible Gaming Statement</.link>
+          ), we restrict the Service to adults.
+        </p>
+
+        <h2>Verification</h2>
+        <p>
+          By registering, you represent and warrant that you're 18 or older. We may ask for
+          proof of age if we have reason to believe an account belongs to a minor, and we'll
+          suspend or terminate any account that doesn't meet this requirement.
+        </p>
+
+        <h2>Parents and Guardians</h2>
+        <p>
+          If you believe a minor has created an account, please contact us through
+          <.link navigate={~p"/support"} class="link">Support</.link>
+          so we can investigate and remove it.
+        </p>
+      </.legal_page>
+    </Layouts.app>
+    """
+  end
+
+  attr :title, :string, required: true
+  attr :updated_on, :string, required: true
+  slot :inner_block, required: true
+
+  defp legal_page(assigns) do
+    ~H"""
+    <div class="mx-auto max-w-3xl">
+      <.header>
+        {@title}
+        <:subtitle>Last updated {@updated_on}</:subtitle>
+      </.header>
+
+      <div class="mt-6 space-y-4 text-base-content/80 [&_h2]:mt-8 [&_h2]:mb-1 [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:text-base-content [&_p]:leading-relaxed [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-6">
+        {render_slot(@inner_block)}
+      </div>
+    </div>
+    """
+  end
+
+  defp last_updated, do: @last_updated
+end

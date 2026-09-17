@@ -123,6 +123,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
 
         socket =
           assign(socket,
+            page_title: "Poker – #{table_config.name}",
             slug: slug,
             table: table_config,
             state: state,
@@ -343,8 +344,9 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
             </button>
             <.link
               navigate={~p"/games/poker/leaderboard"}
-              class="btn btn-ghost btn-sm btn-circle"
+              class="btn btn-ghost btn-sm btn-circle tooltip tooltip-bottom"
               aria-label="Leaderboard"
+              data-tip="Leaderboard"
             >
               <.icon name="hero-trophy" class="size-5" />
             </.link>

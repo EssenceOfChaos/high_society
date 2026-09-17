@@ -13,6 +13,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
 
     socket =
       assign(socket,
+        page_title: "Blackjack",
         blackjack_game: blackjack_game,
         pending_bets: %{0 => 0, 1 => 0},
         second_hand?: false,
@@ -531,8 +532,9 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
             </button>
             <.link
               navigate={~p"/games/blackjack/leaderboard"}
-              class="btn btn-ghost btn-sm btn-circle"
+              class="btn btn-ghost btn-sm btn-circle tooltip tooltip-bottom"
               aria-label="Leaderboard"
+              data-tip="Leaderboard"
             >
               <.icon name="hero-trophy" class="size-5" />
             </.link>

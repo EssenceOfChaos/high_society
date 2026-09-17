@@ -14,7 +14,7 @@ defmodule HighSocietyWeb.GameLive.War do
         true -> nil
       end
 
-    {:ok, assign(socket, war_game: war_game, warring?: false)}
+    {:ok, assign(socket, page_title: "War", war_game: war_game, warring?: false)}
   end
 
   @impl true

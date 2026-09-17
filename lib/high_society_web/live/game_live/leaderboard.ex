@@ -15,7 +15,11 @@ defmodule HighSocietyWeb.GameLive.Leaderboard do
   def mount(_params, _session, socket) do
     entries = Leaderboards.top_players(socket.assigns.live_action)
 
-    {:ok, assign(socket, :entries, entries)}
+    {:ok,
+     assign(socket,
+       page_title: "#{game_name(socket.assigns.live_action)} Leaderboard",
+       entries: entries
+     )}
   end
 
   @impl true

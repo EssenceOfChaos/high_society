@@ -29,6 +29,7 @@ defmodule HighSocietyWeb.GameLive.ZombieAttack do
 
     socket =
       assign(socket,
+        page_title: "Zombie Attack",
         game: game,
         wager_options: @wager_options,
         wave_count: ZombieAttack.wave_count(),

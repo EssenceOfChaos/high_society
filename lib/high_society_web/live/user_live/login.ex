@@ -103,7 +103,7 @@ defmodule HighSocietyWeb.UserLive.Login do
 
     form = to_form(%{"email" => email}, as: "user")
 
-    {:ok, assign(socket, form: form, trigger_submit: false)}
+    {:ok, assign(socket, page_title: "Log In", form: form, trigger_submit: false)}
   end
 
   @impl true

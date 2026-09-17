@@ -29,26 +29,30 @@
   default: false;
   prefersdark: true;
   color-scheme: "dark";
-  --color-base-100: oklch(30.33% 0.016 252.42);
-  --color-base-200: oklch(25.26% 0.014 253.1);
-  --color-base-300: oklch(20.15% 0.012 254.09);
-  --color-base-content: oklch(97.807% 0.029 256.847);
-  --color-primary: oklch(58% 0.233 277.117);
-  --color-primary-content: oklch(96% 0.018 272.314);
-  --color-secondary: oklch(58% 0.233 277.117);
+  --color-base-100: oklch(16% 0.042 264.695);
+  --color-base-200: oklch(23% 0.042 265.755);
+  --color-base-300: oklch(29% 0.041 260.031);
+  --color-base-content: oklch(96% 0.007 247.896);
+  --color-primary: #002349;
+  --color-primary-content: oklch(98% 0.014 180.72);
+  --color-secondary: #957c3d;
   --color-secondary-content: oklch(96% 0.018 272.314);
-  --color-accent: oklch(60% 0.25 292.717);
-  --color-accent-content: oklch(96% 0.016 293.756);
-  --color-neutral: oklch(37% 0.044 257.287);
+  --color-accent: #a0006d;
+  --color-accent-content: oklch(97% 0.017 320.058);
+  --color-neutral: oklch(16% 0.042 264.695);
   --color-neutral-content: oklch(98% 0.003 247.858);
-  --color-info: oklch(58% 0.158 241.966);
-  --color-info-content: oklch(97% 0.013 236.62);
-  --color-success: oklch(60% 0.118 184.704);
-  --color-success-content: oklch(98% 0.014 180.72);
-  --color-warning: oklch(66% 0.179 58.318);
-  --color-warning-content: oklch(98% 0.022 95.277);
-  --color-error: oklch(58% 0.253 17.585);
-  --color-error-content: oklch(96% 0.015 12.422);
+  --color-info: oklch(54% 0.245 262.881);
+  --color-info-content: oklch(97% 0.014 254.604);
+  --color-success: oklch(62% 0.194 149.214);
+  --color-success-content: oklch(98% 0.018 155.826);
+  --color-warning: oklch(68% 0.162 75.834);
+  --color-warning-content: oklch(98% 0.026 102.212);
+  --color-error: oklch(59% 0.249 0.584);
+  --color-error-content: oklch(97% 0.014 343.198);
+  /* radius/size/border/depth intentionally match the light theme below so
+     toggling themes only recolors the app, not the shape of every button/
+     card/input - see the "sotheboys" generator output this was based on
+     for the (much larger) radii we deliberately didn't take. */
   --radius-selector: 0.25rem;
   --radius-field: 0.25rem;
   --radius-box: 0.5rem;
@@ -56,7 +60,7 @@
   --size-field: 0.21875rem;
   --border: 1.5px;
   --depth: 1;
-  --noise: 0;
+  --noise: 1;
 }
 
 @plugin "../vendor/daisyui-theme" {

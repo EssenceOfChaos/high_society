@@ -17,6 +17,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobby do
 
     socket =
       assign(socket,
+        page_title: "Battleship Lobby",
         matches: BattleshipMatches.list_open(),
         wager_options: @wager_options,
         error: nil

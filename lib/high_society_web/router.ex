@@ -19,7 +19,10 @@ defmodule HighSocietyWeb.Router do
 
   # heroicons are compiled into app.css as CSS `mask-image` data: URIs, which the
   # `img-src` directive governs; the inline theme script in root.html.heex needs a
-  # per-request nonce since `script-src` has no 'unsafe-inline'.
+  # per-request nonce since `script-src` has no 'unsafe-inline'. The googletagmanager.com/
+  # google-analytics.com entries are for the Google Analytics gtag.js snippet (see
+  # HighSocietyWeb.Layouts.google_analytics_id/0) - harmless to allow even when no
+  # GOOGLE_ANALYTICS_ID is configured, since nothing then requests those hosts.
   defp put_csp_headers(conn, _opts) do
     nonce = Base.encode64(:crypto.strong_rand_bytes(16))
 
@@ -27,7 +30,11 @@ defmodule HighSocietyWeb.Router do
     |> assign(:csp_nonce, nonce)
     |> put_secure_browser_headers(%{
       "content-security-policy" =>
-        "default-src 'self'; script-src 'self' 'nonce-#{nonce}'; style-src 'self'; img-src 'self' data:;"
+        "default-src 'self'; " <>
+          "script-src 'self' 'nonce-#{nonce}' https://www.googletagmanager.com; " <>
+          "style-src 'self'; " <>
+          "img-src 'self' data: https://www.google-analytics.com https://www.googletagmanager.com; " <>
+          "connect-src 'self' https://www.google-analytics.com https://analytics.google.com https://www.googletagmanager.com;"
     })
   end
 
@@ -101,6 +108,11 @@ defmodule HighSocietyWeb.Router do
       live "/", DashboardLive, :index
       live "/tokens", TokensLive, :index
       live "/support", SupportLive, :new
+      live "/terms", LegalLive, :terms
+      live "/privacy", LegalLive, :privacy
+      live "/cookies", LegalLive, :cookies
+      live "/responsible-gaming", LegalLive, :responsible_gaming
+      live "/age-restriction", LegalLive, :age_restriction
       live "/users/register", UserLive.Registration, :new
       live "/users/log-in", UserLive.Login, :new
       live "/users/log-in/:token", UserLive.Confirmation, :new

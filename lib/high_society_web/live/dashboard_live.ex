@@ -67,7 +67,7 @@ defmodule HighSocietyWeb.DashboardLive do
       slug: "zombie-attack",
       name: "Zombie Attack",
       tagline: "Defend the house",
-      description: "Place defenders across the lawn and hold the line through five waves.",
+      description: "Place defenders across the lawn and hold the line through six waves.",
       icon: "hero-shield-exclamation",
       accent: "from-lime-500 to-emerald-600",
       path: "/games/zombie-attack",
@@ -77,7 +77,7 @@ defmodule HighSocietyWeb.DashboardLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, games: @games, hero_video?: true)}
+    {:ok, assign(socket, games: @games)}
   end
 
   @impl true
@@ -219,9 +219,18 @@ defmodule HighSocietyWeb.DashboardLive do
           </div>
         </div>
 
-        <p class="mt-10 text-center text-sm text-base-content/50">
-          More games coming soon&hellip;
-        </p>
+        <div class="mt-10 flex justify-center">
+          <div class="aura aura-gold">
+            <div class="card border border-base-300 bg-base-100">
+              <div class="card-body flex-row items-center gap-3 px-8 py-4">
+                <.icon name="hero-sparkles" class="size-5 text-amber-500" />
+                <p class="text-sm font-medium text-base-content/70">
+                  More games coming soon&hellip;
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <script :type={Phoenix.LiveView.ColocatedHook} name=".CardsReveal">
