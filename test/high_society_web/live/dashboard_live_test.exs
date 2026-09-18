@@ -2,8 +2,37 @@ defmodule HighSocietyWeb.DashboardLiveTest do
   use HighSocietyWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
+  import HighSociety.TournamentsFixtures
 
   alias HighSociety.Accounts
+  alias HighSociety.Tournaments
+
+  describe "tournament announcement" do
+    setup :register_and_log_in_user
+
+    test "shown to a logged-in user who hasn't registered", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/")
+
+      assert html =~ "Poker Tournament — Coming Soon"
+      assert html =~ "tournament-announcement-cta"
+    end
+
+    test "hidden once the user has registered", %{conn: conn, scope: scope} do
+      tournament = tournament_fixture()
+      {:ok, _entry} = Tournaments.register(scope, tournament, %{})
+
+      {:ok, _view, html} = live(conn, ~p"/")
+
+      refute html =~ "Poker Tournament — Coming Soon"
+    end
+
+    test "shown to a guest", %{} do
+      conn = Phoenix.ConnTest.build_conn()
+      {:ok, _view, html} = live(conn, ~p"/")
+
+      assert html =~ "Poker Tournament — Coming Soon"
+    end
+  end
 
   describe "activity tracking" do
     setup :register_and_log_in_user

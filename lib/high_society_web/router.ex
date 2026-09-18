@@ -6,6 +6,7 @@ defmodule HighSocietyWeb.Router do
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
+    plug HighSocietyWeb.Plugs.CaptureGeo
     plug :fetch_live_flash
     plug :put_root_layout, html: {HighSocietyWeb.Layouts, :root}
     plug :protect_from_forgery
@@ -65,11 +66,26 @@ defmodule HighSocietyWeb.Router do
   scope "/", HighSocietyWeb do
     pipe_through [:browser, :require_authenticated_user]
 
+    # `/tournament` (registration) is deliberately its own live_session,
+    # separate from the one below - see `HighSocietyWeb.TournamentGeoCheck`
+    # for why the geo-restriction it adds has to be scoped this way rather
+    # than shared across every authenticated page.
+    live_session :tournament_registration,
+      on_mount: [
+        {HighSocietyWeb.UserAuth, :require_authenticated},
+        {HighSocietyWeb.TournamentGeoCheck, :restrict_registration}
+      ] do
+      live "/tournament", TournamentLive, :new
+    end
+
     live_session :require_authenticated_user,
       on_mount: [{HighSocietyWeb.UserAuth, :require_authenticated}] do
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
       live "/badges", BadgesLive, :index
+      live "/tournament/:id/tables", GameLive.TournamentTables, :index
+      live "/tournament/:id/tables/:slug", GameLive.TournamentTable, :show
+      live "/tournament/:id/results", GameLive.TournamentResults, :show
       live "/games/war", GameLive.War, :show
       live "/games/blackjack", GameLive.Blackjack, :show
       live "/games/blackjack/leaderboard", GameLive.Leaderboard, :blackjack
@@ -96,6 +112,7 @@ defmodule HighSocietyWeb.Router do
         {HighSocietyWeb.UserAuth, :require_admin}
       ] do
       live "/token-transactions", AdminLive.TokenTransactions, :index
+      live "/tournaments", AdminLive.Tournaments, :index
     end
   end
 
@@ -113,6 +130,7 @@ defmodule HighSocietyWeb.Router do
       live "/cookies", LegalLive, :cookies
       live "/responsible-gaming", LegalLive, :responsible_gaming
       live "/age-restriction", LegalLive, :age_restriction
+      live "/tournament/rules", LegalLive, :tournament_rules
       live "/users/register", UserLive.Registration, :new
       live "/users/log-in", UserLive.Login, :new
       live "/users/log-in/:token", UserLive.Confirmation, :new
@@ -120,5 +138,11 @@ defmodule HighSocietyWeb.Router do
 
     post "/users/log-in", UserSessionController, :create
     delete "/users/log-out", UserSessionController, :delete
+  end
+
+  scope "/webhooks", HighSocietyWeb do
+    pipe_through :api
+
+    post "/resend/inbound", ResendWebhookController, :create
   end
 end

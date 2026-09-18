@@ -154,6 +154,11 @@ if config_env() == :prod do
     adapter: Swoosh.Adapters.Resend,
     api_key: resend_api_key
 
+  # Same key, exposed directly for HighSociety.Resend's own API calls
+  # (fetching a received email's body - see ResendWebhookController)
+  # rather than reaching into the Mailer's adapter-specific config for it.
+  config :high_society, :resend_api_key, resend_api_key
+
   mailer_from_email =
     System.get_env("MAILER_FROM_EMAIL") ||
       raise """
@@ -178,4 +183,15 @@ if config_env() == :prod do
   if google_analytics_id = System.get_env("GOOGLE_ANALYTICS_ID") do
     config :high_society, :google_analytics_id, google_analytics_id
   end
+
+  resend_webhook_secret =
+    System.get_env("RESEND_WEBHOOK_SECRET") ||
+      raise """
+      environment variable RESEND_WEBHOOK_SECRET is missing.
+      Get the signing secret for the inbound-email webhook from the Resend
+      dashboard (Webhooks -> your endpoint -> Signing Secret, looks like
+      "whsec_...").
+      """
+
+  config :high_society, :resend_webhook_secret, resend_webhook_secret
 end

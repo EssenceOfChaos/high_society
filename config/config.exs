@@ -66,6 +66,17 @@ config :high_society, :admin_emails, []
 # GOOGLE_ANALYTICS_ID in prod (see config/runtime.exs) to turn it on.
 config :high_society, :google_analytics_id, nil
 
+# Signing secret for the Resend inbound-email webhook (see
+# HighSocietyWeb.ResendWebhookController and HighSociety.Webhooks.SvixSignature).
+# Set in config/dev.exs and config/test.exs for local work, and via
+# RESEND_WEBHOOK_SECRET in prod (see config/runtime.exs).
+config :high_society, :resend_webhook_secret, nil
+
+# Same key the Mailer uses to send mail, exposed directly for
+# HighSociety.Resend's own API calls (see its moduledoc). Set via
+# RESEND_API_KEY in prod (see config/runtime.exs).
+config :high_society, :resend_api_key, nil
+
 # Configure esbuild (the version is required)
 config :esbuild,
   version: "0.25.4",

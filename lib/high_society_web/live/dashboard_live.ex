@@ -1,6 +1,8 @@
 defmodule HighSocietyWeb.DashboardLive do
   use HighSocietyWeb, :live_view
 
+  alias HighSociety.Tournaments
+
   @games [
     %{
       slug: "war",
@@ -77,13 +79,30 @@ defmodule HighSocietyWeb.DashboardLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    {:ok, assign(socket, games: @games)}
+    tournament = Tournaments.current_tournament()
+
+    {:ok,
+     assign(socket,
+       games: @games,
+       tournament: tournament,
+       tournament_registered?: tournament_registered?(socket, tournament)
+     )}
   end
+
+  defp tournament_registered?(_socket, nil), do: false
+
+  defp tournament_registered?(%{assigns: %{current_scope: %{user: %{}} = scope}}, tournament),
+    do: not is_nil(Tournaments.get_entry(scope, tournament))
+
+  defp tournament_registered?(_socket, _tournament), do: false
+
+  defp tournament_headline(nil), do: "Poker Tournament — Coming Soon"
+  defp tournament_headline(tournament), do: tournament.name
 
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
+    <Layouts.app flash={@flash} current_scope={@current_scope} hero_video?={true}>
       <:hero>
         <div class="fixed inset-0 overflow-hidden bg-neutral-900">
           <video
@@ -176,6 +195,34 @@ defmodule HighSocietyWeb.DashboardLive do
       </:hero>
 
       <div id="games" phx-hook=".CardsReveal" class="mx-auto max-w-5xl scroll-mt-10">
+        <div :if={!@tournament_registered?} class="mb-10">
+          <div class="aura aura-gold">
+            <div class="card overflow-hidden border border-base-300 bg-base-100">
+              <div class="card-body flex-col items-center gap-4 text-center sm:flex-row sm:text-left">
+                <img
+                  src={~p"/images/tournament-trophy.webp"}
+                  alt=""
+                  class="size-14 shrink-0 rounded-full object-cover"
+                />
+                <div class="flex-1">
+                  <h2 class="text-xl font-bold">{tournament_headline(@tournament)}</h2>
+                  <p class="mt-1 text-sm text-base-content/70">
+                    Free to enter, no purchase necessary. 1st place wins $75 in ETH plus an
+                    exclusive High Society NFT — 2nd place wins $25 in ETH.
+                  </p>
+                </div>
+                <.link
+                  navigate={~p"/tournament"}
+                  id="tournament-announcement-cta"
+                  class="btn btn-primary shrink-0"
+                >
+                  Register now <span aria-hidden="true">&rarr;</span>
+                </.link>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <div
             :for={game <- @games}

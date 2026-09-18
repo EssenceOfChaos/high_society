@@ -1,15 +1,17 @@
 defmodule HighSocietyWeb.LegalLive do
   @moduledoc """
   Static legal/compliance pages - Terms and Conditions, Privacy Policy,
-  Cookies Policy, Responsible Gaming Statement, and Age Restriction -
-  picked by `@live_action` (see the five routes in the router). These are
-  plain informational content with no state beyond the current scope (for
-  the shared layout's nav), so one LiveView with a page per action is
-  simpler than five near-identical modules.
+  Cookies Policy, Responsible Gaming Statement, Age Restriction, and the
+  Poker Tournament's Official Rules - picked by `@live_action` (see the
+  routes in the router). These are plain informational content with no
+  state beyond the current scope (for the shared layout's nav), so one
+  LiveView with a page per action is simpler than several near-identical
+  modules.
   """
   use HighSocietyWeb, :live_view
 
   @last_updated "September 17, 2026"
+  @tournament_rules_updated "September 18, 2026"
 
   @impl true
   def mount(_params, _session, socket) do
@@ -21,6 +23,7 @@ defmodule HighSocietyWeb.LegalLive do
   defp page_title(:cookies), do: "Cookies Policy"
   defp page_title(:responsible_gaming), do: "Responsible Gaming Statement"
   defp page_title(:age_restriction), do: "Age Restriction"
+  defp page_title(:tournament_rules), do: "Official Tournament Rules"
 
   @impl true
   def render(%{live_action: :terms} = assigns) do
@@ -383,6 +386,134 @@ defmodule HighSocietyWeb.LegalLive do
     """
   end
 
+  def render(%{live_action: :tournament_rules} = assigns) do
+    ~H"""
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
+      <.legal_page title="Official Tournament Rules" updated_on={tournament_rules_updated()}>
+        <div class="flex items-start gap-3 rounded-box border border-primary/30 bg-primary/10 p-4">
+          <.icon name="hero-megaphone" class="mt-0.5 size-6 shrink-0 text-primary" />
+          <p class="font-semibold text-base-content">
+            NO PURCHASE OR PAYMENT OF ANY KIND IS NECESSARY TO ENTER OR WIN THIS TOURNAMENT.
+            A PURCHASE WILL NOT INCREASE YOUR CHANCES OF WINNING.
+          </p>
+        </div>
+
+        <h2 class="flex items-center gap-2">
+          <.icon name="hero-identification" class="size-5 text-primary" /> 1. Eligibility
+        </h2>
+        <p>
+          The High Society Poker Tournament (the "Tournament") is open only to legal residents
+          of jurisdictions where online sweepstakes are permitted by law. Residents of the US
+          states of Washington and Idaho, and residents of Cuba, Iran, North Korea, Sudan,
+          Syria, and China, are strictly excluded from participating. Participants must be at
+          least <strong>18 years old</strong>
+          at the time of entry — see our
+          <.link navigate={~p"/age-restriction"} class="link">Age Restriction</.link>
+          page. Void where prohibited or restricted by law.
+        </p>
+
+        <h2 class="flex items-center gap-2">
+          <.icon name="hero-building-office" class="size-5 text-primary" /> 2. Sponsor
+        </h2>
+        <p>The Tournament is sponsored by High Society ("Sponsor").</p>
+
+        <h2 class="flex items-center gap-2">
+          <.icon name="hero-document-check" class="size-5 text-primary" /> 3. Agreement to Rules
+        </h2>
+        <p>
+          By registering for or participating in a Tournament, you agree to be fully and
+          unconditionally bound by these Rules, and you represent and warrant that you meet the
+          eligibility requirements set forth herein.
+        </p>
+
+        <h2 class="flex items-center gap-2">
+          <.icon name="hero-calendar" class="size-5 text-primary" /> 4. Tournament Period &amp; Entry
+        </h2>
+        <p>
+          Each Tournament's date and time are announced on the
+          <.link navigate={~p"/tournament"} class="link">Tournament</.link>
+          page ahead of time. Entry is completely free of charge. No real money or
+          cryptocurrency may be deposited, wagered, or used to buy into any Tournament — every
+          player starts with the same number of tournament chips, which have no cash value and
+          exist only for the Tournament itself.
+        </p>
+
+        <h2 class="flex items-center gap-2">
+          <.icon name="hero-trophy" class="size-5 text-primary" /> 5. Prize &amp; Odds of Winning
+        </h2>
+        <p>One (1) First Place winner and one (1) Second Place winner will be selected:</p>
+        <ul>
+          <li>
+            <strong>First Place:</strong>
+            $75 USD worth of Ethereum (ETH), plus one (1) exclusive High Society NFT.
+          </li>
+          <li>
+            <strong>Second Place:</strong> $25 USD worth of Ethereum (ETH).
+          </li>
+        </ul>
+        <p>
+          The exact amount of ETH transferred will be calculated based on the fair market value
+          of ETH at the time the prize is sent. All other participants receive a thank-you email
+          and no prize. The odds of winning depend entirely on the total number of eligible
+          participants and each player's individual skill level.
+        </p>
+
+        <h2 class="flex items-center gap-2">
+          <.icon name="hero-envelope" class="size-5 text-primary" />
+          6. Winner Selection and Notification
+        </h2>
+        <p>
+          Winners are determined by the final standing of the Tournament software once every
+          other player has been eliminated. Winners will be notified by email within
+          <strong>7 days</strong>
+          of the Tournament's completion.
+        </p>
+
+        <h2 class="flex items-center gap-2">
+          <.icon name="hero-shield-check" class="size-5 text-primary" />
+          7. Prize Claim &amp; Compliance Requirements
+        </h2>
+        <p>
+          As a condition of receiving a prize, the First and Second Place winners must provide a
+          valid cryptocurrency wallet address capable of receiving ETH. Because Sponsor cannot
+          send payment to sanctioned, blacklisted, or otherwise restricted individuals or
+          entities, First and Second Place winners are required to complete identity
+          verification ("KYC") — proof of identity, age, and residency — before any prize is
+          sent, even though providing this information is optional for every other participant.
+          If a winner is found to have used a VPN or other location-masking software to bypass
+          the geographic restrictions in Section 1, the prize will be immediately forfeited.
+        </p>
+
+        <h2 class="flex items-center gap-2">
+          <.icon name="hero-receipt-percent" class="size-5 text-primary" /> 8. Taxes
+        </h2>
+        <p>
+          All federal, state, and local taxes associated with the receipt or use of a
+          cryptocurrency prize are the sole responsibility of the winner. Prize value will be
+          reported where required by law.
+        </p>
+
+        <h2 class="flex items-center gap-2">
+          <.icon name="hero-scale" class="size-5 text-primary" /> 9. Limitation of Liability
+        </h2>
+        <p>
+          By entering, you agree to release and hold harmless Sponsor and its subsidiaries,
+          affiliates, and advertising agencies from any liability, illness, injury, litigation,
+          or damage that may occur, directly or indirectly, from participation in a Tournament
+          or the receipt or use of a prize.
+        </p>
+
+        <h2>Contact</h2>
+        <p>
+          Questions about these Rules? Reach out through our
+          <.link navigate={~p"/support"} class="link">Support</.link>
+          page.
+        </p>
+      </.legal_page>
+    </Layouts.app>
+    """
+  end
+
   attr :title, :string, required: true
   attr :updated_on, :string, required: true
   slot :inner_block, required: true
@@ -403,4 +534,5 @@ defmodule HighSocietyWeb.LegalLive do
   end
 
   defp last_updated, do: @last_updated
+  defp tournament_rules_updated, do: @tournament_rules_updated
 end
