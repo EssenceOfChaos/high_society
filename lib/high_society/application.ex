@@ -21,6 +21,12 @@ defmodule HighSociety.Application do
       HighSociety.Games.PokerTablesSupervisor,
       {Registry, keys: :unique, name: HighSociety.Games.BattleshipRegistry},
       HighSociety.Games.BattleshipMatchesSupervisor,
+      # Shared by both tournament tables (tagged `{:table, slug}`) and
+      # tournament coordinators (tagged `{:coordinator, tournament_id}`) -
+      # see `HighSociety.Games.TournamentTablesSupervisor`'s moduledoc.
+      {Registry, keys: :unique, name: HighSociety.Games.TournamentRegistry},
+      HighSociety.Games.TournamentTablesSupervisor,
+      HighSociety.Games.TournamentsSupervisor,
       # Start to serve requests, typically the last entry
       HighSocietyWeb.Endpoint,
       HighSociety.Healthcheck.Supervisor
@@ -44,6 +50,20 @@ defmodule HighSociety.Application do
       # process for the same non-blocking-boot reason as the bot seeding
       # above.
       Task.start(&HighSociety.Games.BattleshipMatchesSupervisor.rehydrate_in_flight_matches!/0)
+
+      # Tables rehydrate independently of, and before, any tournament
+      # coordinator - each table's own `init/1` is fully self-contained,
+      # with no dependency on its coordinator being alive. Coordinators
+      # rehydrate second so every table a coordinator looks up already
+      # exists; each `Task.start/1` is unlinked, so either query failing
+      # at boot (e.g. the test-sandbox-ownership race described in
+      # `HighSociety.Games.PokerTable.load_row/1`) just quietly kills
+      # that one Task rather than the app, exactly like
+      # `BattleshipMatchesSupervisor.rehydrate_in_flight_matches!/0`.
+      Task.start(fn ->
+        HighSociety.Games.TournamentTablesSupervisor.rehydrate_in_flight_tables!()
+        HighSociety.Games.TournamentsSupervisor.rehydrate_in_flight_tournaments!()
+      end)
 
       ok
     end

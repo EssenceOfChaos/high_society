@@ -36,4 +36,38 @@ defmodule HighSociety.SupportTest do
       refute_email_sent()
     end
   end
+
+  describe "receive_inbound_email/1" do
+    test "forwards an inbound email to the support inbox, reply-to the sender" do
+      data = %{
+        "from" => "Ada Lovelace <ada@example.com>",
+        "subject" => "Question about the tournament",
+        "text" => "Does the tournament run every week?"
+      }
+
+      assert {:ok, report} = Support.receive_inbound_email(data)
+      assert report.name == "Ada Lovelace"
+      assert report.email == "ada@example.com"
+      assert report.message =~ "Question about the tournament"
+      assert report.message =~ "Does the tournament run every week?"
+
+      support_email = Application.get_env(:high_society, :support_email)
+      assert_email_sent(to: support_email, reply_to: "ada@example.com")
+    end
+
+    test "falls back to the bare address when there's no display name" do
+      data = %{"from" => "ada@example.com", "text" => "hello there"}
+
+      assert {:ok, report} = Support.receive_inbound_email(data)
+      assert report.name == "ada@example.com"
+      assert report.email == "ada@example.com"
+    end
+
+    test "falls back to stripped html when there's no plain-text body" do
+      data = %{"from" => "ada@example.com", "html" => "<p>Hello <b>there</b></p>"}
+
+      assert {:ok, report} = Support.receive_inbound_email(data)
+      assert report.message =~ "Hello  there"
+    end
+  end
 end

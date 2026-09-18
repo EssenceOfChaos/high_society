@@ -35,6 +35,14 @@ defmodule HighSocietyWeb.Layouts do
     doc:
       "optional full-bleed section rendered between the header and the constrained main content"
 
+  attr :hero_video?, :boolean,
+    default: false,
+    doc:
+      "true when the hero slot is unpredictable video content (only the dashboard, currently) " <>
+        "rather than a fixed dark background - the brand icon needs a guaranteed-light treatment " <>
+        "there instead of its usual theme color, since the theme color could wash out against the " <>
+        "video at any given moment"
+
   slot :inner_block, required: true
 
   def app(assigns) do
@@ -76,7 +84,7 @@ defmodule HighSocietyWeb.Layouts do
             name="hero-rectangle-stack-solid"
             class={[
               "size-7",
-              if(@hero != [],
+              if(@hero_video?,
                 do: "bg-gradient-to-r from-zinc-100 via-slate-200 to-zinc-300",
                 else: "text-primary [[data-theme=dark]_&]:text-secondary"
               )
@@ -180,6 +188,9 @@ defmodule HighSocietyWeb.Layouts do
         </.link>
         <.link navigate={~p"/age-restriction"} class="link link-hover">
           18+
+        </.link>
+        <.link navigate={~p"/tournament/rules"} class="link link-hover">
+          Tournament Rules
         </.link>
       </div>
     </footer>
