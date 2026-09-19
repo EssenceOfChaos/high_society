@@ -43,6 +43,14 @@ defmodule HighSocietyWeb.Layouts do
         "there instead of its usual theme color, since the theme color could wash out against the " <>
         "video at any given moment"
 
+  attr :hero_fixed_dark?, :boolean,
+    default: false,
+    doc:
+      "true when the hero slot is a fixed dark/navy background regardless of the light/dark " <>
+        "toggle (e.g. .glamorous-bg, see SupportLive) - --color-primary is navy in light theme " <>
+        "too, so the icon's usual text-primary would wash out against a navy hero specifically " <>
+        "in light theme. Forces the same literal gold used on the 404 page instead."
+
   slot :inner_block, required: true
 
   def app(assigns) do
@@ -84,10 +92,11 @@ defmodule HighSocietyWeb.Layouts do
             name="hero-rectangle-stack-solid"
             class={[
               "size-7",
-              if(@hero_video?,
-                do: "bg-gradient-to-r from-zinc-100 via-slate-200 to-zinc-300",
-                else: "text-primary [[data-theme=dark]_&]:text-secondary"
-              )
+              cond do
+                @hero_video? -> "bg-gradient-to-r from-zinc-100 via-slate-200 to-zinc-300"
+                @hero_fixed_dark? -> "text-[#957c3d]"
+                true -> "text-primary [[data-theme=dark]_&]:text-secondary"
+              end
             ]}
           />
           <span class="text-lg font-bold tracking-tight">High Society</span>

@@ -7,27 +7,44 @@ defmodule HighSocietyWeb.SupportLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-sm">
-        <div class="text-center">
-          <.header>
-            Contact support
-            <:subtitle>
-              Found a bug or have a question? Send us a message and we'll get back to you.
-            </:subtitle>
-          </.header>
+    <Layouts.app flash={@flash} current_scope={@current_scope} hero_fixed_dark?={true}>
+      <:hero>
+        <div class="glamorous-bg fixed inset-0" />
+
+        <div class="relative z-10 flex min-h-[70vh] flex-col items-center justify-center px-4 py-20 sm:px-6 lg:px-8">
+          <div class="mx-auto w-full max-w-sm">
+            <div class="text-center">
+              <.header>
+                <span class="text-white">Contact support</span>
+                <:subtitle>
+                  <span class="text-white/70">
+                    Found a bug or have a question? Send us a message and we'll get back to you.
+                  </span>
+                </:subtitle>
+              </.header>
+            </div>
+
+            <.form for={@form} id="support_form" phx-submit="save" phx-change="validate">
+              <.input
+                field={@form[:name]}
+                type="text"
+                label="Name"
+                required
+                phx-mounted={JS.focus()}
+              />
+              <.input field={@form[:email]} type="email" label="Email" autocomplete="email" required />
+              <.input field={@form[:message]} type="textarea" label="Message" rows="6" required />
+
+              <.button
+                phx-disable-with="Sending..."
+                class="btn w-full border-none bg-[#957c3d] text-[#002349] hover:bg-[#ab8f49]"
+              >
+                Send report
+              </.button>
+            </.form>
+          </div>
         </div>
-
-        <.form for={@form} id="support_form" phx-submit="save" phx-change="validate">
-          <.input field={@form[:name]} type="text" label="Name" required phx-mounted={JS.focus()} />
-          <.input field={@form[:email]} type="email" label="Email" autocomplete="email" required />
-          <.input field={@form[:message]} type="textarea" label="Message" rows="6" required />
-
-          <.button phx-disable-with="Sending..." class="btn btn-primary w-full">
-            Send report
-          </.button>
-        </.form>
-      </div>
+      </:hero>
     </Layouts.app>
     """
   end
