@@ -140,6 +140,23 @@ defmodule HighSocietyWeb.GameLive.SlotsTest do
     conn: conn,
     user: user
   } do
+    # maybe_schedule_free_spin/1 schedules :auto_spin the instant the
+    # socket connects, i.e. before `live/2` below even returns - so with
+    # test config's real (if fast) 10ms delay, there's no guarantee this
+    # test's own process gets scheduled to run the assertions right below
+    # before that timer already fired in the LiveView's process, sometimes
+    # racing through 1, 2, or all 3 free spins under CI load before we ever
+    # get to check anything. Pin the delay high enough that it can't
+    # possibly fire on its own during this test, then drive the round
+    # forward explicitly by sending the same :auto_spin message ourselves -
+    # deterministic regardless of scheduling.
+    previous_delay = Application.get_env(:high_society, :slots_free_spin_delay_ms)
+    Application.put_env(:high_society, :slots_free_spin_delay_ms, :timer.minutes(5))
+
+    on_exit(fn ->
+      Application.put_env(:high_society, :slots_free_spin_delay_ms, previous_delay)
+    end)
+
     {:ok, user} = Accounts.claim_slots_tokens(user)
 
     %SlotsGame{}
@@ -164,12 +181,11 @@ defmodule HighSocietyWeb.GameLive.SlotsTest do
 
     balance_before = Accounts.get_user!(user.id).tokens_balance
 
-    # No click needed - an active free-spins round advances on its own.
-    # Under test the reveal/auto-advance delays are tiny, so by the time
-    # this observes a completed cycle, more than one free spin may already
-    # have fired in the background - assert the invariants that hold no
-    # matter how many did (wager never changes, balance never drops, since
-    # free spins don't debit).
+    # No click needed - an active free-spins round advances on its own, but
+    # with the real timer pinned out of the way above, we trigger that
+    # advance ourselves rather than waiting on it. handle_info(:auto_spin,
+    # ...) doesn't care whether the message came from a real timer or not.
+    send(view.pid, :auto_spin)
     await_reveal(view)
 
     updated_user = Accounts.get_user!(user.id)

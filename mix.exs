@@ -50,6 +50,12 @@ defmodule HighSociety.MixProject do
       {:phoenix_live_view, "~> 1.2.0"},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:phoenix_live_dashboard, "~> 0.8.3"},
+      # Optional dep of phoenix_live_dashboard - once present, its built-in
+      # "Ecto Stats" page (Phoenix.LiveDashboard.EctoStatsPage) auto-discovers
+      # HighSociety.Repo (via the :ecto_repos config below) and lights up
+      # with cache hit rate, index usage, locks, bloat, etc. No router
+      # changes needed - see https://ecto-psql-extras.hexdocs.pm.
+      {:ecto_psql_extras, "~> 0.8"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
       {:heroicons,
@@ -68,7 +74,8 @@ defmodule HighSociety.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:dotenv_parser, "~> 2.0"},
-      {:sobelow, "~> 0.15", only: [:dev], runtime: false}
+      {:sobelow, "~> 0.15", only: [:dev], runtime: false},
+      {:cloak_ecto, "~> 1.3"}
     ]
   end
 

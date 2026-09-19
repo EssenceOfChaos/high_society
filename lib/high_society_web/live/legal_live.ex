@@ -147,6 +147,15 @@ defmodule HighSocietyWeb.LegalLive do
             balance are saved between visits.
           </li>
           <li>
+            <strong>Tournament identity verification data</strong>
+            — optional, and only ever needed if you place 1st or 2nd in a poker tournament: an
+            Ethereum address, plus legal name, address, and date of birth, collected solely to
+            verify your identity before sending a prize (so we're not paying a sanctioned or
+            blacklisted person or entity - see the
+            <.link navigate={~p"/tournament/rules"} class="link">Official Tournament Rules</.link>
+            ). Encrypted at rest, unlike anything else in this list.
+          </li>
+          <li>
             <strong>Technical data</strong>
             — standard web request information (such as IP address and browser type) used for
             security and troubleshooting.
@@ -391,7 +400,10 @@ defmodule HighSocietyWeb.LegalLive do
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <.legal_page title="Official Tournament Rules" updated_on={tournament_rules_updated()}>
         <div class="flex items-start gap-3 rounded-box border border-primary/30 bg-primary/10 p-4">
-          <.icon name="hero-megaphone" class="mt-0.5 size-6 shrink-0 text-primary" />
+          <.icon
+            name="hero-megaphone"
+            class="mt-0.5 size-6 shrink-0 text-primary [[data-theme=dark]_&]:text-secondary"
+          />
           <p class="font-semibold text-base-content">
             NO PURCHASE OR PAYMENT OF ANY KIND IS NECESSARY TO ENTER OR WIN THIS TOURNAMENT.
             A PURCHASE WILL NOT INCREASE YOUR CHANCES OF WINNING.
@@ -399,7 +411,10 @@ defmodule HighSocietyWeb.LegalLive do
         </div>
 
         <h2 class="flex items-center gap-2">
-          <.icon name="hero-identification" class="size-5 text-primary" /> 1. Eligibility
+          <.icon
+            name="hero-identification"
+            class="size-5 text-primary [[data-theme=dark]_&]:text-secondary"
+          /> 1. Eligibility
         </h2>
         <p>
           The High Society Poker Tournament (the "Tournament") is open only to legal residents
@@ -413,12 +428,18 @@ defmodule HighSocietyWeb.LegalLive do
         </p>
 
         <h2 class="flex items-center gap-2">
-          <.icon name="hero-building-office" class="size-5 text-primary" /> 2. Sponsor
+          <.icon
+            name="hero-building-office"
+            class="size-5 text-primary [[data-theme=dark]_&]:text-secondary"
+          /> 2. Sponsor
         </h2>
         <p>The Tournament is sponsored by High Society ("Sponsor").</p>
 
         <h2 class="flex items-center gap-2">
-          <.icon name="hero-document-check" class="size-5 text-primary" /> 3. Agreement to Rules
+          <.icon
+            name="hero-document-check"
+            class="size-5 text-primary [[data-theme=dark]_&]:text-secondary"
+          /> 3. Agreement to Rules
         </h2>
         <p>
           By registering for or participating in a Tournament, you agree to be fully and
@@ -427,7 +448,10 @@ defmodule HighSocietyWeb.LegalLive do
         </p>
 
         <h2 class="flex items-center gap-2">
-          <.icon name="hero-calendar" class="size-5 text-primary" /> 4. Tournament Period &amp; Entry
+          <.icon
+            name="hero-calendar"
+            class="size-5 text-primary [[data-theme=dark]_&]:text-secondary"
+          /> 4. Tournament Period &amp; Entry
         </h2>
         <p>
           Each Tournament's date and time are announced on the
@@ -439,7 +463,8 @@ defmodule HighSocietyWeb.LegalLive do
         </p>
 
         <h2 class="flex items-center gap-2">
-          <.icon name="hero-trophy" class="size-5 text-primary" /> 5. Prize &amp; Odds of Winning
+          <.icon name="hero-trophy" class="size-5 text-primary [[data-theme=dark]_&]:text-secondary" />
+          5. Prize &amp; Odds of Winning
         </h2>
         <p>One (1) First Place winner and one (1) Second Place winner will be selected:</p>
         <ul>
@@ -453,39 +478,47 @@ defmodule HighSocietyWeb.LegalLive do
         </ul>
         <p>
           The exact amount of ETH transferred will be calculated based on the fair market value
-          of ETH at the time the prize is sent. All other participants receive a thank-you email
-          and no prize. The odds of winning depend entirely on the total number of eligible
+          of ETH at the time the prize is sent. The odds of winning depend entirely on the total number of eligible
           participants and each player's individual skill level.
         </p>
 
         <h2 class="flex items-center gap-2">
-          <.icon name="hero-envelope" class="size-5 text-primary" />
-          6. Winner Selection and Notification
+          <.icon
+            name="hero-envelope"
+            class="size-5 text-primary [[data-theme=dark]_&]:text-secondary"
+          /> 6. Winner Selection and Notification
         </h2>
         <p>
           Winners are determined by the final standing of the Tournament software once every
-          other player has been eliminated. Winners will be notified by email within
+          other player has been eliminated. Winners will have seven (7) days from the Tournament's completion to claim their prize. If a winner does not claim their prize within this time frame, the prize may be forfeited or may be awarded to the next eligible participant at Sponsor's discretion. Winners will be notified via the email address associated with their High Society account. All that is required to claim the prize is to complete the identity verification process and provide a valid cryptocurrency wallet address capable of receiving ETH. Winners must respond to the notification within
           <strong>7 days</strong>
           of the Tournament's completion.
         </p>
 
         <h2 class="flex items-center gap-2">
-          <.icon name="hero-shield-check" class="size-5 text-primary" />
-          7. Prize Claim &amp; Compliance Requirements
+          <.icon
+            name="hero-shield-check"
+            class="size-5 text-primary [[data-theme=dark]_&]:text-secondary"
+          /> 7. Prize Claim &amp; Compliance Requirements
         </h2>
         <p>
           As a condition of receiving a prize, the First and Second Place winners must provide a
           valid cryptocurrency wallet address capable of receiving ETH. Because Sponsor cannot
           send payment to sanctioned, blacklisted, or otherwise restricted individuals or
           entities, First and Second Place winners are required to complete identity
-          verification ("KYC") — proof of identity, age, and residency — before any prize is
-          sent, even though providing this information is optional for every other participant.
-          If a winner is found to have used a VPN or other location-masking software to bypass
-          the geographic restrictions in Section 1, the prize will be immediately forfeited.
+          verification ("KYC") — full legal name, address, and date of birth, entered on the
+          same registration page used to enter the Tournament — within <strong>7 days</strong>
+          of the Tournament ending, before any prize is sent. Providing this information is
+          entirely optional for every other participant. If a winner is found to have used a
+          VPN or other location-masking software to bypass the geographic restrictions in
+          Section 1, the prize will be immediately forfeited.
         </p>
 
         <h2 class="flex items-center gap-2">
-          <.icon name="hero-receipt-percent" class="size-5 text-primary" /> 8. Taxes
+          <.icon
+            name="hero-receipt-percent"
+            class="size-5 text-primary [[data-theme=dark]_&]:text-secondary"
+          /> 8. Taxes
         </h2>
         <p>
           All federal, state, and local taxes associated with the receipt or use of a
@@ -494,7 +527,8 @@ defmodule HighSocietyWeb.LegalLive do
         </p>
 
         <h2 class="flex items-center gap-2">
-          <.icon name="hero-scale" class="size-5 text-primary" /> 9. Limitation of Liability
+          <.icon name="hero-scale" class="size-5 text-primary [[data-theme=dark]_&]:text-secondary" />
+          9. Limitation of Liability
         </h2>
         <p>
           By entering, you agree to release and hold harmless Sponsor and its subsidiaries,

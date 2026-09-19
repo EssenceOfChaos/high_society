@@ -4,6 +4,8 @@ defmodule HighSocietyWeb.AdminLive.TokenTransactionsTest do
   import Phoenix.LiveViewTest
 
   alias HighSociety.Accounts
+  alias HighSociety.Accounts.TokenTransaction
+  alias HighSociety.Repo
 
   setup :register_and_log_in_user
 
@@ -62,6 +64,35 @@ defmodule HighSocietyWeb.AdminLive.TokenTransactionsTest do
     html = render(view)
     assert html =~ "blackjack_bet"
     refute html =~ "test_funding"
+  end
+
+  test "shows a Load more button once a player passes 100 transactions, and paginates", %{
+    conn: conn,
+    user: admin
+  } do
+    Application.put_env(:high_society, :admin_emails, [admin.email])
+
+    player = HighSociety.AccountsFixtures.user_fixture()
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    entries =
+      for i <- 1..101 do
+        %{user_id: player.id, amount: i, source: "test_funding", metadata: %{}, inserted_at: now}
+      end
+
+    Repo.insert_all(TokenTransaction, entries)
+
+    {:ok, view, _html} = live(conn, ~p"/admin/token-transactions")
+
+    view |> form("form", %{email: player.email, source: ""}) |> render_submit()
+
+    html = render(view)
+    assert html =~ "Showing 100 transactions"
+    assert has_element?(view, "button", "Load more")
+
+    html = view |> element("button", "Load more") |> render_click()
+    assert html =~ "Showing 101 transactions"
+    refute has_element?(view, "button", "Load more")
   end
 
   test "shows an error for an email with no matching player", %{conn: conn, user: admin} do

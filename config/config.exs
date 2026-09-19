@@ -77,6 +77,19 @@ config :high_society, :resend_webhook_secret, nil
 # RESEND_API_KEY in prod (see config/runtime.exs).
 config :high_society, :resend_api_key, nil
 
+# Encrypts tournament KYC fields at rest (see HighSociety.Vault) - unlike
+# the secrets above, this one can't be left nil/unset here, since the
+# Vault is a GenServer that must start with a real key or the whole app
+# fails to boot. This dev/test key is not sensitive (nothing it protects
+# in those environments is real), and is overridden with a real one from
+# KYC_ENCRYPTION_KEY in prod (see config/runtime.exs).
+config :high_society, HighSociety.Vault,
+  ciphers: [
+    default:
+      {Cloak.Ciphers.AES.GCM,
+       tag: "AES.GCM.V1", key: Base.decode64!("f/TWFlL44kJmJJ9VZH6pJcsdKmoAKyE8aA7w8qo13r8=")}
+  ]
+
 # Configure esbuild (the version is required)
 config :esbuild,
   version: "0.25.4",

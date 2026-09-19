@@ -1,4 +1,6 @@
 defmodule HighSociety.Tournaments.Notifier do
+  use HighSocietyWeb, :verified_routes
+
   import Swoosh.Email
   require Logger
 
@@ -105,59 +107,29 @@ defmodule HighSociety.Tournaments.Notifier do
 
   defp placement_subject(_entry), do: "Thanks for playing the High Society poker tournament"
 
-  defp placement_body(_tournament, %PokerTournamentEntry{finish_place: 1, ethereum_address: nil}) do
+  defp placement_body(
+         %PokerTournament{} = tournament,
+         %PokerTournamentEntry{finish_place: 1} = entry
+       ) do
     """
     Congratulations - you won the High Society poker tournament!
 
-    Your prize is $75 in ETH plus an exclusive High Society NFT, sent
-    manually after the tournament. You didn't provide an Ethereum address
-    for the payout - reply to this email (or update your registration, if
-    it's still open) with one and we'll get it sent over.
+    Your prize is $75 in ETH plus an exclusive High Society NFT.
+    #{ethereum_address_line(entry)}
+    #{kyc_paragraph(tournament, entry)}
     """
   end
 
-  defp placement_body(_tournament, %PokerTournamentEntry{
-         finish_place: 1,
-         ethereum_address: address
-       }) do
-    """
-    Congratulations - you won the High Society poker tournament!
-
-    Your prize is $75 in ETH plus an exclusive High Society NFT, sent
-    manually to the Ethereum address on file:
-
-    #{address}
-
-    If that address is wrong, reply to this email and we'll get it
-    corrected before sending your prize.
-    """
-  end
-
-  defp placement_body(_tournament, %PokerTournamentEntry{finish_place: 2, ethereum_address: nil}) do
+  defp placement_body(
+         %PokerTournament{} = tournament,
+         %PokerTournamentEntry{finish_place: 2} = entry
+       ) do
     """
     Nicely played - you finished 2nd in the High Society poker tournament!
 
-    Your prize is $25 in ETH, sent manually after the tournament. You
-    didn't provide an Ethereum address for the payout - reply to this
-    email (or update your registration, if it's still open) with one and
-    we'll get it sent over.
-    """
-  end
-
-  defp placement_body(_tournament, %PokerTournamentEntry{
-         finish_place: 2,
-         ethereum_address: address
-       }) do
-    """
-    Nicely played - you finished 2nd in the High Society poker tournament!
-
-    Your prize is $25 in ETH, sent manually to the Ethereum address on
-    file:
-
-    #{address}
-
-    If that address is wrong, reply to this email and we'll get it
-    corrected before sending your prize.
+    Your prize is $25 in ETH.
+    #{ethereum_address_line(entry)}
+    #{kyc_paragraph(tournament, entry)}
     """
   end
 
@@ -169,6 +141,45 @@ defmodule HighSociety.Tournaments.Notifier do
     keep an eye out for the next one.
     """
   end
+
+  defp ethereum_address_line(%PokerTournamentEntry{ethereum_address: nil}) do
+    "You haven't provided an Ethereum address yet - see below for where to add one."
+  end
+
+  defp ethereum_address_line(%PokerTournamentEntry{ethereum_address: address}) do
+    "Sent manually to the Ethereum address on file: #{address}"
+  end
+
+  # KYC ("know your customer") identity verification is a legal
+  # requirement before any prize payout, so it can't skip straight to
+  # "you're all set" just because an Ethereum address is on file - see
+  # HighSociety.Tournaments.PokerTournamentEntry's moduledoc.
+  defp kyc_paragraph(%PokerTournament{} = tournament, %PokerTournamentEntry{} = entry) do
+    registration_url = url(~p"/tournament/#{tournament.id}/register")
+
+    if kyc_complete?(entry) do
+      """
+      You've already provided the identity verification info we need to
+      process your payout - no further action needed. If any of it was
+      wrong, you can still update it here:
+
+      #{registration_url}
+      """
+    else
+      """
+      Before we can send your prize, we're required to verify your
+      identity (so we can't send payment to a sanctioned or blacklisted
+      person or entity) - please provide your legal name, address, and
+      date of birth within 7 days of this email at:
+
+      #{registration_url}
+      """
+    end
+  end
+
+  @kyc_fields ~w(first_name last_name address city state zip_code date_of_birth)a
+
+  defp kyc_complete?(entry), do: Enum.all?(@kyc_fields, &(Map.fetch!(entry, &1) not in [nil, ""]))
 
   defp ordinal(n) when rem(n, 100) in 11..13, do: "#{n}th"
 

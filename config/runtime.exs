@@ -194,4 +194,20 @@ if config_env() == :prod do
       """
 
   config :high_society, :resend_webhook_secret, resend_webhook_secret
+
+  kyc_encryption_key =
+    System.get_env("KYC_ENCRYPTION_KEY") ||
+      raise """
+      environment variable KYC_ENCRYPTION_KEY is missing.
+      Generate one with:
+          elixir -e 'IO.puts(32 |> :crypto.strong_rand_bytes() |> Base.encode64())'
+      This encrypts tournament KYC fields (name, address, date of birth) at
+      rest - losing this key makes existing encrypted data unrecoverable,
+      so store it somewhere durable, not just in Gigalixir's env config.
+      """
+
+  config :high_society, HighSociety.Vault,
+    ciphers: [
+      default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: Base.decode64!(kyc_encryption_key)}
+    ]
 end

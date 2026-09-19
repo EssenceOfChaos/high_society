@@ -24,27 +24,19 @@ defmodule HighSocietyWeb.Plugs.CaptureGeo do
   (fail open).
   """
   import Plug.Conn
-  require Logger
 
-  # Tried in order; the first one actually present in a request wins. See
-  # the moduledoc - Cloudflare's exact header name for this isn't
-  # guaranteed, so this hedges across the plausible spellings instead of
-  # silently capturing nothing if the real one isn't first in the list.
+  # Tried in order; the first one actually present in a request wins.
+  # Confirmed against a live production log on 2026-09-18 (once "Add
+  # visitor location headers" was genuinely enabled - an earlier check
+  # that appeared Enabled turned out not to have actually been saved):
+  # Cloudflare sends `cf-region-code` as a bare two-letter code (e.g.
+  # `"PA"`, not `"US-PA"`), which is exactly what
+  # `HighSociety.Tournaments.GeoRestriction` already normalizes for.
   @region_headers ~w(cf-region-code cf-regioncode cf-region)
 
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    # TEMPORARY - remove once the real header name/format sent by this
-    # Cloudflare account is confirmed (see `capture_geo_test.exs`'s
-    # sibling conversation/PR). Logs every `cf-*` header on every
-    # request, not just the ones already guessed, so a live visit's logs
-    # show the actual header name/value to check `@region_headers`
-    # against - never anything sensitive, these are only geolocation
-    # metadata Cloudflare adds itself.
-    cf_headers = for {k, v} <- conn.req_headers, String.starts_with?(k, "cf-"), do: {k, v}
-    if cf_headers != [], do: Logger.info("CaptureGeo saw cf-* headers: #{inspect(cf_headers)}")
-
     country = conn |> get_req_header("cf-ipcountry") |> List.first()
     subdivision = region_header(conn)
 
