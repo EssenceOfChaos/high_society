@@ -56,7 +56,43 @@ defmodule HighSociety.Tournaments.NotifierTest do
         email.to == [{"", runner_up.user.email}] and
           email.subject == "You took 2nd in the High Society poker tournament" and
           email.text_body =~ "$25 in ETH" and
-          email.text_body =~ "didn't provide an Ethereum address"
+          email.text_body =~ "haven't provided an Ethereum address"
+      end)
+    end
+
+    test "asks an incomplete-KYC winner to provide it within 7 days, with a link back to the form",
+         %{tournament: tournament, runner_up: runner_up} do
+      Notifier.deliver_results(tournament, [runner_up])
+
+      assert_email_sent(fn email ->
+        email.text_body =~ "within 7 days" and
+          email.text_body =~ "verify your\nidentity" and
+          email.text_body =~ "/tournament/#{tournament.id}/register"
+      end)
+    end
+
+    test "tells a complete-KYC winner no further action is needed", %{tournament: tournament} do
+      champion =
+        entry_fixture(tournament, 1,
+          ethereum_address: "0x" <> String.duplicate("a", 40),
+          first_name: "Jane",
+          last_name: "Doe",
+          address: "123 Main St",
+          city: "Philadelphia",
+          state: "PA",
+          zip_code: "19102",
+          date_of_birth: ~D[1990-01-15]
+        )
+
+      assert_email_sent(subject: "Confirmation instructions")
+      assert_email_sent(subject: "Welcome to HighSociety!")
+      assert_email_sent(subject: "You're registered for the High Society poker tournament")
+
+      Notifier.deliver_results(tournament, [champion])
+
+      assert_email_sent(fn email ->
+        email.text_body =~ "no further action needed" and
+          email.text_body =~ "/tournament/#{tournament.id}/register"
       end)
     end
 
@@ -98,10 +134,12 @@ defmodule HighSociety.Tournaments.NotifierTest do
     end
   end
 
+  @registration_fields ~w(ethereum_address first_name last_name address city state zip_code date_of_birth)a
+
   defp entry_fixture(tournament, finish_place, opts \\ []) do
     user = user_fixture()
     scope = HighSociety.Accounts.Scope.for_user(user)
-    registration_attrs = opts |> Keyword.take([:ethereum_address]) |> Map.new()
+    registration_attrs = opts |> Keyword.take(@registration_fields) |> Map.new()
     {:ok, entry} = HighSociety.Tournaments.register(scope, tournament, registration_attrs)
 
     {:ok, entry} =

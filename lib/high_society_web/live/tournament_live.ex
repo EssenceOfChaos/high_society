@@ -1,33 +1,52 @@
 defmodule HighSocietyWeb.TournamentLive do
   @moduledoc """
-  Sign-up for the poker tournament. Requires an account (see the
-  `:require_authenticated_user` route) - the Ethereum address is the only
-  optional field, collected purely so a human can manually send a winner's
-  prize after the tournament. Nothing here moves crypto on its own.
+  Sign-up for the poker tournament, and where a winner comes back to
+  provide the KYC info required to actually collect a prize. The
+  Ethereum address and every KYC field (name, address, date of birth)
+  are optional at registration time - only the 1st/2nd place winners
+  ever need them filled in, and only within 7 days of the tournament
+  ending (see the "Prize Claim & Compliance Requirements" section of
+  `/tournament/rules`). Nothing here moves crypto or verifies identity
+  on its own.
+
+  Reachable two ways: bare `/tournament` (the tournament
+  `HighSociety.Tournaments.current_tournament/0` resolves - the one
+  worth showing someone who isn't already registered for anything) and
+  `/tournament/:id` (a specific tournament, reachable even after it's
+  finished - the link a placement email sends a winner back to, since a
+  finished tournament is never `current_tournament/0`).
   """
   use HighSocietyWeb, :live_view
 
   alias HighSociety.Tournaments
 
   @impl true
+  def mount(%{"id" => id}, _session, socket) do
+    mount_tournament(Tournaments.get_tournament!(id), socket)
+  end
+
   def mount(_params, _session, socket) do
-    socket = assign(socket, :page_title, "Poker Tournament")
+    mount_tournament(Tournaments.current_tournament(), socket)
+  end
 
-    case Tournaments.current_tournament() do
-      nil ->
-        {:ok, assign(socket, tournament: nil, registered?: false)}
+  defp mount_tournament(nil, socket) do
+    {:ok,
+     socket
+     |> assign(:page_title, "Poker Tournament")
+     |> assign(tournament: nil, registered?: false)}
+  end
 
-      tournament ->
-        scope = socket.assigns.current_scope
-        entry = Tournaments.get_entry(scope, tournament)
-        changeset = Tournaments.change_entry(scope, tournament)
+  defp mount_tournament(tournament, socket) do
+    scope = socket.assigns.current_scope
+    entry = Tournaments.get_entry(scope, tournament)
+    changeset = Tournaments.change_entry(scope, tournament)
 
-        {:ok,
-         socket
-         |> assign(:tournament, tournament)
-         |> assign(:registered?, not is_nil(entry))
-         |> assign_form(changeset)}
-    end
+    {:ok,
+     socket
+     |> assign(:page_title, "Poker Tournament")
+     |> assign(:tournament, tournament)
+     |> assign(:registered?, not is_nil(entry))
+     |> assign_form(changeset)}
   end
 
   @impl true
@@ -78,7 +97,7 @@ defmodule HighSocietyWeb.TournamentLive do
 
         <div :if={@registered?} class="alert alert-success mb-4">
           <.icon name="hero-check-circle" class="size-5" />
-          <span>You're registered. Update your Ethereum address below any time.</span>
+          <span>You're registered. Update your info below any time.</span>
         </div>
 
         <.form for={@form} id="tournament_form" phx-submit="save" phx-change="validate">
@@ -91,14 +110,43 @@ defmodule HighSocietyWeb.TournamentLive do
             spellcheck="false"
           />
 
-          <.button phx-disable-with="Saving..." class="btn btn-primary w-full">
+          <div class="mt-6 rounded-box border border-base-300 bg-base-200 p-4">
+            <h2 class="flex items-center gap-2 text-sm font-semibold">
+              <.icon name="hero-shield-check" class="size-4" /> Prize verification info (optional)
+            </h2>
+            <p class="mt-1 text-xs text-base-content/60">
+              Only needed if you place 1st or 2nd - required within 7 days of the tournament
+              ending to receive your prize (identity verification, so we can't send payment to
+              a sanctioned or blacklisted person or entity). Everyone else can leave this blank.
+              You can fill it in now, or come back and add it later if you win.
+            </p>
+
+            <div class="mt-3 grid grid-cols-2 gap-3">
+              <.input field={@form[:first_name]} type="text" label="First name" />
+              <.input field={@form[:last_name]} type="text" label="Last name" />
+            </div>
+            <div class="mt-3">
+              <.input field={@form[:address]} type="text" label="Street address" />
+            </div>
+            <div class="mt-3 grid grid-cols-3 gap-3">
+              <.input field={@form[:city]} type="text" label="City" />
+              <.input field={@form[:state]} type="text" label="State" />
+              <.input field={@form[:zip_code]} type="text" label="ZIP code" />
+            </div>
+            <div class="mt-3">
+              <.input field={@form[:date_of_birth]} type="date" label="Date of birth" />
+            </div>
+          </div>
+
+          <.button phx-disable-with="Saving..." class="btn btn-primary mt-4 w-full">
             {if @registered?, do: "Update registration", else: "Register for the tournament"}
           </.button>
         </.form>
 
         <p class="mt-4 text-center text-xs text-base-content/50">
           Prizes are sent manually after the tournament, not automatically, and only to
-          winners who provided an address. Adding one is entirely optional. See the
+          winners who provided this information. Adding it is entirely optional unless you
+          win. See the
           <.link navigate={~p"/tournament/rules"} class="link">Official Tournament Rules</.link>
           for eligibility, prize, and payout details.
         </p>

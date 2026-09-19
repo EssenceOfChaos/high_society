@@ -44,15 +44,12 @@ defmodule HighSocietyWeb.Router do
   #   pipe_through :api
   # end
 
-  # Enable LiveDashboard and Swoosh mailbox preview in development
-  if Application.compile_env(:high_society, :dev_routes) do
-    # If you want to use the LiveDashboard in production, you should put
-    # it behind authentication and allow only admins to access it.
-    # If your application does not have an admins-only section yet,
-    # you can use Plug.BasicAuth to set up some basic authentication
-    # as long as you are also using SSL (which you should anyway).
-    import Phoenix.LiveDashboard.Router
+  import Phoenix.LiveDashboard.Router
 
+  # Also mounted in production (see the /admin scope below) - this
+  # unauthenticated /dev copy is dev-only convenience, not the one to rely
+  # on for prod traffic monitoring.
+  if Application.compile_env(:high_society, :dev_routes) do
     scope "/dev" do
       pipe_through :browser
 
@@ -76,6 +73,13 @@ defmodule HighSocietyWeb.Router do
         {HighSocietyWeb.TournamentGeoCheck, :restrict_registration}
       ] do
       live "/tournament", TournamentLive, :new
+      # 3 segments, matching the shape of the routes below (never
+      # `/tournament/:id`, a bare 2-segment dynamic route - that would be
+      # declared earlier in this file than the also-2-segment, but
+      # static, `/tournament/rules` below, and a dynamic segment
+      # declared first wins the match in Phoenix's router regardless of
+      # which one is "more specific" - confirmed the hard way).
+      live "/tournament/:id/register", TournamentLive, :edit
     end
 
     live_session :require_authenticated_user,
@@ -105,6 +109,25 @@ defmodule HighSocietyWeb.Router do
 
   scope "/admin", HighSocietyWeb do
     pipe_through [:browser, :require_authenticated_user]
+
+    get "/token-transactions/export", AdminTokenTransactionsController, :export
+
+    # Same LiveDashboard mounted at /dev/dashboard in dev, but reachable in
+    # every environment (including prod) and gated by admin auth instead of
+    # `dev_routes` - the whole point is watching real Postgres/BEAM stats
+    # (including the ecto_psql_extras-powered "Ecto Stats" page) during
+    # actual production traffic, not just locally. `live_dashboard/2` builds
+    # its own internal `live_session`, so it can't be nested inside the one
+    # below - it needs the full on_mount chain (`:require_admin` alone
+    # assumes `current_scope` is already set, same as everywhere else this
+    # pair is used - see `HighSocietyWeb.UserAuth.on_mount/4`).
+    live_dashboard "/dashboard",
+      metrics: HighSocietyWeb.Telemetry,
+      live_session_name: :admin_live_dashboard,
+      on_mount: [
+        {HighSocietyWeb.UserAuth, :require_authenticated},
+        {HighSocietyWeb.UserAuth, :require_admin}
+      ]
 
     live_session :require_admin,
       on_mount: [

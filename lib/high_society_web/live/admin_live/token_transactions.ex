@@ -7,7 +7,10 @@ defmodule HighSocietyWeb.AdminLive.TokenTransactions do
   use HighSocietyWeb, :live_view
 
   alias HighSociety.Accounts
+  alias HighSociety.Accounts.TokenTransaction
   alias HighSociety.Tokens
+
+  @page_size 100
 
   @impl true
   def mount(_params, _session, socket) do
@@ -18,7 +21,8 @@ defmodule HighSocietyWeb.AdminLive.TokenTransactions do
        source_query: "",
        searched_user: nil,
        not_found_email: nil,
-       transactions: []
+       transactions: [],
+       has_more: false
      )}
   end
 
@@ -35,11 +39,12 @@ defmodule HighSocietyWeb.AdminLive.TokenTransactions do
            source_query: source,
            searched_user: nil,
            not_found_email: email,
-           transactions: []
+           transactions: [],
+           has_more: false
          )}
 
       user ->
-        opts = if source == "", do: [limit: 100], else: [limit: 100, source: source]
+        transactions = Accounts.list_token_transactions(user, page_opts(source))
 
         {:noreply,
          assign(socket,
@@ -47,10 +52,28 @@ defmodule HighSocietyWeb.AdminLive.TokenTransactions do
            source_query: source,
            searched_user: user,
            not_found_email: nil,
-           transactions: Accounts.list_token_transactions(user, opts)
+           transactions: transactions,
+           has_more: length(transactions) == @page_size
          )}
     end
   end
+
+  def handle_event("load_more", _params, socket) do
+    %{searched_user: user, source_query: source, transactions: transactions} = socket.assigns
+    opts = [before: cursor(List.last(transactions))] ++ page_opts(source)
+    more = Accounts.list_token_transactions(user, opts)
+
+    {:noreply,
+     assign(socket,
+       transactions: transactions ++ more,
+       has_more: length(more) == @page_size
+     )}
+  end
+
+  defp page_opts(""), do: [limit: @page_size]
+  defp page_opts(source), do: [limit: @page_size, source: source]
+
+  defp cursor(%TokenTransaction{inserted_at: inserted_at, id: id}), do: {inserted_at, id}
 
   defp signed_amount(amount) when amount >= 0, do: "+#{Tokens.format(amount)}"
   defp signed_amount(amount), do: Tokens.format(amount)
@@ -62,6 +85,9 @@ defmodule HighSocietyWeb.AdminLive.TokenTransactions do
 
   defp format_metadata(metadata) when map_size(metadata) == 0, do: "—"
   defp format_metadata(metadata), do: inspect(metadata)
+
+  defp export_params(email, ""), do: %{email: email}
+  defp export_params(email, source), do: %{email: email, source: source}
 
   @impl true
   def render(assigns) do
@@ -112,7 +138,23 @@ defmodule HighSocietyWeb.AdminLive.TokenTransactions do
             No Token transactions recorded for this player yet.
           </p>
 
-          <div :if={@transactions != []} class="mt-4 overflow-x-auto">
+          <div :if={@transactions != []} class="mt-4 flex items-center justify-between">
+            <span class="text-sm text-base-content/60">
+              Showing {length(@transactions)} transaction{if length(@transactions) == 1,
+                do: "",
+                else: "s"} (the CSV download always includes the player's full history).
+            </span>
+            <.link
+              href={
+                ~p"/admin/token-transactions/export?#{export_params(@email_query, @source_query)}"
+              }
+              class="btn btn-sm btn-outline"
+            >
+              <.icon name="hero-arrow-down-tray" class="size-4" /> Download CSV
+            </.link>
+          </div>
+
+          <div :if={@transactions != []} class="mt-2 overflow-x-auto">
             <.table id="admin-token-transactions" rows={@transactions}>
               <:col :let={t} label="Time">{format_time(t.inserted_at)}</:col>
               <:col :let={t} label="Source">{t.source}</:col>
@@ -123,6 +165,10 @@ defmodule HighSocietyWeb.AdminLive.TokenTransactions do
               </:col>
               <:col :let={t} label="Metadata">{format_metadata(t.metadata)}</:col>
             </.table>
+          </div>
+
+          <div :if={@has_more} class="mt-4 flex justify-center">
+            <.button phx-click="load_more" class="btn btn-outline btn-sm">Load more</.button>
           </div>
         </div>
       </div>

@@ -167,6 +167,32 @@ defmodule HighSociety.AccountsTest do
       assert length(Accounts.list_token_transactions(user, limit: 2)) == 2
     end
 
+    test ":limit of nil returns every row, uncapped" do
+      user = user_fixture()
+
+      for _ <- 1..3 do
+        {:ok, user} = Accounts.adjust_tokens_balance(user, 10, "test_funding")
+        user
+      end
+
+      assert length(Accounts.list_token_transactions(user, limit: nil)) == 3
+    end
+
+    test "respects the :before cursor, for paging past a previous page" do
+      user = user_fixture()
+
+      for _ <- 1..3 do
+        {:ok, user} = Accounts.adjust_tokens_balance(user, 10, "test_funding")
+        user
+      end
+
+      assert [newest] = Accounts.list_token_transactions(user, limit: 1)
+
+      rest = Accounts.list_token_transactions(user, before: {newest.inserted_at, newest.id})
+      assert length(rest) == 2
+      refute newest.id in Enum.map(rest, & &1.id)
+    end
+
     test "respects the :source option" do
       user = user_fixture()
       {:ok, user} = Accounts.adjust_tokens_balance(user, 100, "blackjack_bet")

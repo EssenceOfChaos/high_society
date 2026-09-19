@@ -66,4 +66,94 @@ defmodule HighSocietyWeb.GameLive.TournamentResultsTest do
 
     assert html =~ address
   end
+
+  describe "KYC info" do
+    setup %{user: admin} do
+      previous = Application.get_env(:high_society, :admin_emails, [])
+      on_exit(fn -> Application.put_env(:high_society, :admin_emails, previous) end)
+      Application.put_env(:high_society, :admin_emails, [admin.email])
+      :ok
+    end
+
+    test "shows an admin the champion's KYC info, marked complete once every field is filled",
+         %{conn: conn} do
+      tournament = tournament_fixture()
+      champion = user_fixture()
+
+      {:ok, entry} =
+        Tournaments.register(Scope.for_user(champion), tournament, %{
+          "first_name" => "Jane",
+          "last_name" => "Doe",
+          "address" => "123 Main St",
+          "city" => "Philadelphia",
+          "state" => "PA",
+          "zip_code" => "19102",
+          "date_of_birth" => "1990-01-15"
+        })
+
+      entry
+      |> PokerTournamentEntry.placement_changeset(%{finish_place: 1})
+      |> HighSociety.Repo.update!()
+
+      {:ok, _view, html} = live(conn, ~p"/tournament/#{tournament.id}/results")
+
+      assert html =~ "Jane Doe"
+      assert html =~ "1990-01-15"
+      assert html =~ "123 Main St"
+      assert html =~ "Complete"
+    end
+
+    test "marks the champion's KYC info incomplete when only some fields are filled", %{
+      conn: conn
+    } do
+      tournament = tournament_fixture()
+      champion = user_fixture()
+
+      {:ok, entry} =
+        Tournaments.register(Scope.for_user(champion), tournament, %{"first_name" => "Jane"})
+
+      entry
+      |> PokerTournamentEntry.placement_changeset(%{finish_place: 1})
+      |> HighSociety.Repo.update!()
+
+      {:ok, _view, html} = live(conn, ~p"/tournament/#{tournament.id}/results")
+
+      assert html =~ "Incomplete"
+    end
+
+    test "never shows KYC info for a non-winner, even to an admin", %{conn: conn} do
+      tournament = tournament_fixture()
+      still_playing = user_fixture()
+
+      {:ok, _entry} =
+        Tournaments.register(Scope.for_user(still_playing), tournament, %{
+          "first_name" => "Jane",
+          "last_name" => "Doe"
+        })
+
+      {:ok, _view, html} = live(conn, ~p"/tournament/#{tournament.id}/results")
+
+      refute html =~ "Jane Doe"
+    end
+
+    test "hides KYC info from a non-admin entirely", %{conn: conn} do
+      Application.put_env(:high_society, :admin_emails, [])
+      tournament = tournament_fixture()
+      champion = user_fixture()
+
+      {:ok, entry} =
+        Tournaments.register(Scope.for_user(champion), tournament, %{
+          "first_name" => "Jane",
+          "last_name" => "Doe"
+        })
+
+      entry
+      |> PokerTournamentEntry.placement_changeset(%{finish_place: 1})
+      |> HighSociety.Repo.update!()
+
+      {:ok, _view, html} = live(conn, ~p"/tournament/#{tournament.id}/results")
+
+      refute html =~ "Jane Doe"
+    end
+  end
 end

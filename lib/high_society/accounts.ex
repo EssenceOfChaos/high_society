@@ -359,8 +359,13 @@ defmodule HighSociety.Accounts do
 
   ## Options
 
-    * `:limit` - max rows to return. Defaults to 50.
+    * `:limit` - max rows to return. Defaults to 50. Pass `nil` for no cap
+      (e.g. a full CSV export).
     * `:source` - only rows with this exact `source` (e.g. `"blackjack_bet"`).
+    * `:before` - a `{inserted_at, id}` cursor (the last row of a previous
+      page, e.g. `{t.inserted_at, t.id}`) - only rows strictly older than
+      it are returned. For "load more" pagination over this same
+      `desc: inserted_at, desc: id` ordering.
 
   ## Examples
 
@@ -373,18 +378,30 @@ defmodule HighSociety.Accounts do
   """
   @spec list_token_transactions(User.t(), keyword()) :: [TokenTransaction.t()]
   def list_token_transactions(%User{} = user, opts \\ []) do
-    limit = Keyword.get(opts, :limit, 50)
-
     TokenTransaction
     |> where([t], t.user_id == ^user.id)
     |> maybe_filter_source(Keyword.get(opts, :source))
+    |> maybe_cursor(Keyword.get(opts, :before))
     |> order_by([t], desc: t.inserted_at, desc: t.id)
-    |> limit(^limit)
+    |> maybe_limit(Keyword.get(opts, :limit, 50))
     |> Repo.all()
   end
 
   defp maybe_filter_source(query, nil), do: query
   defp maybe_filter_source(query, source), do: where(query, [t], t.source == ^source)
+
+  defp maybe_cursor(query, nil), do: query
+
+  defp maybe_cursor(query, {%DateTime{} = inserted_at, id}) do
+    where(
+      query,
+      [t],
+      t.inserted_at < ^inserted_at or (t.inserted_at == ^inserted_at and t.id < ^id)
+    )
+  end
+
+  defp maybe_limit(query, nil), do: query
+  defp maybe_limit(query, limit), do: limit(query, ^limit)
 
   @doc """
   Records that the user was active today, for badge progression. Atomic and

@@ -14,6 +14,7 @@ defmodule HighSociety.Application do
     children = [
       HighSocietyWeb.Telemetry,
       HighSociety.Repo,
+      HighSociety.Vault,
       {DNSCluster, query: Application.get_env(:high_society, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: HighSociety.PubSub},
       HighSocietyWeb.Presence,

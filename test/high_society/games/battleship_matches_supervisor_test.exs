@@ -15,13 +15,21 @@ defmodule HighSociety.Games.BattleshipMatchesSupervisorTest do
       creator = funded_user()
       slug = create_match_for_test!(creator, 100)
 
-      # Simulate the app having restarted: stop the process without
-      # touching its persisted row (unlike a normal test cleanup, a real
-      # restart doesn't run any of this GenServer's own shutdown logic).
+      # Simulate the app having restarted: remove the process without
+      # touching its persisted row, via the supervisor's own termination
+      # API rather than Process.exit/2. The child spec is `restart:
+      # :transient` (see BattleshipMatchesSupervisor.start_match/1), so a
+      # plain `Process.exit(pid, :kill)` is itself an abnormal exit the
+      # *supervisor* also reacts to - it races its own automatic restart
+      # against this test's explicit rehydrate_in_flight_matches!/0 call
+      # below, making the "gone until rehydrated" assertion flaky. A real
+      # app restart doesn't have this race (the DynamicSupervisor and its
+      # child tracking are gone too, not just the child), and
+      # DynamicSupervisor.terminate_child/2 matches that: it removes the
+      # child from supervision synchronously, with no restart triggered
+      # regardless of the child's restart strategy.
       pid = GenServer.whereis(BattleshipMatch.via(slug))
-      ref = Process.monitor(pid)
-      Process.exit(pid, :kill)
-      assert_receive {:DOWN, ^ref, :process, ^pid, :killed}
+      :ok = DynamicSupervisor.terminate_child(BattleshipMatchesSupervisor, pid)
 
       assert GenServer.whereis(BattleshipMatch.via(slug)) == nil
 
