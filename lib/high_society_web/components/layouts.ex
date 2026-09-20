@@ -67,17 +67,25 @@ defmodule HighSocietyWeb.Layouts do
           {@current_scope.user.display_name || @current_scope.user.email}
         </li>
         <li>
-          <.link href={~p"/users/settings"}>Settings</.link>
+          <.link href={~p"/users/settings"} class="flex items-center gap-1">
+            <.icon name="hero-cog-6-tooth" class="size-4" /> Settings
+          </.link>
         </li>
         <li>
-          <.link href={~p"/users/log-out"} method="delete">Log out</.link>
+          <.link href={~p"/users/log-out"} method="delete" class="flex items-center gap-1">
+            <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" /> Log out
+          </.link>
         </li>
       <% else %>
         <li>
-          <.link href={~p"/users/register"}>Register</.link>
+          <.link href={~p"/users/register"} class="flex items-center gap-1">
+            <.icon name="hero-user-plus" class="size-4" /> Register
+          </.link>
         </li>
         <li>
-          <.link href={~p"/users/log-in"}>Log in</.link>
+          <.link href={~p"/users/log-in"} class="flex items-center gap-1">
+            <.icon name="hero-arrow-right-end-on-rectangle" class="size-4" /> Log in
+          </.link>
         </li>
       <% end %>
     </ul>

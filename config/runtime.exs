@@ -210,4 +210,31 @@ if config_env() == :prod do
     ciphers: [
       default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: Base.decode64!(kyc_encryption_key)}
     ]
+
+  for {config_key, env_var} <- [
+        x_api_key: "X_API_KEY",
+        x_api_key_secret: "X_API_KEY_SECRET",
+        x_access_token: "X_ACCESS_TOKEN",
+        x_access_token_secret: "X_ACCESS_TOKEN_SECRET",
+        threads_app_id: "THREADS_APP_ID",
+        threads_app_secret: "THREADS_APP_SECRET"
+      ] do
+    value =
+      System.get_env(env_var) ||
+        raise """
+        environment variable #{env_var} is missing.
+        For the X_* vars, generate them from the @High_Societycc app's
+        "Keys and tokens" tab at https://developer.x.com/en/portal/dashboard.
+        For the THREADS_* vars, they're the App ID/Secret from the "High
+        Society" app's Basic Settings at https://developers.facebook.com.
+        """
+
+    config :high_society, config_key, value
+  end
+
+  # Off by default - every drafted post (see `HighSociety.Social`) waits
+  # for an admin to approve it at /admin/social-posts until this is
+  # flipped, a config change rather than a code change so the human-review
+  # step can be removed later without a deploy.
+  config :high_society, :social_auto_post?, System.get_env("SOCIAL_AUTO_POST") in ~w(true 1)
 end

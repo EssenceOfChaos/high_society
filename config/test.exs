@@ -66,3 +66,19 @@ config :high_society, :resend_webhook_secret, "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2L
 # below instead of making real requests in tests.
 config :high_society, :resend_api_key, "re_test_dummy_key"
 config :high_society, HighSociety.Resend, plug: {Req.Test, HighSociety.Resend}
+
+# Never actually posted anywhere - HighSociety.Social.XClient is stubbed via
+# Req.Test below instead of making real requests in tests.
+config :high_society, :x_api_key, "test_x_api_key"
+config :high_society, :x_api_key_secret, "test_x_api_key_secret"
+config :high_society, :x_access_token, "test_x_access_token"
+config :high_society, :x_access_token_secret, "test_x_access_token_secret"
+config :high_society, HighSociety.Social.XClient, plug: {Req.Test, HighSociety.Social.XClient}
+
+# Never actually posted anywhere - HighSociety.Social.ThreadsClient is
+# stubbed via Req.Test below instead of making real requests in tests.
+config :high_society, :threads_app_id, "test_threads_app_id"
+config :high_society, :threads_app_secret, "test_threads_app_secret"
+
+config :high_society, HighSociety.Social.ThreadsClient,
+  plug: {Req.Test, HighSociety.Social.ThreadsClient}

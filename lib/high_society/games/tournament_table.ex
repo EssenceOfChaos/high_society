@@ -124,6 +124,8 @@ defmodule HighSociety.Games.TournamentTable do
 
   @impl true
   def init(%{slug: slug, tournament_id: tournament_id}) do
+    Process.set_label({:tournament_table, slug})
+
     # See `HighSociety.Games.PokerTable.init/1` for the atom-interning
     # reason this comes first. Unlike `PokerTable`, this process is never
     # a static boot-time child (only ever created live, or from a

@@ -28,6 +28,7 @@ defmodule HighSociety.Application do
       {Registry, keys: :unique, name: HighSociety.Games.TournamentRegistry},
       HighSociety.Games.TournamentTablesSupervisor,
       HighSociety.Games.TournamentsSupervisor,
+      HighSociety.Social.ThreadsTokenRefresher,
       # Start to serve requests, typically the last entry
       HighSocietyWeb.Endpoint,
       HighSociety.Healthcheck.Supervisor

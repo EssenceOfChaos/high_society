@@ -37,55 +37,67 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
 
   @center %{top: 50, left: 50}
 
+  # `kickers` holds the 0-based indexes into `cards` that aren't actually
+  # part of the named combination, so the modal can render them dimmed.
   @hand_rankings [
     %{
       name: "Royal Flush",
       cards: ~w(AS KS QS JS 10S),
+      kickers: [],
       description: "An ace-high straight flush - the best possible hand."
     },
     %{
       name: "Straight Flush",
       cards: ~w(9H 8H 7H 6H 5H),
+      kickers: [],
       description: "Five consecutive cards, all the same suit."
     },
     %{
       name: "Four of a Kind",
       cards: ~w(9S 9H 9D 9C 2H),
+      kickers: [4],
       description: "Four cards of the same rank."
     },
     %{
       name: "Full House",
       cards: ~w(KS KH KD 4C 4S),
+      kickers: [],
       description: "Three cards of one rank plus two of another."
     },
     %{
       name: "Flush",
       cards: ~w(AS JS 8S 5S 2S),
+      kickers: [],
       description: "Five cards of the same suit, in any order."
     },
     %{
       name: "Straight",
       cards: ~w(9C 8H 7S 6D 5C),
+      kickers: [],
       description: "Five consecutive cards of different suits."
     },
     %{
       name: "Three of a Kind",
       cards: ~w(7H 7S 7D KC 4H),
+      kickers: [3, 4],
       description: "Three cards of the same rank."
     },
     %{
       name: "Two Pair",
       cards: ~w(AS AH KD KC 2S),
+      kickers: [4],
       description: "Two cards of one rank and two of another."
     },
     %{
       name: "Pair",
       cards: ~w(JS JH 8D 6C 2H),
+      kickers: [2, 3, 4],
       description: "Two cards of the same rank."
     },
     %{
       name: "High Card",
       cards: ~w(QS JH 8D 6C 3H),
+      kickers: [1, 2, 3, 4],
       description: "No combination - the highest card plays."
     }
   ]
@@ -220,6 +232,7 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
       assigns
       |> assign(:my_turn?, my_turn?(assigns.state, assigns.current_scope.user.id))
       |> assign(:my_seat_index, my_seat_index)
+      |> assign(:view_anchor_seat, my_seat_index || assigns.state.button_seat)
 
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
@@ -263,8 +276,9 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
               id="hand-rankings-button"
               type="button"
               phx-click="open_hand_rankings"
-              class="btn btn-ghost btn-sm btn-circle"
+              class="btn btn-ghost btn-sm btn-circle tooltip tooltip-bottom"
               aria-label="Poker hand rankings"
+              data-tip="Hand Rankings"
             >
               <.icon name="hero-question-mark-circle" class="size-5" />
             </button>
@@ -302,7 +316,7 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
             id="pot-chips"
             class="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 transition-all duration-700 ease-out"
             phx-hook=".InlineStyle"
-            data-style={"top: #{pot_chip_position(@state.hand, @my_seat_index).top}%; left: #{pot_chip_position(@state.hand, @my_seat_index).left}%;"}
+            data-style={"top: #{pot_chip_position(@state.hand, @view_anchor_seat).top}%; left: #{pot_chip_position(@state.hand, @view_anchor_seat).left}%;"}
           >
             <.chip_stack id="pot-chips-stack" amount={pot_total(@state.hand)} chip_size="size-7" />
             <div class="rounded-full bg-black/50 px-4 py-1 text-sm font-semibold text-amber-200">
@@ -313,7 +327,7 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
           <.seat
             :for={seat_index <- 0..(PokerTables.seats() - 1)}
             seat_index={seat_index}
-            position={seat_position(seat_index, @my_seat_index)}
+            position={seat_position(seat_index, @view_anchor_seat)}
             seat={Map.get(@state.seats, seat_index)}
             hand={@state.hand}
             button_seat={@state.button_seat}
@@ -325,7 +339,7 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
           <.bet_chips
             :for={{seat_index, amount} <- active_bets(@state.hand)}
             id={"bet-chips-#{seat_index}"}
-            position={bet_chip_position(seat_index, @my_seat_index)}
+            position={bet_chip_position(seat_index, @view_anchor_seat)}
             amount={amount}
           />
         </div>
@@ -859,7 +873,11 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
               <span class="font-semibold">{ranking.name}</span>
             </div>
             <div class="flex justify-center -space-x-8">
-              <.card_face :for={card <- ranking.cards} card={card} />
+              <.card_face
+                :for={{card, index} <- Enum.with_index(ranking.cards)}
+                card={card}
+                dim={index in ranking.kickers}
+              />
             </div>
             <p class="text-center text-xs text-base-content/60">{ranking.description}</p>
           </li>
@@ -869,6 +887,10 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
     """
   end
 
+  # See the matching comment in poker_table.ex - `view_anchor_seat` (the
+  # `my_seat_index` param here) is the viewer's own seat when seated, or the
+  # current `button_seat` for a spectator, so the rotation always has a
+  # meaningful frame instead of an arbitrary one.
   defp seat_position(seat_index, my_seat_index),
     do: Enum.at(@seat_positions, display_seat_index(seat_index, my_seat_index))
 
