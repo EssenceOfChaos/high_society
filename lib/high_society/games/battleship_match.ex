@@ -112,6 +112,8 @@ defmodule HighSociety.Games.BattleshipMatch do
 
   @impl true
   def init(%{slug: slug}) do
+    Process.set_label({:battleship_match, slug})
+
     # See `HighSociety.Games.PokerTable.init/1` for why: a match restarted
     # by the DynamicSupervisor after a crash, or rehydrated at boot, can
     # deserialize a persisted `Battleship` before anything else has

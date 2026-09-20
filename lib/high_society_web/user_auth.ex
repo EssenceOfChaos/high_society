@@ -273,7 +273,28 @@ defmodule HighSocietyWeb.UserAuth do
 
       Scope.for_user(user)
     end)
+    |> label_live_view()
     |> maybe_record_activity()
+  end
+
+  # Labels the connected LiveView process with its module and (if signed
+  # in) user id, so a crash log or Observer/LiveDashboard listing shows
+  # "who was looking at what" instead of a bare pid. Only the connected
+  # mount is worth labeling - like `maybe_record_activity/1` below, the
+  # disconnected static-render mount is a separate, short-lived process
+  # that's gone before anyone could inspect it.
+  defp label_live_view(socket) do
+    if Phoenix.LiveView.connected?(socket) do
+      user_id =
+        case socket.assigns.current_scope do
+          %Scope{user: %Accounts.User{id: id}} -> id
+          _ -> nil
+        end
+
+      Process.set_label({:live_view, socket.view, user_id})
+    end
+
+    socket
   end
 
   # Bumps the user's active-days streak (used for badge progression) once

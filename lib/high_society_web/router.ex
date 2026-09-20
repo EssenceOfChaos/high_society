@@ -112,6 +112,9 @@ defmodule HighSocietyWeb.Router do
 
     get "/token-transactions/export", AdminTokenTransactionsController, :export
 
+    get "/threads/connect", AdminThreadsController, :connect
+    get "/threads/callback", AdminThreadsController, :callback
+
     # Same LiveDashboard mounted at /dev/dashboard in dev, but reachable in
     # every environment (including prod) and gated by admin auth instead of
     # `dev_routes` - the whole point is watching real Postgres/BEAM stats
@@ -136,6 +139,7 @@ defmodule HighSocietyWeb.Router do
       ] do
       live "/token-transactions", AdminLive.TokenTransactions, :index
       live "/tournaments", AdminLive.Tournaments, :index
+      live "/social-posts", AdminLive.SocialPosts, :index
     end
   end
 

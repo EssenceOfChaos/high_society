@@ -8,6 +8,8 @@ defmodule HighSociety.Healthcheck.Worker do
 
   @impl true
   def init([service, refresh_interval]) do
+    Process.set_label({:healthcheck_worker, service})
+
     state = %{
       service: service,
       refresh_interval: refresh_interval

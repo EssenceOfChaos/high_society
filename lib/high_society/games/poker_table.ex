@@ -57,6 +57,8 @@ defmodule HighSociety.Games.PokerTable do
 
   @impl true
   def init(table_config) do
+    Process.set_label({:poker_table, table_config.slug})
+
     # `init/1` runs at application boot, which can be earlier than
     # anything else has caused `Poker` to actually be loaded (Elixir
     # loads modules lazily outside a compiled release) - and it's that

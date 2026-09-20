@@ -36,6 +36,7 @@ defmodule HighSociety.Games.TournamentCoordinator do
   alias HighSociety.Games.TournamentTable
   alias HighSociety.Games.TournamentTableState
   alias HighSociety.Repo
+  alias HighSociety.Social
   alias HighSociety.Tournaments.Notifier
   alias HighSociety.Tournaments.PokerTournament
   alias HighSociety.Tournaments.PokerTournamentEntry
@@ -68,6 +69,8 @@ defmodule HighSociety.Games.TournamentCoordinator do
 
   @impl true
   def init(%{tournament_id: tournament_id}) do
+    Process.set_label({:tournament_coordinator, tournament_id})
+
     tournament = Repo.get!(PokerTournament, tournament_id)
     existing_tables = active_tables(tournament_id)
 
@@ -449,6 +452,13 @@ defmodule HighSociety.Games.TournamentCoordinator do
       |> Repo.all()
 
     spawn(fn -> Notifier.deliver_results(tournament, entries) end)
+
+    # Off the hot path for the same reason as the notifier above - with
+    # auto-post enabled this makes a live HTTP call to X, which must never
+    # block this coordinator.
+    if champion = Enum.find(entries, &(&1.finish_place == 1)) do
+      spawn(fn -> Social.draft_tournament_win_post!(tournament, champion.user) end)
+    end
 
     :ok
   end
