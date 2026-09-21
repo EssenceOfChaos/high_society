@@ -6,11 +6,12 @@ defmodule HighSociety.SupportTest do
   alias HighSociety.Support
 
   describe "send_report/1" do
-    test "delivers a valid report to the support inbox" do
+    test "delivers a valid report to the support inbox, categorized in the subject and body" do
       attrs = %{
         "name" => "Ada Lovelace",
         "email" => "ada@example.com",
-        "message" => "The poker table won't let me fold."
+        "category" => "legal",
+        "message" => "Requesting a copy of our data processing agreement."
       }
 
       assert {:ok, report} = Support.send_report(attrs)
@@ -18,11 +19,43 @@ defmodule HighSociety.SupportTest do
 
       support_email = Application.get_env(:high_society, :support_email)
 
-      assert_email_sent(
-        to: support_email,
-        reply_to: "ada@example.com",
-        subject: "New support request from Ada Lovelace"
-      )
+      assert_email_sent(fn email ->
+        assert email.to == [{"", support_email}]
+        assert email.reply_to == {"", "ada@example.com"}
+        assert email.subject == "[Legal Inquiry] Ada Lovelace"
+        assert email.text_body =~ "Category: Legal Inquiry"
+      end)
+    end
+
+    test "a gaming report includes the chosen game in the subject and body" do
+      attrs = %{
+        "name" => "Ada Lovelace",
+        "email" => "ada@example.com",
+        "category" => "gaming",
+        "game" => "poker",
+        "message" => "The poker table won't let me fold."
+      }
+
+      assert {:ok, _report} = Support.send_report(attrs)
+
+      assert_email_sent(fn email ->
+        assert email.subject == "[Gaming / Poker] Ada Lovelace"
+        assert email.text_body =~ "Category: Gaming"
+        assert email.text_body =~ "Game: Poker"
+      end)
+    end
+
+    test "a gaming report without a chosen game is rejected" do
+      attrs = %{
+        "name" => "Ada Lovelace",
+        "email" => "ada@example.com",
+        "category" => "gaming",
+        "message" => "Something's wrong with a game."
+      }
+
+      assert {:error, changeset} = Support.send_report(attrs)
+      assert %{game: ["can't be blank"]} = errors_on(changeset)
+      refute_email_sent()
     end
 
     test "returns an error changeset and sends nothing for invalid attrs" do
@@ -32,6 +65,7 @@ defmodule HighSociety.SupportTest do
       refute changeset.valid?
       assert %{name: ["can't be blank"]} = errors_on(changeset)
       assert %{email: ["must be a valid email"]} = errors_on(changeset)
+      assert %{category: ["can't be blank"]} = errors_on(changeset)
 
       refute_email_sent()
     end
@@ -48,11 +82,17 @@ defmodule HighSociety.SupportTest do
       assert {:ok, report} = Support.receive_inbound_email(data)
       assert report.name == "Ada Lovelace"
       assert report.email == "ada@example.com"
+      assert report.category == "email"
       assert report.message =~ "Question about the tournament"
       assert report.message =~ "Does the tournament run every week?"
 
       support_email = Application.get_env(:high_society, :support_email)
-      assert_email_sent(to: support_email, reply_to: "ada@example.com")
+
+      assert_email_sent(fn email ->
+        assert email.to == [{"", support_email}]
+        assert email.reply_to == {"", "ada@example.com"}
+        assert email.subject =~ "[Received by Email (Uncategorized)]"
+      end)
     end
 
     test "falls back to the bare address when there's no display name" do

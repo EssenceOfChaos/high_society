@@ -156,6 +156,38 @@ defmodule HighSociety.TournamentsTest do
     end
   end
 
+  describe "scheduled_countdown?/1" do
+    test "false when nothing is scheduled" do
+      refute Tournaments.scheduled_countdown?(nil)
+    end
+
+    test "false for a scheduled tournament with no announced start time", %{
+      tournament: tournament
+    } do
+      assert tournament.scheduled_start_at == nil
+      refute Tournaments.scheduled_countdown?(tournament)
+    end
+
+    test "true for a scheduled tournament with an announced start time" do
+      tournament = tournament_fixture(%{scheduled_start_at: ~U[2026-10-30 21:00:00Z]})
+      assert Tournaments.scheduled_countdown?(tournament)
+    end
+
+    test "false once the tournament is running, even with a start time set", %{
+      tournament: tournament
+    } do
+      {:ok, tournament} =
+        tournament
+        |> HighSociety.Tournaments.PokerTournament.status_changeset(%{
+          status: "running",
+          started_at: DateTime.utc_now()
+        })
+        |> Repo.update()
+
+      refute Tournaments.scheduled_countdown?(tournament)
+    end
+  end
+
   describe "list_tournaments/0 and get_tournament!/1" do
     test "lists every tournament, most recent first", %{tournament: tournament} do
       other = tournament_fixture(%{name: "Later Tournament"})

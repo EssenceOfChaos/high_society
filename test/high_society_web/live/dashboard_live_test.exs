@@ -34,6 +34,32 @@ defmodule HighSocietyWeb.DashboardLiveTest do
     end
   end
 
+  describe "tournament countdown badge" do
+    setup :register_and_log_in_user
+
+    test "hidden when no tournament has an announced start time", %{conn: conn} do
+      tournament_fixture()
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      refute has_element?(view, "#tournament-countdown-badge")
+    end
+
+    test "shown poking out of the logo once a start time is announced", %{conn: conn} do
+      tournament_fixture(%{scheduled_start_at: ~U[2026-10-30 21:00:00Z]})
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, ~s(a#tournament-countdown-badge[data-tip="Poker Tournament"]))
+      assert has_element?(view, ~s(a#tournament-countdown-badge[href="/tournament"]))
+    end
+
+    test "hidden to a guest with no tournament scheduled at all", %{} do
+      conn = Phoenix.ConnTest.build_conn()
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      refute has_element?(view, "#tournament-countdown-badge")
+    end
+  end
+
   describe "activity tracking" do
     setup :register_and_log_in_user
 

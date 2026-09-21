@@ -10,15 +10,18 @@ defmodule HighSociety.Support.Notifier do
   the reply-to address so replying goes straight to them.
   """
   def deliver_report(%Report{} = report) do
+    category_label = Report.category_label(report.category)
+
     email =
       new()
       |> to(Application.get_env(:high_society, :support_email))
       |> from({"HighSociety", Application.get_env(:high_society, :mailer_from_email)})
       |> reply_to(report.email)
-      |> subject("New support request from #{report.name}")
+      |> subject("[#{category_label}#{game_suffix(report.game)}] #{report.name}")
       |> text_body("""
       New support request submitted via highsociety.cc
 
+      Category: #{category_label}#{game_line(report.game)}
       Name: #{report.name}
       Email: #{report.email}
 
@@ -35,4 +38,10 @@ defmodule HighSociety.Support.Notifier do
         error
     end
   end
+
+  defp game_suffix(nil), do: ""
+  defp game_suffix(game), do: " / #{Report.game_label(game)}"
+
+  defp game_line(nil), do: ""
+  defp game_line(game), do: "\nGame: #{Report.game_label(game)}"
 end

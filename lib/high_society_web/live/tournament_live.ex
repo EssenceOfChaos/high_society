@@ -70,6 +70,13 @@ defmodule HighSocietyWeb.TournamentLive do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="mx-auto max-w-sm">
+        <div :if={Tournaments.scheduled_countdown?(@tournament)} class="mb-8 text-center">
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-base-content/50">
+            Tournament starts in
+          </p>
+          <.countdown id="tournament-countdown" target={@tournament.scheduled_start_at} />
+        </div>
+
         <div class="text-center">
           <img
             src={~p"/images/tournament-trophy.webp"}

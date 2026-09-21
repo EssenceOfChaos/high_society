@@ -33,6 +33,23 @@ defmodule HighSocietyWeb.SupportLive do
                 phx-mounted={JS.focus()}
               />
               <.input field={@form[:email]} type="email" label="Email" autocomplete="email" required />
+              <.input
+                field={@form[:category]}
+                type="select"
+                label="Category"
+                prompt="Choose a category"
+                options={Enum.map(Report.category_options(), fn {value, label} -> {label, value} end)}
+                required
+              />
+              <.input
+                :if={Report.category_with_game?(@form[:category].value)}
+                field={@form[:game]}
+                type="select"
+                label="Which game?"
+                prompt="Choose a game"
+                options={Enum.map(Report.game_options(), fn {value, label} -> {label, value} end)}
+                required
+              />
               <.input field={@form[:message]} type="textarea" label="Message" rows="6" required />
 
               <.button

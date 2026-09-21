@@ -13,7 +13,8 @@ defmodule HighSociety.Games.PokerTest do
         status: :active,
         contributed_this_street: 0,
         total_contributed: 0,
-        acted?: false
+        acted?: false,
+        last_action: nil
       },
       Map.new(attrs)
     )
@@ -97,6 +98,71 @@ defmodule HighSociety.Games.PokerTest do
     end
   end
 
+  describe "reveal_hand/2 and winning_seats/1" do
+    setup do
+      poker = %Poker{
+        seats: %{
+          0 =>
+            new_seat(
+              user_id: 1,
+              stack: 78,
+              contributed_this_street: 22,
+              total_contributed: 22,
+              acted?: true
+            ),
+          1 => new_seat(user_id: 2, stack: 98, contributed_this_street: 2, total_contributed: 2)
+        },
+        button_seat: 0,
+        action_on: 1,
+        current_bet: 22,
+        min_raise: 20,
+        street: :turn,
+        small_blind: 1,
+        big_blind: 2
+      }
+
+      assert {:ok, hand_over} = Poker.fold(poker, 1)
+      %{in_progress: poker, hand_over: hand_over}
+    end
+
+    test "winning_seats/1 is empty until the hand is over", %{in_progress: poker} do
+      assert Poker.winning_seats(poker) == []
+    end
+
+    test "winning_seats/1 lists the pot's winners once it's over", %{hand_over: hand_over} do
+      assert Poker.winning_seats(hand_over) == [0]
+    end
+
+    test "the winner can reveal their hand", %{hand_over: hand_over} do
+      assert {:ok, revealed} = Poker.reveal_hand(hand_over, 0)
+      assert revealed.revealed_seats == [0]
+    end
+
+    test "revealing twice doesn't duplicate the seat", %{hand_over: hand_over} do
+      assert {:ok, revealed} = Poker.reveal_hand(hand_over, 0)
+      assert {:ok, revealed_again} = Poker.reveal_hand(revealed, 0)
+      assert revealed_again.revealed_seats == [0]
+    end
+
+    test "a seat that didn't win can't reveal", %{hand_over: hand_over} do
+      assert Poker.reveal_hand(hand_over, 1) == {:error, :not_a_winner}
+    end
+
+    test "can't reveal before the hand is over", %{in_progress: poker} do
+      assert Poker.reveal_hand(poker, 0) == {:error, :hand_not_over}
+    end
+
+    test "showdown?/1 is false for an uncontested win (everyone else folded)", %{
+      hand_over: hand_over
+    } do
+      refute Poker.showdown?(hand_over)
+    end
+
+    test "showdown?/1 is false before the hand is over", %{in_progress: poker} do
+      refute Poker.showdown?(poker)
+    end
+  end
+
   describe "side pots" do
     test "a short all-in creates a separate pot the short stack isn't eligible for" do
       poker = %Poker{
@@ -170,6 +236,8 @@ defmodule HighSociety.Games.PokerTest do
       assert pot2.amount == 40
       assert pot2.eligible == [1, 2]
       assert pot2.winners == [1]
+
+      assert Poker.showdown?(poker)
     end
   end
 

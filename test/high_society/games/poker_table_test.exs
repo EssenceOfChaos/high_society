@@ -140,4 +140,76 @@ defmodule HighSociety.Games.PokerTableTest do
       assert {:error, :not_your_turn} = PokerTable.act(@slug, waiting_user.id, :fold)
     end
   end
+
+  describe "reveal_hand/2" do
+    test "the winner can reveal their hand after an uncontested fold" do
+      user1 = funded_user(100_000)
+      user2 = funded_user(100_000)
+      {:ok, _view} = PokerTable.sit(@slug, user1, 0, 20_000)
+      {:ok, view} = PokerTable.sit(@slug, user2, 1, 20_000)
+
+      folding_user = if view.hand.action_on == 0, do: user1, else: user2
+      winning_user = if folding_user == user1, do: user2, else: user1
+
+      {:ok, view} = PokerTable.act(@slug, folding_user.id, :fold)
+      assert view.hand.revealed_seats == []
+
+      assert {:ok, view} = PokerTable.reveal_hand(@slug, winning_user.id)
+      assert view.hand.revealed_seats != []
+    end
+
+    test "the loser can't reveal on the winner's behalf" do
+      user1 = funded_user(100_000)
+      user2 = funded_user(100_000)
+      {:ok, _view} = PokerTable.sit(@slug, user1, 0, 20_000)
+      {:ok, view} = PokerTable.sit(@slug, user2, 1, 20_000)
+
+      folding_user = if view.hand.action_on == 0, do: user1, else: user2
+      {:ok, _view} = PokerTable.act(@slug, folding_user.id, :fold)
+
+      assert {:error, :not_a_winner} = PokerTable.reveal_hand(@slug, folding_user.id)
+    end
+
+    test "returns an error for a user who isn't seated" do
+      user = funded_user(100_000)
+      assert {:error, :not_seated} = PokerTable.reveal_hand(@slug, user.id)
+    end
+
+    test "a winner with 'never muck' set is auto-revealed on an uncontested win, with no manual reveal needed" do
+      user1 = funded_user(100_000)
+      user2 = funded_user(100_000)
+      {:ok, _view} = PokerTable.sit(@slug, user1, 0, 20_000)
+      {:ok, view} = PokerTable.sit(@slug, user2, 1, 20_000)
+
+      folding_user = if view.hand.action_on == 0, do: user1, else: user2
+      winning_user = if folding_user == user1, do: user2, else: user1
+
+      {:ok, winning_user} =
+        Accounts.update_poker_settings(winning_user, %{muck_preference: "never"})
+
+      {:ok, view} = PokerTable.act(@slug, folding_user.id, :fold)
+
+      winning_seat_index = if view.seats[0].user_id == winning_user.id, do: 0, else: 1
+      assert winning_seat_index in view.hand.revealed_seats
+    end
+
+    test "a winner with 'always muck' set is not auto-revealed, and stays revealable only if they choose to" do
+      user1 = funded_user(100_000)
+      user2 = funded_user(100_000)
+      {:ok, _view} = PokerTable.sit(@slug, user1, 0, 20_000)
+      {:ok, view} = PokerTable.sit(@slug, user2, 1, 20_000)
+
+      folding_user = if view.hand.action_on == 0, do: user1, else: user2
+      winning_user = if folding_user == user1, do: user2, else: user1
+
+      {:ok, winning_user} =
+        Accounts.update_poker_settings(winning_user, %{muck_preference: "always"})
+
+      {:ok, view} = PokerTable.act(@slug, folding_user.id, :fold)
+      assert view.hand.revealed_seats == []
+
+      assert {:ok, view} = PokerTable.reveal_hand(@slug, winning_user.id)
+      assert view.hand.revealed_seats != []
+    end
+  end
 end

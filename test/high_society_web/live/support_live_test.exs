@@ -19,7 +19,8 @@ defmodule HighSocietyWeb.SupportLiveTest do
         "report" => %{
           "name" => "Ada Lovelace",
           "email" => "ada@example.com",
-          "message" => "The poker table won't let me fold."
+          "category" => "legal",
+          "message" => "Requesting a copy of our data processing agreement."
         }
       })
       |> render_submit()
@@ -38,6 +39,35 @@ defmodule HighSocietyWeb.SupportLiveTest do
       view
       |> form("#support_form", %{
         "report" => %{"name" => "", "email" => "bad", "message" => "short"}
+      })
+      |> render_submit()
+
+    assert html =~ "can&#39;t be blank"
+    refute_email_sent()
+  end
+
+  test "picking the Gaming category reveals a game select, required to submit", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/support")
+
+    refute has_element?(view, "#report_game")
+
+    html =
+      view
+      |> form("#support_form", %{"report" => %{"category" => "gaming"}})
+      |> render_change()
+
+    assert html =~ "Which game?"
+    assert has_element?(view, "#report_game")
+
+    html =
+      view
+      |> form("#support_form", %{
+        "report" => %{
+          "name" => "Ada Lovelace",
+          "email" => "ada@example.com",
+          "category" => "gaming",
+          "message" => "The poker table won't let me fold."
+        }
       })
       |> render_submit()
 

@@ -88,6 +88,16 @@ defmodule HighSocietyWeb.AdminLive.Tournaments do
 
           <.form for={@form} id="tournament_form" phx-submit="create" phx-change="validate">
             <.input field={@form[:name]} type="text" label="Name" />
+            <.input
+              field={@form[:scheduled_start_at]}
+              type="datetime-local"
+              label="Scheduled start (UTC)"
+            />
+            <p class="-mt-3 mb-3 text-xs text-base-content/60">
+              Entered and stored as UTC, not your local time - convert first (e.g. 5:00 PM Eastern
+              is 9:00 PM UTC during Eastern Daylight Time, 10:00 PM UTC during Eastern Standard
+              Time). Shown as a countdown on the registration page; leave blank for none.
+            </p>
             <.input field={@form[:starting_stack]} type="number" label="Starting stack" />
             <.input field={@form[:level_minutes]} type="number" label="Minutes per level" />
             <.input field={@form[:break_every_minutes]} type="number" label="Break every (minutes)" />

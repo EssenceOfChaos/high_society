@@ -1,7 +1,7 @@
 {
   "name": "High Society",
   "short_name": "High Society",
-  "description": "Play High Society, Poker, Blackjack, and Battleship online.",
+  "description": "Classic games. New experiences. High Society brings poker, blackjack, slots, Battleship & more together in one premium gaming destination.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

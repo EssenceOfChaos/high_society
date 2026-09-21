@@ -42,6 +42,7 @@ defmodule HighSociety.Support do
     send_report(%{
       "name" => name,
       "email" => email,
+      "category" => "email",
       "message" => String.slice("Subject: #{subject}\n\n#{body}", 0, 4000)
     })
   end

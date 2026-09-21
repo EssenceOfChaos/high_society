@@ -168,6 +168,45 @@ defmodule HighSociety.Games.TournamentTableTest do
     end
   end
 
+  describe "reveal_hand/2" do
+    test "the winner can reveal their hand after an uncontested fold", %{tournament: tournament} do
+      slug = tournament_table_fixture!(tournament)
+      user_a = user_fixture()
+      user_b = user_fixture()
+      TournamentTable.seat_transfer(slug, "move-1", user_a.id, "A", 10_000)
+      {:ok, view} = TournamentTable.seat_transfer(slug, "move-2", user_b.id, "B", 10_000)
+
+      folding_user = if view.hand.action_on == 0, do: user_a, else: user_b
+      winning_user = if folding_user == user_a, do: user_b, else: user_a
+
+      {:ok, view} = TournamentTable.act(slug, folding_user.id, :fold)
+      assert view.hand.revealed_seats == []
+
+      assert {:ok, view} = TournamentTable.reveal_hand(slug, winning_user.id)
+      assert view.hand.revealed_seats != []
+    end
+
+    test "the loser can't reveal on the winner's behalf", %{tournament: tournament} do
+      slug = tournament_table_fixture!(tournament)
+      user_a = user_fixture()
+      user_b = user_fixture()
+      TournamentTable.seat_transfer(slug, "move-1", user_a.id, "A", 10_000)
+      {:ok, view} = TournamentTable.seat_transfer(slug, "move-2", user_b.id, "B", 10_000)
+
+      folding_user = if view.hand.action_on == 0, do: user_a, else: user_b
+      {:ok, _view} = TournamentTable.act(slug, folding_user.id, :fold)
+
+      assert {:error, :not_a_winner} = TournamentTable.reveal_hand(slug, folding_user.id)
+    end
+
+    test "returns an error for a user who isn't seated", %{tournament: tournament} do
+      slug = tournament_table_fixture!(tournament)
+      user = user_fixture()
+
+      assert {:error, :not_seated} = TournamentTable.reveal_hand(slug, user.id)
+    end
+  end
+
   describe "mark_for_removal/2" do
     test "frees marked seats at the next hand-over and closes the table once empty", %{
       tournament: tournament

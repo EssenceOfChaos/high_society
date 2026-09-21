@@ -101,6 +101,31 @@ defmodule HighSocietyWeb.TournamentLiveTest do
     refute html =~ "tournament_form"
   end
 
+  describe "countdown" do
+    test "hidden when the tournament has no announced start time", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/tournament")
+
+      refute html =~ "Tournament starts in"
+      refute has_element?(view, "#tournament-countdown")
+    end
+
+    test "shown for a scheduled tournament with an announced start time", %{
+      conn: conn,
+      tournament: tournament
+    } do
+      tournament
+      |> HighSociety.Tournaments.PokerTournament.changeset(%{
+        scheduled_start_at: ~U[2026-10-30 21:00:00Z]
+      })
+      |> HighSociety.Repo.update!()
+
+      {:ok, view, html} = live(conn, ~p"/tournament")
+
+      assert html =~ "Tournament starts in"
+      assert has_element?(view, "#tournament-countdown")
+    end
+  end
+
   describe "KYC fields" do
     test "renders alongside the Ethereum address field, all optional", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/tournament")

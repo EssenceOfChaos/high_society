@@ -324,7 +324,7 @@ defmodule HighSocietyWeb.CoreComponents do
     ~H"""
     <header class={[@actions != [] && "flex items-center justify-between gap-6", "pb-4"]}>
       <div>
-        <h1 class="text-lg font-semibold leading-8">
+        <h1 class="font-serif text-lg font-semibold leading-8">
           {render_slot(@inner_block)}
         </h1>
         <p :if={@subtitle != []} class="text-sm text-base-content/70">
@@ -478,7 +478,10 @@ defmodule HighSocietyWeb.CoreComponents do
       "required when deal_animation is set, so the entrance plays once per card, not per re-render"
 
   attr :card, :string, default: nil
-  attr :dim, :boolean, default: false, doc: "shrinks and fades the card, e.g. for burned cards"
+
+  attr :dim, :boolean,
+    default: false,
+    doc: "darkens the card without resizing it, e.g. for burned cards or a hand ranking's kickers"
 
   attr :pending, :boolean,
     default: false,
@@ -487,6 +490,11 @@ defmodule HighSocietyWeb.CoreComponents do
   attr :face_down, :boolean,
     default: false,
     doc: "renders a face-down card back instead of the card"
+
+  attr :card_back, :string,
+    default: "/images/cards/card_back.svg",
+    doc:
+      "src for the face-down image - pass a viewer's chosen design (see `card_back_image/1`) for a per-viewer skin; defaults to the classic back for callers (War, Blackjack) that don't offer a choice"
 
   attr :deal_animation, :boolean,
     default: false,
@@ -499,9 +507,14 @@ defmodule HighSocietyWeb.CoreComponents do
     """
 
   attr :size, :atom,
-    values: [:normal, :large],
+    values: [:normal, :medium, :large],
     default: :normal,
-    doc: "large is ~30% bigger, for screens with only one or two cards and little else on them"
+    doc: """
+    large is ~30% bigger, for screens with only one or two cards and little
+    else on them. medium (~15% bigger) is for a viewer's own cards on a
+    busier table (e.g. Poker) - bigger than everyone else's, short of
+    crowding out the rest of the screen.
+    """
 
   def card_face(assigns) do
     assigns =
@@ -514,16 +527,34 @@ defmodule HighSocietyWeb.CoreComponents do
       id={@id}
       phx-hook={@deal_animation && "#{inspect(__MODULE__)}.CardDealAnimation"}
       data-deal-key={@deal_key}
-      class={[
-        "@container flex aspect-[7/10] min-w-0 items-center justify-center overflow-hidden rounded-xl shadow-md transition-transform duration-300",
-        @size == :normal && "[contain-intrinsic-width:7rem] flex-[0_1_7rem]",
-        @size == :large && "[contain-intrinsic-width:9rem] flex-[0_1_9rem]",
-        !@deal_animation && "card-deal-in",
-        !@card && @pending && "border-2 border-error bg-error text-error-content animate-pulse",
-        !@card && !@pending && !@face_down && "border-2 border-dashed border-base-300 bg-base-200",
-        @dim && "opacity-40 scale-90",
-        card_z_class(@card, @face_down)
-      ]}
+      class={
+        [
+          "@container flex aspect-[7/10] min-w-0 items-center justify-center overflow-hidden rounded-xl shadow-md transition-transform duration-300",
+          @size == :normal && "[contain-intrinsic-width:7rem] flex-[0_1_7rem]",
+          @size == :medium && "[contain-intrinsic-width:8rem] flex-[0_1_8rem]",
+          @size == :large && "[contain-intrinsic-width:9rem] flex-[0_1_9rem]",
+          # Below `lg:`, every card shrinks to a common compact size
+          # regardless of `size` - a busy table (5 community cards plus
+          # every seat's own hole cards) has nowhere near enough width for
+          # even the `:normal` tier at full size until the felt is wide
+          # enough (~1024px+) for its aspect-ratio-driven height to give
+          # everything room too - see `#poker-felt`'s own `lg:` breakpoint.
+          "max-lg:[contain-intrinsic-width:4rem]! max-lg:flex-[0_1_4rem]!",
+          !@deal_animation && "card-deal-in",
+          !@card && @pending && "border-2 border-error bg-error text-error-content animate-pulse",
+          !@card && !@pending && !@face_down && "border-2 border-dashed border-base-300 bg-base-200",
+          # `brightness` rather than `opacity` - the hand-rankings modal
+          # overlaps cards with negative margins (`-space-x-8`), and opacity
+          # would let each dimmed card show whatever's stacked behind it
+          # (the next card, or another dimmed one) bleeding through right at
+          # the overlap, reading as a highlight instead of a uniform dim.
+          # Brightness darkens the card's own pixels without ever exposing
+          # what's beneath it. Deliberately no size change alongside it -
+          # every card in a hand stays the same size, dimmed or not.
+          @dim && "brightness-50",
+          card_z_class(@card, @face_down)
+        ]
+      }
     >
       <img
         :if={@card && !@face_down}
@@ -533,7 +564,7 @@ defmodule HighSocietyWeb.CoreComponents do
       />
       <img
         :if={@face_down}
-        src="/images/cards/card_back.svg"
+        src={@card_back}
         alt="Face-down card"
         class="size-full object-contain"
       />
@@ -600,6 +631,19 @@ defmodule HighSocietyWeb.CoreComponents do
     </script>
     """
   end
+
+  @doc """
+  The face-down image src for a poker player's chosen card back design (see
+  `HighSociety.Accounts.User.poker_settings_changeset/2`) - `"default"` (or
+  `nil`, for a user who's never opened the settings modal) is the classic
+  back every other game uses; anything else is one of the four alternate
+  designs in `priv/static/images/cards/`.
+  """
+  @spec card_back_image(String.t() | nil) :: String.t()
+  def card_back_image(color) when color in ~w(black blue green red),
+    do: "/images/cards/card_back_#{color}.png"
+
+  def card_back_image(_default_or_nil), do: "/images/cards/card_back.svg"
 
   # Overlapping hands (e.g. Blackjack's -space-x-* rows) rely on DOM order
   # for stacking - a later card should sit on top of an earlier one once
@@ -694,6 +738,93 @@ defmodule HighSocietyWeb.CoreComponents do
             ease: "outQuad",
             onUpdate: () => { this.el.textContent = formatAmount(this.counter.amount) }
           })
+        }
+      }
+    </script>
+    """
+  end
+
+  @doc """
+  A large, labeled countdown to `target` (a future `DateTime`) - Days,
+  Hours, Minutes, Seconds, each flipping via daisyUI's `.countdown`
+  component (https://daisyui.com/components/countdown/). Ticks entirely
+  client-side once mounted (no periodic server round-trip), so it stays
+  accurate even on a long-lived connection.
+
+  ## Examples
+
+      <.countdown id="tournament-countdown" target={@tournament.scheduled_start_at} />
+  """
+  attr :id, :string, required: true
+  attr :target, :any, required: true, doc: "a future DateTime.t() to count down to"
+
+  def countdown(assigns) do
+    assigns =
+      assign(assigns, :units, [
+        {"Days", "days"},
+        {"Hours", "hours"},
+        {"Minutes", "minutes"},
+        {"Seconds", "seconds"}
+      ])
+
+    ~H"""
+    <div
+      id={@id}
+      phx-hook=".Countdown"
+      data-target={DateTime.to_iso8601(@target)}
+      class="flex justify-center gap-4 sm:gap-8"
+    >
+      <div :for={{label, unit} <- @units} class="flex flex-col items-center">
+        <span class="countdown font-mono text-4xl font-bold sm:text-6xl">
+          <%!-- No inline `style="--value:..."` here - the CSP's
+               `style-src 'self'` has no `unsafe-inline` for style
+               *attributes*, so a literal one would silently stop applying
+               in production (see csp_compliance_test.exs). `.Countdown`'s
+               `mounted()` sets `--value` via `el.style.setProperty` on
+               first tick instead - a CSSOM mutation, which CSP doesn't
+               govern - so this starts at the CSS default (0) for the
+               brief pre-hydration instant, then ticks immediately. --%>
+          <span data-countdown-unit={unit} aria-live="polite" aria-label="0">0</span>
+        </span>
+        <span class="mt-1 text-xs font-semibold uppercase tracking-widest text-base-content/60 sm:text-sm">
+          {label}
+        </span>
+      </div>
+    </div>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".Countdown">
+      export default {
+        mounted() {
+          this.targetMs = new Date(this.el.dataset.target).getTime()
+          this.units = {
+            days: this.el.querySelector('[data-countdown-unit="days"]'),
+            hours: this.el.querySelector('[data-countdown-unit="hours"]'),
+            minutes: this.el.querySelector('[data-countdown-unit="minutes"]'),
+            seconds: this.el.querySelector('[data-countdown-unit="seconds"]')
+          }
+          this.tick()
+          this.timer = setInterval(() => this.tick(), 1000)
+        },
+        destroyed() {
+          clearInterval(this.timer)
+        },
+        tick() {
+          const diff = Math.max(0, this.targetMs - Date.now())
+          const values = {
+            days: Math.floor(diff / 86400000),
+            hours: Math.floor((diff % 86400000) / 3600000),
+            minutes: Math.floor((diff % 3600000) / 60000),
+            seconds: Math.floor((diff % 60000) / 1000)
+          }
+
+          for (const [unit, el] of Object.entries(this.units)) {
+            if (!el) continue
+            el.textContent = values[unit]
+            el.style.setProperty("--value", values[unit])
+            el.setAttribute("aria-label", values[unit])
+          }
+
+          if (diff <= 0) clearInterval(this.timer)
         }
       }
     </script>

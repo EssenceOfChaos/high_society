@@ -16,20 +16,35 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   # seated player sees themselves in the conventional "you're at the
   # bottom" spot, with the rest of the table following clockwise from
   # them - not a single fixed layout everyone shares.
+  #
+  # The left/right-most slots (2 and 6) sit at 6%/94%, not flush with the
+  # felt's own edge - a seat card is centered on its position (a
+  # `-translate-x-1/2`), so anything much closer to 0%/100% here has its
+  # own half-width overhang past the felt entirely, clipped by the
+  # viewport with no scrollbar to reach it, on anything narrower than a
+  # very wide desktop window (see `#poker-table-screen`'s own side
+  # padding, sized to cover the rest of this same overhang).
   @seat_positions [
     %{top: 94, left: 50},
     %{top: 80, left: 90},
-    %{top: 48, left: 99},
+    %{top: 48, left: 94},
     %{top: 12, left: 88},
     %{top: 0, left: 50},
     %{top: 12, left: 12},
-    %{top: 48, left: 1},
+    %{top: 48, left: 6},
     %{top: 80, left: 10}
   ]
 
-  # The felt's center, where the pot sits - used to place each seat's bet
-  # chips partway between that seat and the pot.
+  # The felt's geometric center - used only to place each seat's bet chips
+  # partway between that seat and the middle of the table, never as the
+  # pot's own resting spot (see `@pot_position`), since that's exactly
+  # where the community cards sit too.
   @center %{top: 50, left: 50}
+
+  # Where the pot itself rests while a hand's live - above the community
+  # card row (which runs roughly 38%-62% of the felt's height) rather than
+  # dead center, so the two never overlap.
+  @pot_position %{top: 20, left: 50}
 
   # Static reference content for the hand-rankings modal (`hand_rankings_modal/1`)
   # - best hand first, worst last - each with an example 5-card hand
@@ -143,7 +158,8 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
             join_seat: nil,
             buy_in_amount: nil,
             action_error: nil,
-            hand_rankings_open?: false
+            hand_rankings_open?: false,
+            settings_open?: false
           )
 
         {:ok, socket}
@@ -185,6 +201,32 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
 
   def handle_event("close_hand_rankings", _params, socket),
     do: {:noreply, assign(socket, :hand_rankings_open?, false)}
+
+  def handle_event("open_settings", _params, socket),
+    do: {:noreply, assign(socket, :settings_open?, true)}
+
+  def handle_event("close_settings", _params, socket),
+    do: {:noreply, assign(socket, :settings_open?, false)}
+
+  # `choice`, not `value` - a plain `<button>`'s native `.value` DOM
+  # property (empty string, absent any `value=` attribute) rides along in
+  # every click payload under the key `"value"` regardless of any custom
+  # `phx-value-*`, so a custom param actually named `value` gets silently
+  # overwritten with `""` by the time `handle_event` sees it.
+  def handle_event("set_card_back", %{"choice" => choice}, socket),
+    do: update_poker_settings(socket, %{card_back: choice})
+
+  def handle_event("set_felt_color", %{"choice" => choice}, socket),
+    do: update_poker_settings(socket, %{felt_color: choice})
+
+  # A second click on the already-active option clears it back to "neither
+  # selected" rather than being a no-op, since that's the only way to
+  # reach that state again once one's been chosen.
+  def handle_event("set_muck_preference", %{"choice" => choice}, socket) do
+    current = socket.assigns.current_scope.user.muck_preference
+
+    update_poker_settings(socket, %{muck_preference: if(current == choice, do: nil, else: choice)})
+  end
 
   def handle_event("set_buy_in", %{"amount" => amount}, socket) do
     {:noreply, assign(socket, :buy_in_amount, String.to_integer(amount))}
@@ -237,10 +279,26 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     perform_action(socket, action, String.to_integer(amount))
   end
 
+  def handle_event("reveal_hand", _params, socket) do
+    user = socket.assigns.current_scope.user
+
+    case PokerTable.reveal_hand(socket.assigns.slug, user.id) do
+      {:ok, view} -> {:noreply, assign(socket, :state, view)}
+      {:error, _reason} -> {:noreply, socket}
+    end
+  end
+
   def handle_event("claim_poker_tokens", _params, socket) do
     case Accounts.claim_poker_tokens(socket.assigns.current_scope.user) do
       {:ok, user} -> {:noreply, assign(socket, current_scope: Scope.for_user(user))}
       {:error, :already_claimed} -> {:noreply, socket}
+    end
+  end
+
+  defp update_poker_settings(socket, attrs) do
+    case Accounts.update_poker_settings(socket.assigns.current_scope.user, attrs) do
+      {:ok, user} -> {:noreply, assign(socket, current_scope: Scope.for_user(user))}
+      {:error, _changeset} -> {:noreply, socket}
     end
   end
 
@@ -297,12 +355,14 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
       |> assign(:my_turn?, my_turn?(assigns.state, assigns.current_scope.user.id))
       |> assign(:my_seat_index, my_seat_index)
       |> assign(:view_anchor_seat, my_seat_index || assigns.state.button_seat)
+      |> assign(:card_back_image, card_back_image(assigns.current_scope.user.card_back))
+      |> assign(:felt_gradient_class, felt_gradient_class(assigns.current_scope.user.felt_color))
 
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div
         id="poker-table-screen"
-        class={["mx-auto max-w-4xl", @my_turn? && "pb-28"]}
+        class={["mx-auto max-w-4xl", @my_turn? && "pb-20"]}
         phx-hook=".SoundEffects"
       >
         <div class="flex items-center justify-between">
@@ -318,6 +378,15 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
               Blinds {Tokens.format(@table.small_blind)} / {Tokens.format(@table.big_blind)} Tokens &middot;
               <.icon name="hero-eye" class="-mt-0.5 inline size-4" /> {@viewer_count} watching
             </p>
+            <button
+              :if={my_seat(@state, @current_scope.user.id)}
+              id="leave-table-button"
+              type="button"
+              phx-click="leave_table"
+              class="btn btn-outline btn-sm mt-2"
+            >
+              Leave table
+            </button>
           </div>
           <div class="flex items-center gap-3">
             <div class="text-right">
@@ -345,6 +414,16 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
             >
               <.icon name="hero-speaker-wave" class="size-4 sound-on-icon" />
               <.icon name="hero-speaker-x-mark" class="size-4 sound-off-icon hidden" />
+            </button>
+            <button
+              id="settings-button"
+              type="button"
+              phx-click="open_settings"
+              class="btn btn-ghost btn-sm btn-circle tooltip tooltip-bottom"
+              aria-label="Table settings"
+              data-tip="Settings"
+            >
+              <.icon name="hero-cog-6-tooth" class="size-5" />
             </button>
             <button
               id="hand-rankings-button"
@@ -377,11 +456,20 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
 
         <div
           id="poker-felt"
-          class="relative mt-6 aspect-[7/5] w-full rounded-3xl bg-gradient-to-b from-emerald-900 to-emerald-950 shadow-xl ring-1 ring-black/40"
+          class={[
+            "relative mx-8 mt-6 min-h-[26rem] rounded-3xl bg-gradient-to-b shadow-xl ring-1 ring-black/40 sm:mx-10 lg:aspect-[7/5] lg:min-h-0",
+            @felt_gradient_class
+          ]}
         >
           <div class="absolute left-1/2 top-1/2 flex w-max -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2">
-            <div id="community-cards" class="flex gap-2">
-              <.card_face :for={card <- community_card_slots(@state.hand)} card={card} />
+            <div id="community-cards" class="flex gap-1 lg:gap-2">
+              <.card_face
+                :for={{card, index} <- Enum.with_index(community_card_slots(@state.hand))}
+                id={"community-card-#{index}"}
+                card={card}
+                card_back={@card_back_image}
+                deal_animation
+              />
             </div>
           </div>
 
@@ -396,13 +484,20 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
           <div
             :if={pot_total(@state.hand) > 0}
             id="pot-chips"
-            class="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 transition-all duration-700 ease-out"
+            class="absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-out"
             phx-hook=".InlineStyle"
             data-style={"top: #{pot_chip_position(@state.hand, @view_anchor_seat).top}%; left: #{pot_chip_position(@state.hand, @view_anchor_seat).left}%;"}
           >
-            <.chip_stack id="pot-chips-stack" amount={pot_total(@state.hand)} chip_size="size-7" />
-            <div class="rounded-full bg-black/50 px-4 py-1 text-sm font-semibold text-amber-200">
-              Pot: {Tokens.format(pot_total(@state.hand))} Tokens
+            <div
+              id="pot-chips-flight"
+              class="flex flex-col items-center gap-1"
+              phx-hook=".ChipFlight"
+              data-flight-key={pot_total(@state.hand)}
+            >
+              <.chip_stack id="pot-chips-stack" amount={pot_total(@state.hand)} chip_size="size-7" />
+              <div class="rounded-full bg-black/50 px-4 py-1 text-sm font-semibold text-amber-200">
+                Pot: {Tokens.format(pot_total(@state.hand))} Tokens
+              </div>
             </div>
           </div>
 
@@ -416,6 +511,8 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
             action_deadline={@state.action_deadline}
             action_seconds={PokerTable.action_seconds()}
             viewer_user_id={@current_scope.user.id}
+            viewer_muck_preference={@current_scope.user.muck_preference}
+            card_back={@card_back_image}
             my_seat_taken?={not is_nil(@my_seat_index)}
           />
 
@@ -423,31 +520,18 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
             :for={{seat_index, amount} <- active_bets(@state.hand)}
             id={"bet-chips-#{seat_index}"}
             position={bet_chip_position(seat_index, @view_anchor_seat)}
+            from_position={seat_position(seat_index, @view_anchor_seat)}
             amount={amount}
           />
-        </div>
-
-        <div class="relative z-10 mt-8 flex flex-col items-center gap-3">
-          <button
-            :if={my_seat(@state, @current_scope.user.id)}
-            id="leave-table-button"
-            type="button"
-            phx-click="leave_table"
-            class="btn btn-outline btn-sm"
-          >
-            Leave table
-          </button>
         </div>
       </div>
 
       <div
         :if={@my_turn?}
         id="action-bar-footer"
-        class="fixed inset-x-0 bottom-0 z-20 border-t border-base-300 bg-base-100/95 px-4 py-3 shadow-[0_-6px_16px_rgba(0,0,0,0.25)] backdrop-blur"
+        class="fixed inset-x-0 bottom-0 z-20 w-full border-t border-base-300 bg-base-100/95 px-4 py-4 shadow-[0_-6px_16px_rgba(0,0,0,0.25)] backdrop-blur"
       >
-        <div class="mx-auto max-w-4xl">
-          <.action_bar state={@state} my_seat={my_seat(@state, @current_scope.user.id)} />
-        </div>
+        <.action_bar state={@state} my_seat={my_seat(@state, @current_scope.user.id)} />
       </div>
 
       <.join_modal
@@ -460,6 +544,8 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
       />
 
       <.hand_rankings_modal :if={@hand_rankings_open?} />
+
+      <.settings_modal :if={@settings_open?} user={@current_scope.user} />
 
       <script :type={Phoenix.LiveView.ColocatedHook} name=".ActionTimer">
         export default {
@@ -701,6 +787,78 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
           updated() { this.el.style.cssText = this.el.dataset.style }
         }
       </script>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ChipFlight">
+        export default {
+          // The *inner* content of a chip stack (a bet, or the pot) -
+          // its outer positioning anchor (percentage `top`/`left`, set by
+          // `.InlineStyle`) carries the `-translate-x-1/2 -translate-y-1/2`
+          // centering, deliberately left untouched here: anime.js only
+          // preserves a Tailwind-class-only transform if there's a
+          // matching *inline* one for it to track, and starting from
+          // nothing but the class, its internal bookkeeping drops that
+          // centering the moment it touches the element at all (confirmed
+          // empirically - even animating an unrelated property left
+          // `transform` stuck at `none`). This element has no transform
+          // of its own to lose, so it's the one anime.js is safe to own.
+          //
+          // Flies in from `data-dx-percent`/`data-dy-percent` (a bet's
+          // offset from its own seat, in percent of the felt - 0 for the
+          // pot, which has no single seat to fly from) every time
+          // `data-flight-key` changes (the pot growing) or, lacking one
+          // (a bet chip stack never gets a new key - the same seat's
+          // stack just grows in place), once on first mount.
+          mounted() { this.play() },
+          updated() {
+            const key = this.el.dataset.flightKey
+            if (key !== undefined && key !== this.flightKey) this.play()
+            this.flightKey = key
+          },
+          play() {
+            this.flightKey = this.el.dataset.flightKey
+            const dxPercent = parseFloat(this.el.dataset.dxPercent || "0")
+            const dyPercent = parseFloat(this.el.dataset.dyPercent || "0")
+            const felt = document.getElementById("poker-felt")
+            const rect = felt && felt.getBoundingClientRect()
+            const dx = rect ? (dxPercent / 100) * rect.width : 0
+            const dy = rect ? (dyPercent / 100) * rect.height : 0
+
+            this.el.style.opacity = "0"
+            window.animeAnimate(this.el, {
+              translateX: [dx, 0],
+              translateY: [dy, 0],
+              opacity: [0, 1],
+              duration: 550,
+              ease: "outQuad"
+            })
+          }
+        }
+      </script>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".SeatFold">
+        export default {
+          // Tosses a seat's hole cards toward the muck the instant they
+          // fold - a quick flick (rotate + drop, settling back to rest)
+          // layered on top of the seat's own `transition-opacity` dim,
+          // which still does the actual fading. This div has no transform
+          // of its own to lose, so - unlike the seat marker itself, which
+          // stays untouched - it's safe for anime.js to own outright (see
+          // `.ChipFlight` above for why that distinction matters).
+          mounted() { this.folded = this.el.dataset.folded === "true" },
+          updated() {
+            const folded = this.el.dataset.folded === "true"
+            if (folded && !this.folded) {
+              window.animeAnimate(this.el, {
+                rotate: [0, (Math.random() * 16 - 8), 0],
+                translateY: [0, 14, 0],
+                duration: 420,
+                ease: "inOutQuad"
+              })
+            }
+            this.folded = folded
+          }
+        }
+      </script>
     </Layouts.app>
     """
   end
@@ -713,6 +871,8 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   attr :action_deadline, :any, default: nil
   attr :action_seconds, :integer, required: true
   attr :viewer_user_id, :integer, required: true
+  attr :viewer_muck_preference, :string, default: nil
+  attr :card_back, :string, required: true
   attr :my_seat_taken?, :boolean, required: true
 
   defp seat(%{seat: nil} = assigns) do
@@ -757,8 +917,14 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
       |> assign(:hand_seat, hand_seat)
       |> assign(:acting?, acting?)
       |> assign(:folded?, folded?)
+      |> assign(:last_action, !folded? && hand_seat && hand_seat.last_action)
       |> assign(:mine?, mine?)
-      |> assign(:reveal?, reveal_hole_cards?(hand_seat, mine?, assigns.hand))
+      |> assign(:reveal?, reveal_hole_cards?(hand_seat, mine?, assigns.hand, assigns.seat_index))
+      |> assign(
+        :can_reveal?,
+        mine? and
+          can_reveal?(assigns.hand, assigns.seat_index, assigns.viewer_muck_preference)
+      )
       |> assign(
         :category,
         !folded? && mine? && hand_seat && my_hand_category(hand_seat, assigns.hand)
@@ -769,8 +935,8 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
       id={"seat-#{@seat_index}"}
       class={[
         "absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 rounded-xl p-2 transition-opacity",
-        @mine? && "w-80",
-        !@mine? && "w-56",
+        @mine? && "w-64 lg:w-80",
+        !@mine? && "w-36 lg:w-56",
         @acting? && "bg-amber-400/10 ring-2 ring-amber-400",
         @folded? && "opacity-40"
       ]}
@@ -784,6 +950,15 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
         >
           D
         </span>
+        <span :if={@folded?} class="badge badge-neutral badge-xs font-semibold">
+          Folded
+        </span>
+        <span
+          :if={@last_action}
+          class={["badge badge-xs font-semibold", action_badge_class(@last_action)]}
+        >
+          {action_badge_label(@last_action)}
+        </span>
         <span class="truncate">{@seat.username}</span>
       </div>
       <div class="text-[11px] text-amber-200">{Tokens.format(current_stack(@seat, @hand_seat))}</div>
@@ -795,14 +970,36 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
         >
           {@category}
         </span>
-        <div class={["flex gap-2", @mine? && "w-72", !@mine? && "w-40"]}>
+        <div
+          id={"hole-cards-#{@seat_index}"}
+          class={[
+            "flex gap-1 lg:gap-2",
+            @mine? && "w-60 lg:w-72",
+            !@mine? && "w-32 lg:w-40"
+          ]}
+          phx-hook=".SeatFold"
+          data-folded={to_string(@folded?)}
+        >
           <.card_face
-            :for={card <- @hand_seat.hole_cards}
+            :for={{card, index} <- Enum.with_index(@hand_seat.hole_cards)}
+            id={"hole-card-#{@seat_index}-#{index}"}
             card={card}
             face_down={not @reveal?}
-            size={if @mine?, do: :large, else: :normal}
+            card_back={@card_back}
+            size={if @mine?, do: :medium, else: :normal}
+            deal_animation
           />
         </div>
+
+        <button
+          :if={@can_reveal?}
+          id={"reveal-hand-button-#{@seat_index}"}
+          type="button"
+          phx-click="reveal_hand"
+          class="btn btn-sm mt-2 gap-1 rounded-full border-none bg-gradient-to-r from-amber-400 to-amber-500 font-semibold text-amber-950 shadow-md animate-pulse hover:from-amber-300 hover:to-amber-400"
+        >
+          <.icon name="hero-eye" class="size-4" /> Show my cards
+        </button>
       </div>
 
       <div
@@ -824,24 +1021,35 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
 
   attr :id, :string, required: true
   attr :position, :map, required: true
+  attr :from_position, :map, required: true
   attr :amount, :integer, required: true
 
   # A seat's current-street bet, sitting partway between their seat and the
-  # pot - it disappears (and the pot total grows) the moment the street
-  # closes and `contributed_this_street` resets to 0, which reads as the
-  # bet being swept into the pot without needing any explicit animation.
+  # pot. Flies in from the seat itself on first appearance (see
+  # `.ChipFlight`) - it still just disappears (and the pot total grows)
+  # the moment the street closes and `contributed_this_street` resets to
+  # 0, which reads as the bet being swept into the pot without needing an
+  # explicit exit animation.
   defp bet_chips(assigns) do
     ~H"""
     <div
       id={@id}
-      class="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
+      class="absolute -translate-x-1/2 -translate-y-1/2"
       phx-hook=".InlineStyle"
       data-style={"top: #{@position.top}%; left: #{@position.left}%;"}
     >
-      <.chip_stack id={"#{@id}-stack"} amount={@amount} chip_size="size-5" />
-      <span class="rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
-        {Tokens.format(@amount)}
-      </span>
+      <div
+        id={"#{@id}-flight"}
+        class="flex flex-col items-center gap-1"
+        phx-hook=".ChipFlight"
+        data-dx-percent={@from_position.left - @position.left}
+        data-dy-percent={@from_position.top - @position.top}
+      >
+        <.chip_stack id={"#{@id}-stack"} amount={@amount} chip_size="size-5" />
+        <span class="rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
+          {Tokens.format(@amount)}
+        </span>
+      </div>
     </div>
     """
   end
@@ -880,6 +1088,22 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   defp chip_tier_color(amount) when amount >= 500, do: "border-red-300 bg-red-600"
   defp chip_tier_color(_amount), do: "border-neutral-400 bg-neutral-100"
 
+  # A seat's most recent action this street (cleared once the street
+  # closes - see `Poker.deal_next_street/3`), badged next to their name so
+  # the table reads at a glance without waiting for everyone's turn to
+  # come back around. Distinct colors from `Folded`'s neutral gray, and
+  # from each other - passive (check) reads cooler/quieter than putting
+  # chips in (call), which reads cooler than the aggressive actions.
+  defp action_badge_class(:check), do: "badge-ghost"
+  defp action_badge_class(:call), do: "badge-info"
+  defp action_badge_class(:bet), do: "badge-warning"
+  defp action_badge_class(:raise), do: "badge-warning"
+
+  defp action_badge_label(:check), do: "Checked"
+  defp action_badge_label(:call), do: "Called"
+  defp action_badge_label(:bet), do: "Bet"
+  defp action_badge_label(:raise), do: "Raised"
+
   attr :state, :map, required: true
   attr :my_seat, :integer, required: true
 
@@ -890,52 +1114,61 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     max_amount = my.stack + my.contributed_this_street
     min_bet = min(hand.big_blind, max_amount)
     min_raise_to = min(hand.current_bet + hand.min_raise, max_amount)
+    min_amount = if hand.current_bet == 0, do: min_bet, else: min_raise_to
 
     assigns =
       assigns
       |> assign(:to_call, to_call)
       |> assign(:max_amount, max_amount)
-      |> assign(:min_amount, if(hand.current_bet == 0, do: min_bet, else: min_raise_to))
+      |> assign(:min_amount, min_amount)
       |> assign(:can_check?, my.contributed_this_street == hand.current_bet)
       |> assign(:can_raise_or_bet?, my.stack > to_call)
       |> assign(:bet_label, if(hand.current_bet == 0, do: "Bet", else: "Raise to"))
+      |> assign(:quick_bets, quick_bets(pot_total(hand), min_amount, max_amount))
 
     ~H"""
-    <div
-      id="action-bar"
-      class="flex flex-col items-center gap-3 rounded-2xl border border-base-300 bg-base-200 p-4"
-    >
-      <div class="flex gap-2">
-        <button
-          id="fold-button"
-          type="button"
-          phx-click="act"
-          phx-value-action="fold"
-          class="btn btn-sm border-none bg-red-700 text-white hover:bg-red-600"
-        >
-          Fold
-        </button>
-        <button
-          :if={@can_check?}
-          id="check-button"
-          type="button"
-          phx-click="act"
-          phx-value-action="check"
-          class="btn btn-sm border-none bg-neutral-600 text-white hover:bg-neutral-500"
-        >
-          Check
-        </button>
-        <button
-          :if={!@can_check?}
-          id="call-button"
-          type="button"
-          phx-click="act"
-          phx-value-action="call"
-          class="btn btn-sm border-none bg-emerald-600 text-white hover:bg-emerald-500"
-        >
-          Call {Tokens.format(@to_call)} Tokens
-        </button>
-      </div>
+    <div id="action-bar" class="flex flex-wrap items-center justify-center gap-2">
+      <button
+        id="fold-button"
+        type="button"
+        phx-click="act"
+        phx-value-action="fold"
+        class="btn btn-sm border-none bg-red-700 text-white hover:bg-red-600"
+      >
+        Fold
+      </button>
+      <button
+        :if={@can_check?}
+        id="check-button"
+        type="button"
+        phx-click="act"
+        phx-value-action="check"
+        class="btn btn-sm border-none bg-neutral-600 text-white hover:bg-neutral-500"
+      >
+        Check
+      </button>
+      <button
+        :if={!@can_check?}
+        id="call-button"
+        type="button"
+        phx-click="act"
+        phx-value-action="call"
+        class="btn btn-sm border-none bg-emerald-600 text-white hover:bg-emerald-500"
+      >
+        Call {Tokens.format(@to_call)} Tokens
+      </button>
+
+      <button
+        :for={{slug, label, amount} <- @quick_bets}
+        :if={@can_raise_or_bet?}
+        id={"quick-bet-#{slug}"}
+        type="button"
+        phx-click="bet_or_raise"
+        phx-value-amount={amount}
+        class="btn btn-sm btn-outline"
+      >
+        {label} &middot; {Tokens.format(amount)}
+      </button>
 
       <form :if={@can_raise_or_bet?} phx-submit="bet_or_raise" class="flex items-center gap-2">
         <input
@@ -946,7 +1179,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
           value={@min_amount}
           id="bet-amount-slider"
           phx-hook=".BetSlider"
-          class="range range-sm w-48"
+          class="range range-sm w-32 sm:w-48"
         />
         <output id="bet-amount-output" class="w-16 text-right text-sm font-semibold">{Tokens.format(
           @min_amount
@@ -973,6 +1206,22 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
       }
     </script>
     """
+  end
+
+  # Preset raise/bet-to amounts sized off the current pot, each shown only
+  # when it's actually legal to submit - at least the big blind (the
+  # opening-bet floor) and, once there's already a bet outstanding, at
+  # least a full min-raise, both already folded into `min_amount`, and
+  # never more than the player can cover (`max_amount`). A tiny pot early
+  # in a hand can easily price a fraction below the big blind, which is
+  # exactly when it's correctly left off rather than shown as a bet
+  # nobody could actually make.
+  defp quick_bets(pot, min_amount, max_amount) do
+    [{"third", "1/3 Pot", pot / 3}, {"two-thirds", "2/3 Pot", pot * 2 / 3}, {"pot", "Pot", pot}]
+    |> Enum.map(fn {slug, label, raw_amount} -> {slug, label, round(raw_amount)} end)
+    |> Enum.filter(fn {_slug, _label, amount} ->
+      amount >= min_amount and amount <= max_amount
+    end)
   end
 
   attr :seat_index, :integer, required: true
@@ -1084,6 +1333,127 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     """
   end
 
+  @card_back_choices ~w(default black blue green red)
+  @felt_color_choices ~w(green blue red)
+
+  attr :user, :map, required: true
+
+  defp settings_modal(assigns) do
+    assigns =
+      assigns
+      |> assign(:card_backs, @card_back_choices)
+      |> assign(:felt_colors, @felt_color_choices)
+
+    ~H"""
+    <div
+      id="settings-modal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+    >
+      <div
+        phx-click-away="close_settings"
+        class="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-base-100 p-6 shadow-xl"
+      >
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold">Table Settings</h2>
+            <p class="mt-1 text-sm text-base-content/60">Only visible to you.</p>
+          </div>
+          <button
+            type="button"
+            phx-click="close_settings"
+            class="btn btn-ghost btn-sm btn-circle shrink-0"
+            aria-label="Close"
+          >
+            <.icon name="hero-x-mark" class="size-4" />
+          </button>
+        </div>
+
+        <div class="mt-5">
+          <h3 class="text-sm font-semibold text-base-content/80">Card Back</h3>
+          <div class="mt-2 grid grid-cols-5 gap-2">
+            <button
+              :for={choice <- @card_backs}
+              type="button"
+              id={"card-back-#{choice}"}
+              phx-click="set_card_back"
+              phx-value-choice={choice}
+              class={[
+                "rounded-lg border-2 p-1 transition",
+                if(@user.card_back == choice,
+                  do: "border-primary",
+                  else: "border-transparent hover:border-base-300"
+                )
+              ]}
+            >
+              <img
+                src={card_back_image(choice)}
+                alt={choice}
+                class="aspect-[7/10] w-full rounded object-contain"
+              />
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-5">
+          <h3 class="text-sm font-semibold text-base-content/80">Table Felt</h3>
+          <div class="mt-2 flex gap-3">
+            <button
+              :for={color <- @felt_colors}
+              type="button"
+              id={"felt-color-#{color}"}
+              phx-click="set_felt_color"
+              phx-value-choice={color}
+              class={[
+                "flex flex-col items-center gap-1 rounded-lg border-2 p-2 transition",
+                if(@user.felt_color == color,
+                  do: "border-primary",
+                  else: "border-transparent hover:border-base-300"
+                )
+              ]}
+            >
+              <span class={["size-8 rounded-full bg-gradient-to-b", felt_gradient_class(color)]} />
+              <span class="text-xs capitalize">{color}</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-5">
+          <h3 class="text-sm font-semibold text-base-content/80">Mucking</h3>
+          <p class="mt-1 text-xs text-base-content/60">
+            Only applies to an uncontested win (everyone else folds) - a real showdown always lets you choose whether to show your cards.
+          </p>
+          <div class="mt-2 flex gap-2">
+            <button
+              type="button"
+              id="muck-always-button"
+              phx-click="set_muck_preference"
+              phx-value-choice="always"
+              class={[
+                "btn btn-sm",
+                if(@user.muck_preference == "always", do: "btn-primary", else: "btn-outline")
+              ]}
+            >
+              Always muck cards
+            </button>
+            <button
+              type="button"
+              id="muck-never-button"
+              phx-click="set_muck_preference"
+              phx-value-choice="never"
+              class={[
+                "btn btn-sm",
+                if(@user.muck_preference == "never", do: "btn-primary", else: "btn-outline")
+              ]}
+            >
+              Never muck cards
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
   # The screen slot a seat renders in - always relative to a viewer's own
   # anchor seat, so every viewer sees that seat at `@seat_positions`' bottom-
   # center slot (index 0) with the rest of the table rotated around it the
@@ -1103,15 +1473,18 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   defp display_seat_index(seat_index, my_seat_index),
     do: rem(seat_index - my_seat_index + PokerTables.seats(), PokerTables.seats())
 
-  # Midway between the seat and the felt's center - far enough from the
-  # (fairly wide) seat marker to read as its own thing, short of actually
-  # sitting in the pot.
+  # Well over halfway from the seat toward the felt's center - clear of
+  # the (fairly tall, once a hand's dealt) seat marker's own name/stack
+  # text and hole cards, short of actually sitting in the pot. Under half
+  # sat close enough to the seat that its own content could reach up and
+  # overlap it, worst on the bottom ("mine") seat, whose hole cards are
+  # the biggest on the table.
   defp bet_chip_position(seat_index, my_seat_index) do
     seat = seat_position(seat_index, my_seat_index)
     %{top: along(seat.top, @center.top), left: along(seat.left, @center.left)}
   end
 
-  defp along(from, to), do: from + (to - from) * 0.5
+  defp along(from, to), do: from + (to - from) * 0.65
 
   defp active_bets(nil), do: []
 
@@ -1134,11 +1507,43 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     state.hand.status == :in_progress && state.hand.action_on == my_seat(state, user_id)
   end
 
-  defp reveal_hole_cards?(nil, _mine?, _hand), do: false
-  defp reveal_hole_cards?(_hand_seat, true, _hand), do: true
+  defp reveal_hole_cards?(nil, _mine?, _hand, _seat_index), do: false
+  defp reveal_hole_cards?(_hand_seat, true, _hand, _seat_index), do: true
 
-  defp reveal_hole_cards?(hand_seat, false, hand),
-    do: hand.status == :hand_over and hand_seat.status != :folded
+  # A winner's cards only show once they've chosen to reveal them (see
+  # `Poker.reveal_hand/2`) - everyone else who didn't fold (i.e. a
+  # showdown participant who lost) is still shown automatically.
+  defp reveal_hole_cards?(hand_seat, false, hand, seat_index) do
+    hand.status == :hand_over and hand_seat.status != :folded and
+      (seat_index not in Poker.winning_seats(hand) or seat_index in hand.revealed_seats)
+  end
+
+  # Whether `seat_index` still has an open "show my cards" offer - it won
+  # this now-finished hand but hasn't revealed yet. Only ever true for the
+  # viewer's own seat (gated by `mine?` at the call site).
+  #
+  # An uncontested win (not a real showdown - see `Poker.showdown?/1`) with
+  # "always muck" set hides the offer outright, since the player never
+  # wants to be asked. "Never muck" needs no clause here at all: the
+  # winning seat is already in `revealed_seats` by the time this runs (see
+  # `PokerTable`'s `auto_reveal_never_muck/1`), so the plain
+  # `not in hand.revealed_seats` check below already excludes it. A real
+  # showdown always keeps the button regardless of either preference.
+  defp can_reveal?(%Poker{status: :hand_over} = hand, seat_index, muck_preference) do
+    seat_index in Poker.winning_seats(hand) and seat_index not in hand.revealed_seats and
+      not (muck_preference == "always" and not Poker.showdown?(hand))
+  end
+
+  defp can_reveal?(_hand, _seat_index, _muck_preference), do: false
+
+  # Blue is checked against the app's own dark navy-tinted background
+  # (`--color-base-100`/`-200`, both low-chroma blues in the same hue
+  # family) so it doesn't wash out against the page behind the felt -
+  # Tailwind's blue-900/950 are saturated enough to still read as a
+  # distinct, deliberate felt rather than blending into the page.
+  defp felt_gradient_class("blue"), do: "from-blue-900 to-blue-950"
+  defp felt_gradient_class("red"), do: "from-red-900 to-red-950"
+  defp felt_gradient_class(_green_or_other), do: "from-emerald-900 to-emerald-950"
 
   # The viewer's own live "what do I have" read - only once there's
   # something to rank (the flop is down: 2 hole + at least 3 community
@@ -1169,23 +1574,20 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
 
   defp pot_total(%Poker{pots: pots}), do: pots |> Enum.map(& &1.amount) |> Enum.sum()
 
-  # While a hand is live, the pot sits at the felt's center. Once it's
-  # over, it slides to whichever single seat won everything - a split pot
-  # (more than one distinct winning seat, whether from one pot split
-  # multiple ways or separate side pots going to different seats) has no
-  # single destination to animate toward, so it just stays put and lets
-  # the winner banner's text explain it instead.
+  # While a hand is live, the pot sits at `@pot_position`. Once it's over,
+  # it slides to whichever single seat won everything - the same
+  # near-but-not-on `bet_chip_position/2` spot a live bet rests at, not the
+  # seat's own anchor, so it doesn't land directly on top of the winner's
+  # name/stack. A split pot (more than one distinct winning seat, whether
+  # from one pot split multiple ways or separate side pots going to
+  # different seats) has no single destination to animate toward, so it
+  # just stays put and lets the winner banner's text explain it instead.
   defp pot_chip_position(hand, my_seat_index) do
-    case winning_seats(hand) do
-      [seat] -> seat_position(seat, my_seat_index)
-      _ -> @center
+    case Poker.winning_seats(hand) do
+      [seat] -> bet_chip_position(seat, my_seat_index)
+      _ -> @pot_position
     end
   end
-
-  defp winning_seats(%Poker{status: :hand_over, pots: pots}),
-    do: pots |> Enum.flat_map(& &1.winners) |> Enum.uniq()
-
-  defp winning_seats(_hand), do: []
 
   # The showdown/uncontested-win callout: one clause per pot (almost
   # always just one), each naming its winner(s), the amount they took,
