@@ -117,6 +117,9 @@ defmodule HighSociety.Games.TournamentTable do
   def act(slug, user_id, action, amount \\ nil),
     do: GenServer.call(via(slug), {:act, user_id, action, amount})
 
+  @doc "Reveals `user_id`'s hole cards after a hand they won ends, instead of staying mucked. See `Poker.reveal_hand/2`."
+  def reveal_hand(slug, user_id), do: GenServer.call(via(slug), {:reveal_hand, user_id})
+
   @doc "The table's current public state."
   def get_state(slug), do: GenServer.call(via(slug), :get_state)
 
@@ -188,6 +191,32 @@ defmodule HighSociety.Games.TournamentTable do
                 last_action = last_action(seat_index, action, new_hand)
                 state = apply_hand_result(state, new_hand)
                 reply_result(state, {:ok, public_view(state, last_action)}, last_action)
+
+              {:error, reason} ->
+                {:reply, {:error, reason}, state}
+            end
+        end
+    end
+  end
+
+  def handle_call({:reveal_hand, user_id}, _from, state) do
+    case find_seat(state, user_id) do
+      nil ->
+        {:reply, {:error, :not_seated}, state}
+
+      seat_index ->
+        case state.hand do
+          nil ->
+            {:reply, {:error, :no_hand_in_progress}, state}
+
+          hand ->
+            case Poker.reveal_hand(hand, seat_index) do
+              {:ok, new_hand} ->
+                # Unlike `:act`, no `apply_hand_result` - revealing doesn't
+                # change `status`, merge stacks, or touch the already-running
+                # `:start_next_hand` timer.
+                state = %{state | hand: new_hand}
+                reply_result(state, {:ok, public_view(state)})
 
               {:error, reason} ->
                 {:reply, {:error, reason}, state}
@@ -589,7 +618,8 @@ defmodule HighSociety.Games.TournamentTable do
       "pots" => poker.pots && Enum.map(poker.pots, &pot_to_json/1),
       "uncalled_return" =>
         poker.uncalled_return &&
-          Map.new(poker.uncalled_return, fn {k, v} -> {Atom.to_string(k), v} end)
+          Map.new(poker.uncalled_return, fn {k, v} -> {Atom.to_string(k), v} end),
+      "revealed_seats" => poker.revealed_seats
     }
   end
 
@@ -632,7 +662,8 @@ defmodule HighSociety.Games.TournamentTable do
       pots: h["pots"] && Enum.map(h["pots"], &pot_from_json/1),
       uncalled_return:
         h["uncalled_return"] &&
-          %{seat: h["uncalled_return"]["seat"], amount: h["uncalled_return"]["amount"]}
+          %{seat: h["uncalled_return"]["seat"], amount: h["uncalled_return"]["amount"]},
+      revealed_seats: h["revealed_seats"] || []
     }
   end
 

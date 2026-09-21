@@ -50,6 +50,9 @@ defmodule HighSociety.Games.PokerTable do
   def act(slug, user_id, action, amount \\ nil),
     do: GenServer.call(via(slug), {:act, user_id, action, amount})
 
+  @doc "Reveals `user_id`'s hole cards after a hand they won ends, instead of staying mucked. See `Poker.reveal_hand/2`."
+  def reveal_hand(slug, user_id), do: GenServer.call(via(slug), {:reveal_hand, user_id})
+
   @doc "The table's current public state."
   def get_state(slug), do: GenServer.call(via(slug), :get_state)
 
@@ -140,6 +143,32 @@ defmodule HighSociety.Games.PokerTable do
               {:ok, new_hand} ->
                 last_action = last_action(seat_index, action, new_hand)
                 state = state |> apply_hand_result(new_hand) |> finalize(last_action)
+                {:reply, {:ok, public_view(state)}, state}
+
+              {:error, reason} ->
+                {:reply, {:error, reason}, state}
+            end
+        end
+    end
+  end
+
+  def handle_call({:reveal_hand, user_id}, _from, state) do
+    case find_seat(state, user_id) do
+      nil ->
+        {:reply, {:error, :not_seated}, state}
+
+      seat_index ->
+        case state.hand do
+          nil ->
+            {:reply, {:error, :no_hand_in_progress}, state}
+
+          hand ->
+            case Poker.reveal_hand(hand, seat_index) do
+              {:ok, new_hand} ->
+                # Unlike `dispatch_action`, no `apply_hand_result` - revealing
+                # doesn't change `status`, merge stacks, or touch the
+                # already-running `:start_next_hand` timer.
+                state = finalize(%{state | hand: new_hand})
                 {:reply, {:ok, public_view(state)}, state}
 
               {:error, reason} ->
@@ -293,6 +322,7 @@ defmodule HighSociety.Games.PokerTable do
 
     if new_hand.status == :hand_over do
       seats = merge_hand_stacks(state.seats, new_hand)
+      new_hand = auto_reveal_never_muck(new_hand)
 
       timer_ref =
         Process.send_after(self(), {:start_next_hand, state.hand_ref}, @hand_over_pause_ms)
@@ -328,6 +358,35 @@ defmodule HighSociety.Games.PokerTable do
 
     state
   end
+
+  # Applies a winner's "never muck" setting for an uncontested win (see
+  # `Poker.showdown?/1`) by revealing their hole cards the moment the hand
+  # ends, same as if they'd clicked "Show my cards" themselves - so every
+  # connected viewer (not just this table's process) sees it via the same
+  # `revealed_seats` field the manual reveal uses. A showdown, or a winner
+  # who hasn't set a preference (or set "always"), is left untouched here:
+  # "always" needs no server-side action at all, since it only ever hides
+  # the reveal button - see `can_reveal?/3` in the poker table LiveView.
+  defp auto_reveal_never_muck(hand) do
+    if Poker.showdown?(hand) do
+      hand
+    else
+      Enum.reduce(Poker.winning_seats(hand), hand, fn seat_index, hand ->
+        seat = Map.get(hand.seats, seat_index)
+
+        if seat && never_muck?(seat.user_id) do
+          case Poker.reveal_hand(hand, seat_index) do
+            {:ok, revealed} -> revealed
+            {:error, _reason} -> hand
+          end
+        else
+          hand
+        end
+      end)
+    end
+  end
+
+  defp never_muck?(user_id), do: Accounts.get_user!(user_id).muck_preference == "never"
 
   defp merge_hand_stacks(durable_seats, %Poker{seats: hand_seats}) do
     Enum.reduce(hand_seats, durable_seats, fn {i, hand_seat}, acc ->
@@ -568,7 +627,8 @@ defmodule HighSociety.Games.PokerTable do
       "pots" => poker.pots && Enum.map(poker.pots, &pot_to_json/1),
       "uncalled_return" =>
         poker.uncalled_return &&
-          Map.new(poker.uncalled_return, fn {k, v} -> {Atom.to_string(k), v} end)
+          Map.new(poker.uncalled_return, fn {k, v} -> {Atom.to_string(k), v} end),
+      "revealed_seats" => poker.revealed_seats
     }
   end
 
@@ -581,7 +641,8 @@ defmodule HighSociety.Games.PokerTable do
       "status" => Atom.to_string(s.status),
       "contributed_this_street" => s.contributed_this_street,
       "total_contributed" => s.total_contributed,
-      "acted?" => s.acted?
+      "acted?" => s.acted?,
+      "last_action" => s.last_action && Atom.to_string(s.last_action)
     }
   end
 
@@ -611,7 +672,9 @@ defmodule HighSociety.Games.PokerTable do
       pots: h["pots"] && Enum.map(h["pots"], &pot_from_json/1),
       uncalled_return:
         h["uncalled_return"] &&
-          %{seat: h["uncalled_return"]["seat"], amount: h["uncalled_return"]["amount"]}
+          %{seat: h["uncalled_return"]["seat"], amount: h["uncalled_return"]["amount"]},
+      # `|| []` covers a row persisted before this field existed.
+      revealed_seats: h["revealed_seats"] || []
     }
   end
 
@@ -624,7 +687,10 @@ defmodule HighSociety.Games.PokerTable do
       status: String.to_existing_atom(s["status"]),
       contributed_this_street: s["contributed_this_street"],
       total_contributed: s["total_contributed"],
-      acted?: s["acted?"]
+      acted?: s["acted?"],
+      # `s["last_action"]` is `nil` both for "no action taken yet" and for
+      # a row persisted before this field existed - same fallback either way.
+      last_action: s["last_action"] && String.to_existing_atom(s["last_action"])
     }
   end
 

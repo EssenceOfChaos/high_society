@@ -14,6 +14,8 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
   """
   use HighSocietyWeb, :live_view
 
+  alias HighSociety.Accounts
+  alias HighSociety.Accounts.Scope
   alias HighSociety.Games.Poker
   alias HighSociety.Games.Poker.HandEvaluator
   alias HighSociety.Games.PokerTables
@@ -132,7 +134,8 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
             state: state,
             viewer_count: viewer_count,
             action_error: nil,
-            hand_rankings_open?: false
+            hand_rankings_open?: false,
+            settings_open?: false
           )
 
         {:ok, socket}
@@ -181,12 +184,43 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
   def handle_event("close_hand_rankings", _params, socket),
     do: {:noreply, assign(socket, :hand_rankings_open?, false)}
 
+  def handle_event("open_settings", _params, socket),
+    do: {:noreply, assign(socket, :settings_open?, true)}
+
+  def handle_event("close_settings", _params, socket),
+    do: {:noreply, assign(socket, :settings_open?, false)}
+
+  # `choice`, not `value` - see the matching comment in `GameLive.PokerTable`
+  # for why a plain `<button>`'s native `.value` DOM property makes that
+  # name a trap for a custom `phx-value-*` param.
+  def handle_event("set_card_back", %{"choice" => choice}, socket),
+    do: update_poker_settings(socket, %{card_back: choice})
+
+  def handle_event("set_felt_color", %{"choice" => choice}, socket),
+    do: update_poker_settings(socket, %{felt_color: choice})
+
   def handle_event("act", %{"action" => action}, socket),
     do: perform_action(socket, String.to_existing_atom(action), nil)
+
+  def handle_event("reveal_hand", _params, socket) do
+    user = socket.assigns.current_scope.user
+
+    case TournamentTable.reveal_hand(socket.assigns.slug, user.id) do
+      {:ok, view} -> {:noreply, assign(socket, :state, view)}
+      {:error, _reason} -> {:noreply, socket}
+    end
+  end
 
   def handle_event("bet_or_raise", %{"amount" => amount}, socket) do
     action = if socket.assigns.state.hand.current_bet == 0, do: :bet, else: :raise
     perform_action(socket, action, String.to_integer(amount))
+  end
+
+  defp update_poker_settings(socket, attrs) do
+    case Accounts.update_poker_settings(socket.assigns.current_scope.user, attrs) do
+      {:ok, user} -> {:noreply, assign(socket, current_scope: Scope.for_user(user))}
+      {:error, _changeset} -> {:noreply, socket}
+    end
   end
 
   defp perform_action(socket, action, amount) do
@@ -233,6 +267,8 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
       |> assign(:my_turn?, my_turn?(assigns.state, assigns.current_scope.user.id))
       |> assign(:my_seat_index, my_seat_index)
       |> assign(:view_anchor_seat, my_seat_index || assigns.state.button_seat)
+      |> assign(:card_back_image, card_back_image(assigns.current_scope.user.card_back))
+      |> assign(:felt_gradient_class, felt_gradient_class(assigns.current_scope.user.felt_color))
 
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
@@ -273,6 +309,16 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
               <.icon name="hero-speaker-x-mark" class="size-4 sound-off-icon hidden" />
             </button>
             <button
+              id="settings-button"
+              type="button"
+              phx-click="open_settings"
+              class="btn btn-ghost btn-sm btn-circle tooltip tooltip-bottom"
+              aria-label="Table settings"
+              data-tip="Settings"
+            >
+              <.icon name="hero-cog-6-tooth" class="size-5" />
+            </button>
+            <button
               id="hand-rankings-button"
               type="button"
               phx-click="open_hand_rankings"
@@ -295,11 +341,18 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
 
         <div
           id="tournament-felt"
-          class="relative mt-6 aspect-[7/5] w-full rounded-3xl bg-gradient-to-b from-emerald-900 to-emerald-950 shadow-xl ring-1 ring-black/40"
+          class={[
+            "relative mt-6 aspect-[7/5] w-full rounded-3xl bg-gradient-to-b shadow-xl ring-1 ring-black/40",
+            @felt_gradient_class
+          ]}
         >
           <div class="absolute left-1/2 top-1/2 flex w-max -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2">
             <div id="community-cards" class="flex gap-2">
-              <.card_face :for={card <- community_card_slots(@state.hand)} card={card} />
+              <.card_face
+                :for={card <- community_card_slots(@state.hand)}
+                card={card}
+                card_back={@card_back_image}
+              />
             </div>
           </div>
 
@@ -334,6 +387,7 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
             action_deadline={@state.action_deadline}
             action_seconds={20}
             viewer_user_id={@current_scope.user.id}
+            card_back={@card_back_image}
           />
 
           <.bet_chips
@@ -356,6 +410,8 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
       </div>
 
       <.hand_rankings_modal :if={@hand_rankings_open?} />
+
+      <.settings_modal :if={@settings_open?} user={@current_scope.user} />
 
       <script :type={Phoenix.LiveView.ColocatedHook} name=".ActionTimer">
         export default {
@@ -587,6 +643,7 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
   attr :action_deadline, :any, default: nil
   attr :action_seconds, :integer, required: true
   attr :viewer_user_id, :integer, required: true
+  attr :card_back, :string, required: true
 
   # Empty seats never show a "Join" affordance here - only
   # `HighSociety.Games.TournamentCoordinator` ever fills a tournament
@@ -622,7 +679,8 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
       |> assign(:acting?, acting?)
       |> assign(:folded?, folded?)
       |> assign(:mine?, mine?)
-      |> assign(:reveal?, reveal_hole_cards?(hand_seat, mine?, assigns.hand))
+      |> assign(:reveal?, reveal_hole_cards?(hand_seat, mine?, assigns.hand, assigns.seat_index))
+      |> assign(:can_reveal?, mine? and can_reveal?(assigns.hand, assigns.seat_index))
       |> assign(
         :category,
         !folded? && mine? && hand_seat && my_hand_category(hand_seat, assigns.hand)
@@ -664,9 +722,20 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
             :for={card <- @hand_seat.hole_cards}
             card={card}
             face_down={not @reveal?}
-            size={if @mine?, do: :large, else: :normal}
+            card_back={@card_back}
+            size={if @mine?, do: :medium, else: :normal}
           />
         </div>
+
+        <button
+          :if={@can_reveal?}
+          id={"reveal-hand-button-#{@seat_index}"}
+          type="button"
+          phx-click="reveal_hand"
+          class="btn btn-sm mt-2 gap-1 rounded-full border-none bg-gradient-to-r from-amber-400 to-amber-500 font-semibold text-amber-950 shadow-md animate-pulse hover:from-amber-300 hover:to-amber-400"
+        >
+          <.icon name="hero-eye" class="size-4" /> Show my cards
+        </button>
       </div>
 
       <div
@@ -887,6 +956,102 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
     """
   end
 
+  @card_back_choices ~w(default black blue green red)
+  @felt_color_choices ~w(green blue red)
+
+  attr :user, :map, required: true
+
+  # Card back and felt color only - no mucking *preference* here, unlike
+  # `GameLive.PokerTable`'s settings modal: every tournament player is
+  # assumed to want an uncontested win mucked by default (see
+  # `reveal_hole_cards?/4` below), so there's no "always/never" choice to
+  # offer - but the per-hand "Show my cards" button (`can_reveal?/2`) is
+  # still there for a player who wants to show off a specific hand, and a
+  # genuine showdown always reveals regardless, with nothing to configure
+  # there either.
+  defp settings_modal(assigns) do
+    assigns =
+      assigns
+      |> assign(:card_backs, @card_back_choices)
+      |> assign(:felt_colors, @felt_color_choices)
+
+    ~H"""
+    <div
+      id="settings-modal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+    >
+      <div
+        phx-click-away="close_settings"
+        class="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-base-100 p-6 shadow-xl"
+      >
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-bold">Table Settings</h2>
+            <p class="mt-1 text-sm text-base-content/60">Only visible to you.</p>
+          </div>
+          <button
+            type="button"
+            phx-click="close_settings"
+            class="btn btn-ghost btn-sm btn-circle shrink-0"
+            aria-label="Close"
+          >
+            <.icon name="hero-x-mark" class="size-4" />
+          </button>
+        </div>
+
+        <div class="mt-5">
+          <h3 class="text-sm font-semibold text-base-content/80">Card Back</h3>
+          <div class="mt-2 grid grid-cols-5 gap-2">
+            <button
+              :for={choice <- @card_backs}
+              type="button"
+              id={"card-back-#{choice}"}
+              phx-click="set_card_back"
+              phx-value-choice={choice}
+              class={[
+                "rounded-lg border-2 p-1 transition",
+                if(@user.card_back == choice,
+                  do: "border-primary",
+                  else: "border-transparent hover:border-base-300"
+                )
+              ]}
+            >
+              <img
+                src={card_back_image(choice)}
+                alt={choice}
+                class="aspect-[7/10] w-full rounded object-contain"
+              />
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-5">
+          <h3 class="text-sm font-semibold text-base-content/80">Table Felt</h3>
+          <div class="mt-2 flex gap-3">
+            <button
+              :for={color <- @felt_colors}
+              type="button"
+              id={"felt-color-#{color}"}
+              phx-click="set_felt_color"
+              phx-value-choice={color}
+              class={[
+                "flex flex-col items-center gap-1 rounded-lg border-2 p-2 transition",
+                if(@user.felt_color == color,
+                  do: "border-primary",
+                  else: "border-transparent hover:border-base-300"
+                )
+              ]}
+            >
+              <span class={["size-8 rounded-full bg-gradient-to-b", felt_gradient_class(color)]} />
+              <span class="text-xs capitalize">{color}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
   # See the matching comment in poker_table.ex - `view_anchor_seat` (the
   # `my_seat_index` param here) is the viewer's own seat when seated, or the
   # current `button_seat` for a spectator, so the rotation always has a
@@ -905,6 +1070,12 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
   end
 
   defp along(from, to), do: from + (to - from) * 0.5
+
+  # See the matching comment in poker_table.ex for why blue/red are safe
+  # against the app's own dark navy-tinted background.
+  defp felt_gradient_class("blue"), do: "from-blue-900 to-blue-950"
+  defp felt_gradient_class("red"), do: "from-red-900 to-red-950"
+  defp felt_gradient_class(_green_or_other), do: "from-emerald-900 to-emerald-950"
 
   defp active_bets(nil), do: []
 
@@ -927,11 +1098,33 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
     state.hand.status == :in_progress && state.hand.action_on == my_seat(state, user_id)
   end
 
-  defp reveal_hole_cards?(nil, _mine?, _hand), do: false
-  defp reveal_hole_cards?(_hand_seat, true, _hand), do: true
+  defp reveal_hole_cards?(nil, _mine?, _hand, _seat_index), do: false
+  defp reveal_hole_cards?(_hand_seat, true, _hand, _seat_index), do: true
 
-  defp reveal_hole_cards?(hand_seat, false, hand),
-    do: hand.status == :hand_over and hand_seat.status != :folded
+  # A genuine showdown (more than one seat still eligible for a pot - see
+  # `Poker.showdown?/1`) always reveals every non-folded hand, same as any
+  # real poker room - no choice involved, unlike an uncontested win, which
+  # stays mucked unless this seat has actually clicked "Show my cards"
+  # (added itself to `hand.revealed_seats` - see `can_reveal?/2` below).
+  # Unlike a cash table, there's no per-player setting here: every
+  # tournament player is assumed to want an uncontested win's bluffs to
+  # stay hidden by default.
+  defp reveal_hole_cards?(hand_seat, false, hand, seat_index) do
+    hand.status == :hand_over and hand_seat.status != :folded and
+      (Poker.showdown?(hand) or seat_index in hand.revealed_seats)
+  end
+
+  # Whether `seat_index` still has an open "show my cards" offer - it won
+  # this now-finished hand but hasn't revealed yet. Only ever true for the
+  # viewer's own seat (gated by `mine?` at the call site). A genuine
+  # showdown never reaches here with anything to offer - every non-folded
+  # hand there is already shown by `reveal_hole_cards?/3` above.
+  defp can_reveal?(%Poker{status: :hand_over} = hand, seat_index) do
+    not Poker.showdown?(hand) and seat_index in Poker.winning_seats(hand) and
+      seat_index not in hand.revealed_seats
+  end
+
+  defp can_reveal?(_hand, _seat_index), do: false
 
   defp my_hand_category(hand_seat, %Poker{status: :in_progress, community_cards: community})
        when length(community) >= 3 do
@@ -959,16 +1152,11 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
   defp pot_total(%Poker{pots: pots}), do: pots |> Enum.map(& &1.amount) |> Enum.sum()
 
   defp pot_chip_position(hand, my_seat_index) do
-    case winning_seats(hand) do
+    case Poker.winning_seats(hand) do
       [seat] -> seat_position(seat, my_seat_index)
       _ -> @center
     end
   end
-
-  defp winning_seats(%Poker{status: :hand_over, pots: pots}),
-    do: pots |> Enum.flat_map(& &1.winners) |> Enum.uniq()
-
-  defp winning_seats(_hand), do: []
 
   defp winner_text(%Poker{status: :hand_over} = hand),
     do: hand.pots |> Enum.map(&pot_summary(&1, hand)) |> Enum.join("  •  ")

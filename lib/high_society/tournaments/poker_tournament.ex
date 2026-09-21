@@ -29,7 +29,8 @@ defmodule HighSociety.Tournaments.PokerTournament do
           on_break: boolean(),
           break_ends_at: DateTime.t() | nil,
           started_at: DateTime.t() | nil,
-          finished_at: DateTime.t() | nil
+          finished_at: DateTime.t() | nil,
+          scheduled_start_at: DateTime.t() | nil
         }
 
   @statuses ~w(scheduled running finished cancelled)
@@ -52,6 +53,7 @@ defmodule HighSociety.Tournaments.PokerTournament do
 
     field :started_at, :utc_datetime
     field :finished_at, :utc_datetime
+    field :scheduled_start_at, :utc_datetime
 
     timestamps(type: :utc_datetime)
   end
@@ -71,7 +73,8 @@ defmodule HighSociety.Tournaments.PokerTournament do
       :break_every_minutes,
       :break_minutes,
       :late_registration_minutes,
-      :blind_levels
+      :blind_levels,
+      :scheduled_start_at
     ])
     |> validate_required([
       :name,

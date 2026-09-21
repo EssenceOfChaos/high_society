@@ -18,7 +18,10 @@ defmodule HighSociety.Accounts.User do
           claimed_roulette_tokens_at: DateTime.t() | nil,
           claimed_zombie_attack_tokens_at: DateTime.t() | nil,
           active_days_count: integer(),
-          last_active_on: Date.t() | nil
+          last_active_on: Date.t() | nil,
+          card_back: String.t(),
+          felt_color: String.t(),
+          muck_preference: String.t() | nil
         }
 
   use Ecto.Schema
@@ -28,6 +31,10 @@ defmodule HighSociety.Accounts.User do
 
   @display_name_min_length 3
   @display_name_max_length 20
+
+  @card_backs ~w(default black blue green red)
+  @felt_colors ~w(green blue red)
+  @muck_preferences ~w(always never)
 
   schema "users" do
     field :email, :string
@@ -45,6 +52,9 @@ defmodule HighSociety.Accounts.User do
     field :claimed_zombie_attack_tokens_at, :utc_datetime
     field :active_days_count, :integer, default: 0
     field :last_active_on, :date
+    field :card_back, :string, default: "default"
+    field :felt_color, :string, default: "green"
+    field :muck_preference, :string
 
     timestamps(type: :utc_datetime)
   end
@@ -145,6 +155,34 @@ defmodule HighSociety.Accounts.User do
         else
           changeset
         end
+    end
+  end
+
+  @doc """
+  A user changeset for the poker table settings modal: card back design,
+  felt color, and muck preference (see
+  `HighSociety.Games.Poker.showdown?/1` for what "muck preference" governs).
+  Not security-sensitive, so - like `display_name_changeset/3` - this
+  doesn't require sudo mode or invalidate any existing sessions.
+  """
+  def poker_settings_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:card_back, :felt_color, :muck_preference])
+    |> validate_required([:card_back, :felt_color])
+    |> validate_inclusion(:card_back, @card_backs)
+    |> validate_inclusion(:felt_color, @felt_colors)
+    |> validate_muck_preference()
+  end
+
+  # `nil` (neither option selected) is always valid here, unlike
+  # `:card_back`/`:felt_color` which always have a default - so this can't
+  # just be a `validate_inclusion` (which would reject an explicit clear
+  # back to "neither").
+  defp validate_muck_preference(changeset) do
+    case get_change(changeset, :muck_preference) do
+      nil -> changeset
+      value when value in @muck_preferences -> changeset
+      _other -> add_error(changeset, :muck_preference, "is invalid")
     end
   end
 

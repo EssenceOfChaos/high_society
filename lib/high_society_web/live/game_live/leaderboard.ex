@@ -49,7 +49,12 @@ defmodule HighSocietyWeb.GameLive.Leaderboard do
           <.table
             id="leaderboard"
             rows={@entries}
-            row_class={fn entry -> entry.user.id == @current_scope.user.id && "bg-primary/10" end}
+            row_class={
+              fn entry ->
+                entry.user.id == @current_scope.user.id &&
+                  "bg-primary/10 outline outline-2 -outline-offset-2 outline-amber-400"
+              end
+            }
           >
             <:col :let={entry} label="Rank">#{entry.rank}</:col>
             <:col :let={entry} label="Badge">

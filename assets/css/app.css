@@ -102,6 +102,45 @@
   --noise: 0;
 }
 
+/* Brand typeface pair: Playfair Display (a display serif) for headings and
+   other "moment" text, Inter (a clean, highly-legible sans) for everything
+   else - body copy, buttons, tables, forms. Both self-hosted as variable
+   fonts under priv/static/fonts (served at /fonts, already in
+   HighSocietyWeb.static_paths/0) rather than loaded from Google's CDN, so
+   there's no third-party font-src the CSP would need to allow - see
+   HighSocietyWeb.Router.put_csp_headers/2. `font-weight: 100 900` (a
+   range, not a single value) is what tells the browser to treat the file
+   as variable and pick an instance along its weight axis, rather than
+   only ever rendering its default weight. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/inter-variable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Playfair Display";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/playfair-display-variable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Playfair Display";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/playfair-display-italic-variable.woff2") format("woff2");
+}
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", ui-serif, Georgia, serif;
+}
+
 /* Add variants based on LiveView classes */
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);

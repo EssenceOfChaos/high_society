@@ -50,7 +50,8 @@ defmodule HighSociety.Games.Poker do
           status: seat_status,
           contributed_this_street: non_neg_integer(),
           total_contributed: non_neg_integer(),
-          acted?: boolean()
+          acted?: boolean(),
+          last_action: :check | :call | :bet | :raise | nil
         }
 
   @type pot :: %{
@@ -74,7 +75,8 @@ defmodule HighSociety.Games.Poker do
           min_raise: pos_integer(),
           action_on: seat_index | nil,
           pots: [pot] | nil,
-          uncalled_return: %{seat: seat_index, amount: pos_integer()} | nil
+          uncalled_return: %{seat: seat_index, amount: pos_integer()} | nil,
+          revealed_seats: [seat_index]
         }
 
   defstruct seats: %{},
@@ -89,7 +91,8 @@ defmodule HighSociety.Games.Poker do
             min_raise: 0,
             action_on: nil,
             pots: nil,
-            uncalled_return: nil
+            uncalled_return: nil,
+            revealed_seats: []
 
   @doc """
   Deals a fresh hand to every occupied seat in `seats` (a map of seat index
@@ -118,7 +121,8 @@ defmodule HighSociety.Games.Poker do
           status: :active,
           contributed_this_street: 0,
           total_contributed: 0,
-          acted?: false
+          acted?: false,
+          last_action: nil
         }
 
         {{seat_index, entry}, deck}
@@ -159,7 +163,7 @@ defmodule HighSociety.Games.Poker do
         {:error, :bet_outstanding}
 
       true ->
-        {:ok, poker |> mark_acted(seat) |> advance_action()}
+        {:ok, poker |> mark_acted(seat, :check) |> advance_action()}
     end
   end
 
@@ -190,7 +194,7 @@ defmodule HighSociety.Games.Poker do
       true ->
         seat_data = Map.fetch!(poker.seats, seat)
         to_amount = min(poker.current_bet, seat_data.stack + seat_data.contributed_this_street)
-        poker = poker |> apply_wager(seat, to_amount) |> mark_acted(seat)
+        poker = poker |> apply_wager(seat, to_amount) |> mark_acted(seat, :call)
         {:ok, advance_action(poker)}
     end
   end
@@ -223,7 +227,10 @@ defmodule HighSociety.Games.Poker do
 
           true ->
             {:ok,
-             poker |> apply_wager(seat, to_amount) |> mark_aggressor(seat) |> advance_action()}
+             poker
+             |> apply_wager(seat, to_amount)
+             |> mark_aggressor(seat, :bet)
+             |> advance_action()}
         end
     end
   end
@@ -260,7 +267,10 @@ defmodule HighSociety.Games.Poker do
 
           true ->
             {:ok,
-             poker |> apply_wager(seat, to_amount) |> mark_aggressor(seat) |> advance_action()}
+             poker
+             |> apply_wager(seat, to_amount)
+             |> mark_aggressor(seat, :raise)
+             |> advance_action()}
         end
     end
   end
@@ -305,6 +315,47 @@ defmodule HighSociety.Games.Poker do
     poker = update_seat(poker, seat, &%{&1 | status: :folded})
     if live_count(poker) <= 1, do: settle_uncontested(poker), else: poker
   end
+
+  @doc """
+  Reveals `seat`'s hole cards to the table - only legal for a seat that
+  actually won at least one pot in a just-concluded hand, whether that was
+  uncontested (everyone else folded) or a genuine showdown; anyone else
+  who didn't fold is shown automatically either way. Idempotent, since a
+  double-click shouldn't error. There's no explicit "muck" action to go
+  with it - a winner who never calls this simply stays unrevealed, which
+  is exactly what mucking is.
+  """
+  @spec reveal_hand(t(), seat_index) :: {:ok, t()} | {:error, atom()}
+  def reveal_hand(%__MODULE__{status: :hand_over} = poker, seat) do
+    if seat in winning_seats(poker) do
+      {:ok, %{poker | revealed_seats: Enum.uniq([seat | poker.revealed_seats])}}
+    else
+      {:error, :not_a_winner}
+    end
+  end
+
+  def reveal_hand(%__MODULE__{}, _seat), do: {:error, :hand_not_over}
+
+  @doc "Every seat that won at least one pot - empty until `status` reaches `:hand_over`."
+  @spec winning_seats(t()) :: [seat_index]
+  def winning_seats(%__MODULE__{status: :hand_over, pots: pots}) when is_list(pots),
+    do: pots |> Enum.flat_map(& &1.winners) |> Enum.uniq()
+
+  def winning_seats(%__MODULE__{}), do: []
+
+  @doc """
+  Whether this finished hand reached a genuine showdown - more than one
+  seat still eligible for at least one pot - rather than every other seat
+  simply folding to a single uncontested winner. Used to scope a player's
+  "always/never muck" setting (see `HighSociety.Accounts.User.muck_preference`)
+  to uncontested wins only; a real showdown always keeps today's
+  click-to-reveal behavior regardless of that setting.
+  """
+  @spec showdown?(t()) :: boolean()
+  def showdown?(%__MODULE__{status: :hand_over, pots: pots}) when is_list(pots),
+    do: Enum.any?(pots, &(length(&1.eligible) > 1))
+
+  def showdown?(%__MODULE__{}), do: false
 
   defp action_on?(%__MODULE__{status: :in_progress, action_on: seat}, seat), do: true
   defp action_on?(%__MODULE__{}, _seat), do: false
@@ -351,12 +402,13 @@ defmodule HighSociety.Games.Poker do
     end
   end
 
-  defp mark_acted(poker, seat), do: update_seat(poker, seat, &%{&1 | acted?: true})
+  defp mark_acted(poker, seat, action),
+    do: update_seat(poker, seat, &%{&1 | acted?: true, last_action: action})
 
   # A bet or raise reopens the action for every other still-active seat
   # (see the moduledoc note on short all-in raises) and records the new
   # amount to call plus the size of this raise, for sizing the next one.
-  defp mark_aggressor(poker, seat) do
+  defp mark_aggressor(poker, seat, action) do
     seat_data = Map.fetch!(poker.seats, seat)
     increment = seat_data.contributed_this_street - poker.current_bet
 
@@ -368,7 +420,7 @@ defmodule HighSociety.Games.Poker do
 
     seats =
       Map.new(poker.seats, fn
-        {^seat, s} -> {seat, %{s | acted?: true}}
+        {^seat, s} -> {seat, %{s | acted?: true, last_action: action}}
         {i, %{status: :active} = s} -> {i, %{s | acted?: false}}
         {i, s} -> {i, s}
       end)
@@ -421,7 +473,9 @@ defmodule HighSociety.Games.Poker do
     {cards, deck} = Enum.split(poker.deck, count)
 
     seats =
-      Map.new(poker.seats, fn {i, s} -> {i, %{s | contributed_this_street: 0, acted?: false}} end)
+      Map.new(poker.seats, fn {i, s} ->
+        {i, %{s | contributed_this_street: 0, acted?: false, last_action: nil}}
+      end)
 
     poker = %{
       poker

@@ -592,6 +592,25 @@ defmodule HighSociety.Accounts do
     |> Repo.update()
   end
 
+  @doc """
+  Updates a user's poker table settings (card back, felt color, muck
+  preference). See `HighSociety.Accounts.User.poker_settings_changeset/2`.
+
+  ## Examples
+
+      iex> update_poker_settings(user, %{felt_color: "blue"})
+      {:ok, %User{}}
+
+      iex> update_poker_settings(user, %{felt_color: "purple"})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def update_poker_settings(user, attrs) do
+    user
+    |> User.poker_settings_changeset(attrs)
+    |> Repo.update()
+  end
+
   ## Session
 
   @doc """

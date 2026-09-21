@@ -32,6 +32,24 @@ defmodule HighSociety.Tournaments do
     next_scheduled_tournament() || currently_registrable_running_tournament()
   end
 
+  @doc """
+  Whether `tournament` has an announced, not-yet-started time worth
+  showing a countdown for - shared between the registration page's large
+  countdown and the landing page's small badge (see
+  `HighSocietyWeb.CoreComponents.countdown/1` and the `:tournament_countdown`
+  attr on `HighSocietyWeb.Layouts.app/1`). Once a tournament actually
+  starts, `status` moves off `"scheduled"` and any countdown stops making
+  sense regardless of how `scheduled_start_at` compares to now.
+  """
+  @spec scheduled_countdown?(PokerTournament.t() | nil) :: boolean()
+  def scheduled_countdown?(%PokerTournament{
+        status: "scheduled",
+        scheduled_start_at: %DateTime{}
+      }),
+      do: true
+
+  def scheduled_countdown?(_tournament), do: false
+
   defp next_scheduled_tournament do
     Repo.one(
       from t in PokerTournament,

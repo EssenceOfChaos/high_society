@@ -556,6 +556,55 @@ defmodule HighSociety.AccountsTest do
     end
   end
 
+  describe "update_poker_settings/2" do
+    setup do
+      %{user: user_fixture()}
+    end
+
+    test "defaults to the classic card back, green felt, and no muck preference", %{user: user} do
+      assert user.card_back == "default"
+      assert user.felt_color == "green"
+      assert user.muck_preference == nil
+    end
+
+    test "updates card back, felt color, and muck preference together", %{user: user} do
+      assert {:ok, updated} =
+               Accounts.update_poker_settings(user, %{
+                 card_back: "blue",
+                 felt_color: "red",
+                 muck_preference: "always"
+               })
+
+      assert updated.card_back == "blue"
+      assert updated.felt_color == "red"
+      assert updated.muck_preference == "always"
+      assert Repo.get!(User, user.id).card_back == "blue"
+    end
+
+    test "rejects an unrecognized card back", %{user: user} do
+      assert {:error, changeset} = Accounts.update_poker_settings(user, %{card_back: "gold"})
+      assert "is invalid" in errors_on(changeset).card_back
+    end
+
+    test "rejects an unrecognized felt color", %{user: user} do
+      assert {:error, changeset} = Accounts.update_poker_settings(user, %{felt_color: "purple"})
+      assert "is invalid" in errors_on(changeset).felt_color
+    end
+
+    test "rejects an unrecognized muck preference", %{user: user} do
+      assert {:error, changeset} =
+               Accounts.update_poker_settings(user, %{muck_preference: "sometimes"})
+
+      assert "is invalid" in errors_on(changeset).muck_preference
+    end
+
+    test "allows clearing the muck preference back to neither selected", %{user: user} do
+      {:ok, user} = Accounts.update_poker_settings(user, %{muck_preference: "always"})
+      assert {:ok, updated} = Accounts.update_poker_settings(user, %{muck_preference: nil})
+      assert updated.muck_preference == nil
+    end
+  end
+
   describe "generate_user_session_token/1" do
     setup do
       %{user: user_fixture()}

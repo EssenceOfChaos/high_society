@@ -51,6 +51,13 @@ defmodule HighSocietyWeb.Layouts do
         "too, so the icon's usual text-primary would wash out against a navy hero specifically " <>
         "in light theme. Forces the same literal gold used on the 404 page instead."
 
+  attr :tournament_countdown, :map,
+    default: nil,
+    doc:
+      "a still-`scheduled` PokerTournament with a `scheduled_start_at` set - shows a small " <>
+        "countdown badge poking out of the brand logo's corner, linking to /tournament. Only " <>
+        "ever passed from DashboardLive (the landing page); every other page leaves this nil."
+
   slot :inner_block, required: true
 
   def app(assigns) do
@@ -64,27 +71,38 @@ defmodule HighSocietyWeb.Layouts do
           <.link navigate={~p"/badges"} class="flex">
             <.player_badge active_days_count={@current_scope.user.active_days_count} />
           </.link>
-          {@current_scope.user.display_name || @current_scope.user.email}
+          <span class="hidden sm:inline">
+            {@current_scope.user.display_name || @current_scope.user.email}
+          </span>
         </li>
         <li>
-          <.link href={~p"/users/settings"} class="flex items-center gap-1">
-            <.icon name="hero-cog-6-tooth" class="size-4" /> Settings
+          <.link href={~p"/users/settings"} class="flex items-center gap-1" aria-label="Settings">
+            <.icon name="hero-cog-6-tooth" class="size-4" />
+            <span class="hidden sm:inline">Settings</span>
           </.link>
         </li>
         <li>
-          <.link href={~p"/users/log-out"} method="delete" class="flex items-center gap-1">
-            <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" /> Log out
+          <.link
+            href={~p"/users/log-out"}
+            method="delete"
+            class="flex items-center gap-1"
+            aria-label="Log out"
+          >
+            <.icon name="hero-arrow-right-start-on-rectangle" class="size-4" />
+            <span class="hidden sm:inline">Log out</span>
           </.link>
         </li>
       <% else %>
         <li>
-          <.link href={~p"/users/register"} class="flex items-center gap-1">
-            <.icon name="hero-user-plus" class="size-4" /> Register
+          <.link href={~p"/users/register"} class="flex items-center gap-1" aria-label="Register">
+            <.icon name="hero-user-plus" class="size-4" />
+            <span class="hidden sm:inline">Register</span>
           </.link>
         </li>
         <li>
-          <.link href={~p"/users/log-in"} class="flex items-center gap-1">
-            <.icon name="hero-arrow-right-end-on-rectangle" class="size-4" /> Log in
+          <.link href={~p"/users/log-in"} class="flex items-center gap-1" aria-label="Log in">
+            <.icon name="hero-arrow-right-end-on-rectangle" class="size-4" />
+            <span class="hidden sm:inline">Log in</span>
           </.link>
         </li>
       <% end %>
@@ -95,20 +113,37 @@ defmodule HighSocietyWeb.Layouts do
       @hero != [] && "text-white"
     ]}>
       <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <.icon
-            name="hero-rectangle-stack-solid"
-            class={[
-              "size-7",
-              cond do
-                @hero_video? -> "bg-gradient-to-r from-zinc-100 via-slate-200 to-zinc-300"
-                @hero_fixed_dark? -> "text-[#957c3d]"
-                true -> "text-primary [[data-theme=dark]_&]:text-secondary"
-              end
-            ]}
-          />
-          <span class="text-lg font-bold tracking-tight">High Society</span>
-        </a>
+        <div class="relative inline-flex w-fit">
+          <a href="/" class="flex items-center gap-2">
+            <.icon
+              name="hero-rectangle-stack-solid"
+              class={[
+                "size-7",
+                cond do
+                  @hero_video? -> "bg-gradient-to-r from-zinc-100 via-slate-200 to-zinc-300"
+                  @hero_fixed_dark? -> "text-[#957c3d]"
+                  true -> "text-primary [[data-theme=dark]_&]:text-secondary"
+                end
+              ]}
+            />
+            <span class="font-serif text-xl/8 font-bold tracking-tight">High Society</span>
+          </a>
+
+          <.link
+            :if={@tournament_countdown}
+            navigate={~p"/tournament"}
+            id="tournament-countdown-badge"
+            class="tooltip tooltip-bottom absolute -top-2 -right-3 sm:-right-4"
+            data-tip="Poker Tournament"
+          >
+            <span
+              id="tournament-countdown-badge-timer"
+              phx-hook=".MiniCountdown"
+              data-target={DateTime.to_iso8601(@tournament_countdown.scheduled_start_at)}
+              class="border-secondary bg-base-100 text-secondary flex h-6 min-w-6 items-center justify-center rounded-full border px-1.5 text-[10px] font-bold tabular-nums shadow-md"
+            ></span>
+          </.link>
+        </div>
       </div>
       <div class="flex-none">
         <ul class="flex flex-column px-1 space-x-4 items-center">
@@ -119,9 +154,43 @@ defmodule HighSocietyWeb.Layouts do
       </div>
     </header>
 
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".MiniCountdown">
+      export default {
+        mounted() {
+          this.targetMs = new Date(this.el.dataset.target).getTime()
+          this.tick()
+          // A compact badge only ever shows whole days/hours/minutes, so
+          // there's nothing for a viewer to see change more than once a
+          // minute - unlike `.Countdown`'s seconds hand, ticking every
+          // second here would just be wasted work.
+          this.timer = setInterval(() => this.tick(), 60_000)
+        },
+        destroyed() {
+          clearInterval(this.timer)
+        },
+        tick() {
+          const diff = Math.max(0, this.targetMs - Date.now())
+          const days = Math.floor(diff / 86_400_000)
+          const hours = Math.floor(diff / 3_600_000)
+          const minutes = Math.floor(diff / 60_000)
+
+          let text
+          if (diff <= 0) text = "Live"
+          else if (days >= 1) text = `${days}d`
+          else if (hours >= 1) text = `${hours}h`
+          else text = `${minutes}m`
+
+          this.el.textContent = text
+          this.el.setAttribute("aria-label", text)
+
+          if (diff <= 0) clearInterval(this.timer)
+        }
+      }
+    </script>
+
     {render_slot(@hero)}
 
-    <main class="relative z-10 bg-base-100 px-4 py-20 sm:px-6 lg:px-8">
+    <main class="relative z-20 bg-base-100 px-4 py-20 sm:px-6 lg:px-8">
       <div class="mx-auto max-w-7xl space-y-4">
         {render_slot(@inner_block)}
       </div>
@@ -145,19 +214,32 @@ defmodule HighSocietyWeb.Layouts do
             name="hero-rectangle-stack-solid"
             class="size-5 text-primary [[data-theme=dark]_&]:text-secondary"
           />
-          <span class="font-semibold tracking-tight">High Society</span>
+          <span class="font-serif font-semibold tracking-tight">High Society</span>
         </a>
 
         <div class="flex items-center gap-4">
           <a
-            href="#"
+            href="https://x.com/High_Societycc"
+            target="_blank"
+            rel="noopener noreferrer"
             aria-label="X (Twitter)"
             class="text-base-content/50 transition-colors hover:text-base-content"
           >
             <.social_icon name="x" />
           </a>
           <a
-            href="#"
+            href="https://www.facebook.com/profile.php?id=61594799933383"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Facebook"
+            class="text-base-content/50 transition-colors hover:text-base-content"
+          >
+            <.social_icon name="facebook" />
+          </a>
+          <a
+            href="https://www.instagram.com/high_societycc/"
+            target="_blank"
+            rel="noopener noreferrer"
             aria-label="Instagram"
             class="text-base-content/50 transition-colors hover:text-base-content"
           >
@@ -227,6 +309,14 @@ defmodule HighSocietyWeb.Layouts do
     ~H"""
     <svg viewBox="0 0 24 24" fill="currentColor" class="size-5" aria-hidden="true">
       <path d="M18.24 2.25h3.31l-7.23 8.26 8.5 11.24h-6.66l-5.22-6.83-5.97 6.83H1.66l7.73-8.84L1.25 2.25h6.83l4.72 6.24 5.44-6.24Zm-1.16 17.52h1.83L7.02 4.13H5.06l11.99 15.64Z" />
+    </svg>
+    """
+  end
+
+  defp social_icon(%{name: "facebook"} = assigns) do
+    ~H"""
+    <svg viewBox="0 0 24 24" fill="currentColor" class="size-5" aria-hidden="true">
+      <path d="M13.5 21v-7.5h2.52l.38-2.93h-2.9V8.66c0-.85.24-1.43 1.45-1.43h1.55V4.6c-.27-.04-1.18-.11-2.24-.11-2.22 0-3.74 1.35-3.74 3.84v2.14H8v2.93h2.52V21h2.98Z" />
     </svg>
     """
   end

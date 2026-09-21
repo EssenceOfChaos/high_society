@@ -102,7 +102,12 @@ defmodule HighSocietyWeb.DashboardLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_scope={@current_scope} hero_video?={true}>
+    <Layouts.app
+      flash={@flash}
+      current_scope={@current_scope}
+      hero_video?={true}
+      tournament_countdown={Tournaments.scheduled_countdown?(@tournament) && @tournament}
+    >
       <:hero>
         <div class="fixed inset-0 overflow-hidden bg-neutral-900">
           <video
@@ -134,13 +139,25 @@ defmodule HighSocietyWeb.DashboardLive do
             <h1 class="mt-4">
               <span
                 data-reveal
-                class="block text-6xl leading-[1.15] font-bold tracking-tight text-white opacity-0 motion-reduce:opacity-100 sm:text-7xl lg:text-8xl"
+                class="block text-6xl leading-[1.35] font-bold tracking-tight text-white opacity-0 motion-reduce:opacity-100 sm:text-7xl lg:text-8xl"
               >
                 High
               </span>
+              <%!--
+                "Society" paints its gradient through bg-clip-text - that
+                gradient only fills this span's own box (line-height Ă—
+                font-size, since there's no padding), not the full glyph
+                ink. Playfair Display's italic "y" descender reaches below
+                that box before the leading was widened here (from the
+                1.15 "High" started with, tight enough for stacked display
+                type but too tight for this font/style's descender), so the
+                tail of the "y" had no gradient to paint through and simply
+                didn't render - not a layout clip, a paint one. Widening
+                the line box gives the gradient room to reach it.
+              --%>
               <span
                 data-reveal
-                class="block bg-gradient-to-r from-zinc-100 via-slate-200 to-zinc-300 bg-clip-text text-6xl leading-[1.15] font-serif text-transparent italic opacity-0 [text-shadow:0_2px_30px_rgba(0,0,0,0.45)] motion-reduce:opacity-100 sm:text-7xl lg:text-8xl"
+                class="block bg-gradient-to-r from-zinc-100 via-slate-200 to-zinc-300 bg-clip-text text-6xl leading-[1.35] font-serif text-transparent italic opacity-0 [text-shadow:0_2px_30px_rgba(0,0,0,0.45)] motion-reduce:opacity-100 sm:text-7xl lg:text-8xl"
               >
                 Society
               </span>
@@ -148,7 +165,7 @@ defmodule HighSocietyWeb.DashboardLive do
 
             <p
               data-reveal
-              class="mt-6 max-w-md text-base text-white/75 opacity-0 motion-reduce:opacity-100 sm:text-lg"
+              class="mt-6 max-w-md text-base text-white/75 opacity-0 motion-reduce:opacity-100 sm:text-nowrap sm:text-lg"
             >
               Pick a table. Every game here is ready when you are.
             </p>
