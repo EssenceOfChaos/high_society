@@ -36,6 +36,15 @@ defmodule HighSociety.Accounts.UserNotifier do
   # environment before a template's been created in Resend still send a
   # readable email instead of a blank one no non-Resend adapter could
   # ever render from a template id alone.
+  #
+  # `variables`' keys must match the template's own `{{{PLACEHOLDER}}}`
+  # names *and case* exactly - Resend does not lowercase/normalize either
+  # side before comparing, so `"LOGIN_URL" => url` here has to line up
+  # with `{{{LOGIN_URL}}}` in the HTML and the "LOGIN_URL" variable name
+  # entered in Resend's dashboard, not `:login_url` or any other casing.
+  # A mismatch fails silently - the placeholder just renders as whatever
+  # fallback value was configured for it in Resend, with no error
+  # anywhere in this app to catch it.
   defp deliver_templated(recipient, subject, template_key, variables, body) do
     email =
       new()
@@ -117,10 +126,10 @@ defmodule HighSociety.Accounts.UserNotifier do
       "Log in instructions",
       :login,
       %{
-        headline: "Welcome back",
-        action_text: "log into your account",
-        button_text: "Log In",
-        login_url: url
+        "HEADLINE" => "Welcome back",
+        "ACTION_TEXT" => "log into your account",
+        "BUTTON_TEXT" => "Log In",
+        "LOGIN_URL" => url
       },
       """
 
@@ -147,10 +156,10 @@ defmodule HighSociety.Accounts.UserNotifier do
       "Confirmation instructions",
       :login,
       %{
-        headline: "Confirm your account",
-        action_text: "confirm your account",
-        button_text: "Confirm Account",
-        login_url: url
+        "HEADLINE" => "Confirm your account",
+        "ACTION_TEXT" => "confirm your account",
+        "BUTTON_TEXT" => "Confirm Account",
+        "LOGIN_URL" => url
       },
       """
 
