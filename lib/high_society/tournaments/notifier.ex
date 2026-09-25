@@ -21,6 +21,16 @@ defmodule HighSociety.Tournaments.Notifier do
   # and swallows delivery failures rather than raising - every caller
   # already has its own data saved (an entry, a placement) regardless of
   # whether the email about it actually goes out.
+  #
+  # `variables`' keys must match the template's own `{{{PLACEHOLDER}}}`
+  # names *and case* exactly - Resend does not lowercase/normalize either
+  # side before comparing, so e.g. `"TOURNAMENT_NAME" => ...` here has to
+  # line up with `{{{TOURNAMENT_NAME}}}` in the HTML and the
+  # "TOURNAMENT_NAME" variable name entered in Resend's dashboard, not
+  # `:tournament_name` or any other casing. A mismatch fails silently -
+  # the placeholder just renders as whatever fallback value was
+  # configured for it in Resend, with no error anywhere in this app to
+  # catch it.
   defp deliver(email, template_key, variables, body) do
     email =
       case Keyword.get(Application.get_env(:high_society, :resend_templates, []), template_key) do
@@ -63,8 +73,8 @@ defmodule HighSociety.Tournaments.Notifier do
       |> subject("You're registered for the High Society poker tournament")
 
     variables = %{
-      tournament_name: html_escape(tournament.name),
-      ethereum_section: ethereum_section_html(entry)
+      "TOURNAMENT_NAME" => html_escape(tournament.name),
+      "ETHEREUM_SECTION" => ethereum_section_html(entry)
     }
 
     deliver(email, :tournament_registration, variables, text_body(entry))
@@ -136,9 +146,9 @@ defmodule HighSociety.Tournaments.Notifier do
       |> subject(placement_subject(entry))
 
     variables = %{
-      headline: placement_headline(entry),
-      tournament_name: html_escape(tournament.name),
-      body_html: placement_body_html(tournament, entry)
+      "HEADLINE" => placement_headline(entry),
+      "TOURNAMENT_NAME" => html_escape(tournament.name),
+      "BODY_HTML" => placement_body_html(tournament, entry)
     }
 
     deliver(email, :tournament_results, variables, placement_body(tournament, entry))
