@@ -74,6 +74,17 @@ defmodule HighSocietyWeb.DashboardLive do
       accent: "from-lime-500 to-emerald-600",
       path: "/games/zombie-attack",
       available: true
+    },
+    %{
+      slug: "baccarat",
+      name: "Baccarat",
+      tagline: "Player or Banker",
+      description:
+        "Bet on whichever hand comes closest to nine — the timeless high-roller classic.",
+      icon: "hero-rectangle-stack",
+      accent: "from-purple-500 to-fuchsia-400",
+      path: nil,
+      available: false
     }
   ]
 

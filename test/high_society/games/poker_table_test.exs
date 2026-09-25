@@ -6,6 +6,7 @@ defmodule HighSociety.Games.PokerTableTest do
 
   alias HighSociety.Accounts
   alias HighSociety.AccountsFixtures
+  alias HighSociety.Games.Poker
   alias HighSociety.Games.PokerTable
   alias HighSociety.PokerFixtures
 
@@ -211,5 +212,36 @@ defmodule HighSociety.Games.PokerTableTest do
       assert {:ok, view} = PokerTable.reveal_hand(@slug, winning_user.id)
       assert view.hand.revealed_seats != []
     end
+
+    test "a genuine showdown force-reveals the winner's hand with no reveal_hand call needed" do
+      user1 = funded_user(100_000)
+      user2 = funded_user(100_000)
+      {:ok, _view} = PokerTable.sit(@slug, user1, 0, 20_000)
+      {:ok, view} = PokerTable.sit(@slug, user2, 1, 20_000)
+
+      # Both players never fold - they either call or check every street,
+      # all the way to a genuine showdown at the river.
+      view = check_or_call_to_showdown(view, %{0 => user1, 1 => user2})
+
+      assert view.hand.status == :hand_over
+      assert Poker.showdown?(view.hand)
+      assert view.hand.revealed_seats != []
+      assert Enum.sort(view.hand.revealed_seats) == Enum.sort(Poker.winning_seats(view.hand))
+    end
+  end
+
+  defp check_or_call_to_showdown(%{hand: %{status: :hand_over}} = view, _seat_users), do: view
+
+  defp check_or_call_to_showdown(view, seat_users) do
+    seat = view.hand.action_on
+    user = Map.fetch!(seat_users, seat)
+
+    action =
+      if view.hand.seats[seat].contributed_this_street == view.hand.current_bet,
+        do: :check,
+        else: :call
+
+    {:ok, view} = PokerTable.act(@slug, user.id, action)
+    check_or_call_to_showdown(view, seat_users)
   end
 end

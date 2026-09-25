@@ -318,12 +318,14 @@ defmodule HighSociety.Games.Poker do
 
   @doc """
   Reveals `seat`'s hole cards to the table - only legal for a seat that
-  actually won at least one pot in a just-concluded hand, whether that was
-  uncontested (everyone else folded) or a genuine showdown; anyone else
-  who didn't fold is shown automatically either way. Idempotent, since a
-  double-click shouldn't error. There's no explicit "muck" action to go
-  with it - a winner who never calls this simply stays unrevealed, which
-  is exactly what mucking is.
+  actually won at least one pot in a just-concluded hand. Idempotent,
+  since a double-click shouldn't error. There's no explicit "muck" action
+  to go with it - a winner who never calls this simply stays unrevealed,
+  which is exactly what mucking is - but that only ever applies to an
+  uncontested win: `showdown/1` already force-reveals every pot's winner
+  the moment a genuine showdown concludes, so this is a no-op (the seat
+  is already in `revealed_seats`) for any winner who was actually called
+  down.
   """
   @spec reveal_hand(t(), seat_index) :: {:ok, t()} | {:error, atom()}
   def reveal_hand(%__MODULE__{status: :hand_over} = poker, seat) do
@@ -348,8 +350,9 @@ defmodule HighSociety.Games.Poker do
   seat still eligible for at least one pot - rather than every other seat
   simply folding to a single uncontested winner. Used to scope a player's
   "always/never muck" setting (see `HighSociety.Accounts.User.muck_preference`)
-  to uncontested wins only; a real showdown always keeps today's
-  click-to-reveal behavior regardless of that setting.
+  to uncontested wins only; a real showdown always force-reveals its
+  winner(s) (see `showdown/1`) regardless of that setting, since nobody
+  else folded and the table has no other way to trust the win.
   """
   @spec showdown?(t()) :: boolean()
   def showdown?(%__MODULE__{status: :hand_over, pots: pots}) when is_list(pots),
@@ -574,12 +577,19 @@ defmodule HighSociety.Games.Poker do
       end)
 
     {pots, seats} = Enum.map_reduce(pots, poker.seats, &award_pot(&1, &2, poker))
+    winners = pots |> Enum.flat_map(& &1.winners) |> Enum.uniq()
 
     poker
     |> Map.put(:seats, seats)
     |> Map.put(:status, :hand_over)
     |> Map.put(:action_on, nil)
     |> Map.put(:pots, pots)
+    # A genuine showdown forces every pot's winner(s) to show, not just
+    # offer to - unlike an uncontested win, nobody here folded, so the
+    # only way the table can trust the winner actually had the best hand
+    # is to see it. `reveal_hand/2`'s opt-in "muck" is for uncontested
+    # wins only; see its moduledoc and `showdown?/1`.
+    |> Map.update!(:revealed_seats, &Enum.uniq(winners ++ &1))
   end
 
   defp award_pot(%{amount: amount, eligible: eligible} = pot, seats, poker) do

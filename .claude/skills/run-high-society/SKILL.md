@@ -82,6 +82,8 @@ Screenshots land in `.claude/skills/run-high-society/screenshots/<name>.png`
 |---|---|
 | `login [email]` | Registers (or reuses) that user via `create_test_session.exs`, mints a magic-link token, and clicks through the confirmation page. Defaults to `agent-test@example.com`. |
 | `nav <path>` | `page.goto` relative to `http://localhost:4000` (override with `HIGH_SOCIETY_URL`). |
+| `viewport <width> <height>` | Resizes the browser viewport - use to check mobile/tablet layouts (default is 1000x900 desktop). |
+| `initscript <js>` | Registers JS to run before every subsequent navigation's own scripts (`page.addInitScript`) - for state a hook reads on `mounted()` (e.g. `window.navigator.standalone`, overriding `matchMedia`) that must be in place before load, not patched in after via `eval` once hooks already ran. Applies to navigations *after* this call, not the current page. |
 | `click <selector>` | CSS selector, 5s timeout. |
 | `clickxy <x> <y>` | Clicks raw viewport coordinates - use for "click outside this element" cases where the target selector's own bounding box covers the point you actually want (e.g. a modal backdrop that's full-screen behind a centered panel). |
 | `hover <selector>` | A real pointer hover (not a dispatched event) - needed to trigger CSS `:hover` state, e.g. checking a daisyUI `.tooltip`'s `data-tip` actually shows. |

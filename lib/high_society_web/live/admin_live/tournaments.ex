@@ -73,6 +73,14 @@ defmodule HighSocietyWeb.AdminLive.Tournaments do
   defp status_badge_class("finished"), do: "badge-info"
   defp status_badge_class("cancelled"), do: "badge-error"
 
+  # Shown exactly as entered/stored - UTC, not the admin's local time (see
+  # the "Scheduled start (UTC)" field above) - so this always matches what
+  # was typed in, with no silent timezone conversion to get wrong.
+  defp format_scheduled_start(nil), do: "—"
+
+  defp format_scheduled_start(%DateTime{} = dt),
+    do: Calendar.strftime(dt, "%b %-d, %Y %-I:%M %p UTC")
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -126,6 +134,9 @@ defmodule HighSocietyWeb.AdminLive.Tournaments do
               <:col :let={%{tournament: t}} label="Name">{t.name}</:col>
               <:col :let={%{tournament: t}} label="Status">
                 <span class={["badge", status_badge_class(t.status)]}>{t.status}</span>
+              </:col>
+              <:col :let={%{tournament: t}} label="Scheduled start">
+                {format_scheduled_start(t.scheduled_start_at)}
               </:col>
               <:col :let={%{entrant_count: count}} label="Entrants">{count}</:col>
               <:col :let={%{tournament: t}} label="">

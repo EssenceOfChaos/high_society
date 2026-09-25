@@ -94,6 +94,16 @@ for await (const raw of rl) {
         reply({ ok: true, url: page.url() });
         break;
       }
+      case "initscript": {
+        // Runs before every subsequent navigation's page scripts - for
+        // state a page hook reads on `mounted()` (e.g. `window.navigator
+        // .standalone`, `matchMedia`) that has to be in place *before*
+        // load, not patched in after via `eval` once hooks have already
+        // run and read the real value.
+        await page.addInitScript(arg);
+        reply({ ok: true });
+        break;
+      }
       case "click": {
         await page.click(arg, { timeout: 5000 });
         reply({ ok: true });
@@ -116,6 +126,12 @@ for await (const raw of rl) {
       case "fill": {
         const sp = arg.indexOf(" ");
         await page.fill(arg.slice(0, sp), arg.slice(sp + 1));
+        reply({ ok: true });
+        break;
+      }
+      case "viewport": {
+        const [width, height] = arg.split(" ").map(Number);
+        await page.setViewportSize({ width, height });
         reply({ ok: true });
         break;
       }

@@ -57,6 +57,79 @@ defmodule HighSocietyWeb.UserLive.Login do
           </.button>
         </.form>
 
+        <%!-- Hidden by default, server-side, since the server has no way to
+        know a request came from a standalone home-screen app - `mounted()`
+        below reveals it only when `window.navigator.standalone` (iOS) or
+        `(display-mode: standalone)` (everywhere else) says so. Solves a
+        real dead end: iOS gives a home-screen "Add to Home Screen" web app
+        its own storage jar, entirely separate from Safari's, and every
+        emailed link opens in Safari regardless - so a login link tapped
+        from Mail signs you in there, not in the app. Pasting the link here
+        instead navigates *this* page (already running inside the app's own
+        isolated context) straight to it, landing the session in the right
+        jar. Safe to build on `Accounts.get_user_by_magic_link_token/1`
+        never consuming the token on its own - only the confirm button's
+        POST does (see `Accounts.login_user_by_magic_link/1`) - so copying
+        the link instead of tapping it leaves it completely untouched. --%>
+        <div
+          id="standalone-magic-link-paste"
+          phx-hook=".StandaloneMagicLinkPaste"
+          phx-update="ignore"
+          class="hidden space-y-2 rounded-box border border-base-300 bg-base-200 p-4 text-sm"
+        >
+          <p class="font-semibold">Using the app from your Home Screen?</p>
+          <p class="text-base-content/70">
+            Login links always open in Safari, not this app - so instead of tapping the link
+            in your email, press and hold it, tap <strong>Copy Link</strong>, then paste it
+            below.
+          </p>
+          <form id="standalone-magic-link-paste-form">
+            <input
+              type="text"
+              id="standalone-magic-link-paste-input"
+              placeholder="Paste your login link here"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              class="input input-bordered w-full"
+            />
+            <button type="submit" class="btn btn-primary btn-sm mt-2 w-full">Continue</button>
+          </form>
+        </div>
+
+        <script :type={Phoenix.LiveView.ColocatedHook} name=".StandaloneMagicLinkPaste">
+          export default {
+            mounted() {
+              const standalone =
+                window.navigator.standalone === true ||
+                window.matchMedia("(display-mode: standalone)").matches
+
+              if (!standalone) return
+
+              this.el.classList.remove("hidden")
+
+              const form = this.el.querySelector("form")
+              const input = this.el.querySelector("input")
+
+              form.addEventListener("submit", (e) => {
+                e.preventDefault()
+                const match = input.value.match(/\/users\/log-in\/([^/?#\s]+)/)
+
+                if (match) {
+                  window.location.href = `${window.location.origin}/users/log-in/${match[1]}`
+                } else {
+                  input.setCustomValidity(
+                    "That doesn't look like a login link - copy the whole link from your email."
+                  )
+                  input.reportValidity()
+                }
+              })
+
+              input.addEventListener("input", () => input.setCustomValidity(""))
+            }
+          }
+        </script>
+
         <div class="divider">or</div>
 
         <.form

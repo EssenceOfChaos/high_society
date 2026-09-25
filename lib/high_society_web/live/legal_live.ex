@@ -454,6 +454,9 @@ defmodule HighSocietyWeb.LegalLive do
           /> 4. Tournament Period &amp; Entry
         </h2>
         <p>
+          The Tournament is played as <strong>No Limit Texas Hold'em</strong>.
+        </p>
+        <p>
           Each Tournament's date and time are announced on the
           <.link navigate={~p"/tournament"} class="link">Tournament</.link>
           page ahead of time. Entry is completely free of charge. No real money or

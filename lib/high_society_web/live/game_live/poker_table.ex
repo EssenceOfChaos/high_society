@@ -24,6 +24,16 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   # viewport with no scrollbar to reach it, on anything narrower than a
   # very wide desktop window (see `#poker-table-screen`'s own side
   # padding, sized to cover the rest of this same overhang).
+  #
+  # Those same two slots also sit at `top: 48`, i.e. squarely inside the
+  # community card row's own vertical band (see `@pot_position`'s doc
+  # comment) - fine on a wide desktop felt, where there's enough
+  # horizontal room between a side seat and the centered community cards
+  # for neither to touch the other, but on a narrow phone-width felt the
+  # two collide, burying a side seat's hole cards behind the community
+  # cards. `seat_top_class/1` below carries a `max-sm:` override to lift
+  # just those two slots clear of that band on narrow viewports, leaving
+  # the tablet/desktop position (where there's no collision) untouched.
   @seat_positions [
     %{top: 94, left: 50},
     %{top: 80, left: 90},
@@ -354,7 +364,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
       assigns
       |> assign(:my_turn?, my_turn?(assigns.state, assigns.current_scope.user.id))
       |> assign(:my_seat_index, my_seat_index)
-      |> assign(:view_anchor_seat, my_seat_index || assigns.state.button_seat)
+      |> assign(:view_anchor_seat, my_seat_index)
       |> assign(:card_back_image, card_back_image(assigns.current_scope.user.card_back))
       |> assign(:felt_gradient_class, felt_gradient_class(assigns.current_scope.user.felt_color))
 
@@ -481,18 +491,26 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
             {winner_text(@state.hand)}
           </p>
 
+          <%!-- z-40, above the winner banner's z-30 and every `.seat`
+          (unindexed, and rendered later in the DOM, so they'd otherwise
+          win the default stacking order) - `.ChipFlight`'s payout
+          animation flies this well past its resting spot to pause right
+          on top of the winning seat, and without an explicit z-index it
+          would land half-hidden behind that seat's own cards during
+          exactly the moment it's supposed to be the thing to look at. --%>
           <div
             :if={pot_total(@state.hand) > 0}
             id="pot-chips"
-            class="absolute -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ease-out"
-            phx-hook=".InlineStyle"
-            data-style={"top: #{pot_chip_position(@state.hand, @view_anchor_seat).top}%; left: #{pot_chip_position(@state.hand, @view_anchor_seat).left}%;"}
+            class="absolute left-[50%] top-[20%] z-40 -translate-x-1/2 -translate-y-1/2"
           >
             <div
               id="pot-chips-flight"
               class="flex flex-col items-center gap-1"
               phx-hook=".ChipFlight"
               data-flight-key={pot_total(@state.hand)}
+              data-exit-key={payout_flight_key(@state.hand)}
+              data-exit-dx-percent={payout_offset(@state.hand, @view_anchor_seat).dx}
+              data-exit-dy-percent={payout_offset(@state.hand, @view_anchor_seat).dy}
             >
               <.chip_stack id="pot-chips-stack" amount={pot_total(@state.hand)} chip_size="size-7" />
               <div class="rounded-full bg-black/50 px-4 py-1 text-sm font-semibold text-amber-200">
@@ -791,37 +809,73 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
       <script :type={Phoenix.LiveView.ColocatedHook} name=".ChipFlight">
         export default {
           // The *inner* content of a chip stack (a bet, or the pot) -
-          // its outer positioning anchor (percentage `top`/`left`, set by
-          // `.InlineStyle`) carries the `-translate-x-1/2 -translate-y-1/2`
-          // centering, deliberately left untouched here: anime.js only
-          // preserves a Tailwind-class-only transform if there's a
-          // matching *inline* one for it to track, and starting from
-          // nothing but the class, its internal bookkeeping drops that
-          // centering the moment it touches the element at all (confirmed
-          // empirically - even animating an unrelated property left
-          // `transform` stuck at `none`). This element has no transform
-          // of its own to lose, so it's the one anime.js is safe to own.
+          // its outer positioning anchor (percentage `top`/`left`) carries
+          // the `-translate-x-1/2 -translate-y-1/2` centering, deliberately
+          // left untouched here: anime.js only preserves a Tailwind-class-
+          // only transform if there's a matching *inline* one for it to
+          // track, and starting from nothing but the class, its internal
+          // bookkeeping drops that centering the moment it touches the
+          // element at all (confirmed empirically - even animating an
+          // unrelated property left `transform` stuck at `none`). This
+          // element has no transform of its own to lose, so it's the one
+          // anime.js is safe to own.
           //
-          // Flies in from `data-dx-percent`/`data-dy-percent` (a bet's
-          // offset from its own seat, in percent of the felt - 0 for the
-          // pot, which has no single seat to fly from) every time
-          // `data-flight-key` changes (the pot growing) or, lacking one
-          // (a bet chip stack never gets a new key - the same seat's
-          // stack just grows in place), once on first mount.
-          mounted() { this.play() },
+          // Two independent flights, each keyed off its own data attribute
+          // so one firing is never gated on the other:
+          //   - entry (`data-flight-key`): flies *in* from
+          //     `data-dx-percent`/`data-dy-percent` (a bet's offset from
+          //     its own seat, in percent of the felt - 0 for the pot,
+          //     which has no single seat to fly from) every time the key
+          //     changes (the pot growing, a fresh bet) or, lacking a key
+          //     at all (a bet chip stack never gets one - the same seat's
+          //     stack just grows in place), once on first mount.
+          //   - exit (`data-exit-key`, only ever set on the pot's own
+          //     stack): the payout - flies *out* toward
+          //     `data-exit-dx-percent`/`data-exit-dy-percent` (the winning
+          //     seat's own anchor) and shrinks/fades away, the instant the
+          //     key first appears. Snaps back to normal the moment the key
+          //     disappears again (the next hand starting) so the stack is
+          //     ready to fly in fresh rather than staying shrunk and faded
+          //     from the last payout.
+          //
+          // `this.exitKey` starts recorded (not undefined) rather than
+          // triggered - a fresh page load can land mid-`hand_over`, already
+          // carrying a payout's `data-exit-key` on first mount, and playing
+          // the flight then (for a payout that happened before this viewer
+          // even connected) would be nonsensical. Recording it without
+          // playing still leaves `updated()` able to detect the *next*
+          // real change correctly either way - a new payout's key, or nil
+          // once the next hand starts - instead of comparing against
+          // `undefined` forever and never matching, which left the stack
+          // permanently stuck mid-pause, neither flying nor resetting.
+          mounted() {
+            this.play()
+            this.exitKey = this.el.dataset.exitKey
+          },
           updated() {
             const key = this.el.dataset.flightKey
             if (key !== undefined && key !== this.flightKey) this.play()
             this.flightKey = key
+
+            const exitKey = this.el.dataset.exitKey
+            if (exitKey && exitKey !== this.exitKey) this.playExit()
+            else if (!exitKey && this.exitKey) this.reset()
+            this.exitKey = exitKey
+          },
+          pixels(dxAttr, dyAttr) {
+            const dxPercent = parseFloat(this.el.dataset[dxAttr] || "0")
+            const dyPercent = parseFloat(this.el.dataset[dyAttr] || "0")
+            const felt = document.getElementById("poker-felt")
+            const rect = felt && felt.getBoundingClientRect()
+
+            return {
+              dx: rect ? (dxPercent / 100) * rect.width : 0,
+              dy: rect ? (dyPercent / 100) * rect.height : 0
+            }
           },
           play() {
             this.flightKey = this.el.dataset.flightKey
-            const dxPercent = parseFloat(this.el.dataset.dxPercent || "0")
-            const dyPercent = parseFloat(this.el.dataset.dyPercent || "0")
-            const felt = document.getElementById("poker-felt")
-            const rect = felt && felt.getBoundingClientRect()
-            const dx = rect ? (dxPercent / 100) * rect.width : 0
-            const dy = rect ? (dyPercent / 100) * rect.height : 0
+            const { dx, dy } = this.pixels("dxPercent", "dyPercent")
 
             this.el.style.opacity = "0"
             window.animeAnimate(this.el, {
@@ -830,6 +884,70 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
               opacity: [0, 1],
               duration: 550,
               ease: "outQuad"
+            })
+          },
+          // A deliberate, unmissable payout, in two chained animate() calls
+          // rather than one multi-segment tween - anime.js's per-property
+          // step-array syntax (`{ to, duration }` entries), used further up
+          // for the coin's rim opacity, turned out not to drive `transform`
+          // the same way it drives a plain property like `opacity`: it
+          // silently did nothing at all for `translateX`/`translateY`/
+          // `scale` in this build (confirmed empirically - no error, the
+          // stack just never moved). Chaining through `onComplete` instead
+          // sticks to the plain `[from, to]` array form `play()` already
+          // uses successfully. First a quick "picking up" bump (grows
+          // slightly, like a real stack being swept up off the felt), then
+          // the actual flight toward the winner - fully opaque the whole
+          // way, so it reads as chips actually *arriving* rather than
+          // dissolving en route - then a firm landing (settling back down
+          // from the bump's overshoot) held for a beat so the delivery
+          // itself registers, and only then a fade once it's plainly
+          // already in the winner's stack. `@hand_over_pause_ms` (7s)
+          // comfortably covers this whole sequence (about 3.4s end to
+          // end) before the next hand could start, but the pending fade
+          // still checks `this.exitKey` against the key it was scheduled
+          // under before running, in case a hand somehow wraps up early -
+          // otherwise a stray fade could fire mid-flight on a *later*
+          // payout that happens to reuse this same timer.
+          playExit() {
+            const exitKey = this.el.dataset.exitKey
+            this.exitKey = exitKey
+            const { dx, dy } = this.pixels("exitDxPercent", "exitDyPercent")
+
+            window.animeAnimate(this.el, {
+              scale: [1, 1.15],
+              duration: 220,
+              ease: "outQuad",
+              onComplete: () => {
+                window.animeAnimate(this.el, {
+                  translateX: [0, dx],
+                  translateY: [0, dy],
+                  scale: [1.15, 1],
+                  duration: 750,
+                  ease: "inQuad",
+                  onComplete: () => {
+                    setTimeout(() => {
+                      if (this.exitKey !== exitKey) return
+
+                      window.animeAnimate(this.el, {
+                        opacity: [1, 0],
+                        duration: 400,
+                        ease: "outQuad"
+                      })
+                    }, 2000)
+                  }
+                })
+              }
+            })
+          },
+          reset() {
+            this.exitKey = undefined
+            window.animeAnimate(this.el, {
+              translateX: 0,
+              translateY: 0,
+              scale: 1,
+              opacity: 1,
+              duration: 1
             })
           }
         }
@@ -879,9 +997,11 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     ~H"""
     <div
       id={"seat-#{@seat_index}"}
-      class="absolute flex w-28 -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
-      phx-hook=".InlineStyle"
-      data-style={"top: #{@position.top}%; left: #{@position.left}%;"}
+      class={[
+        "absolute flex w-28 -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1",
+        seat_top_class(@position.top),
+        seat_left_class(@position.left)
+      ]}
     >
       <button
         :if={!@my_seat_taken?}
@@ -935,13 +1055,13 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
       id={"seat-#{@seat_index}"}
       class={[
         "absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 rounded-xl p-2 transition-opacity",
+        seat_top_class(@position.top),
+        seat_left_class(@position.left),
         @mine? && "w-64 lg:w-80",
-        !@mine? && "w-36 lg:w-56",
+        !@mine? && "w-28 sm:w-36 lg:w-56",
         @acting? && "bg-amber-400/10 ring-2 ring-amber-400",
         @folded? && "opacity-40"
       ]}
-      phx-hook=".InlineStyle"
-      data-style={"top: #{@position.top}%; left: #{@position.left}%;"}
     >
       <div class="flex items-center gap-1 text-xs font-semibold text-white">
         <span
@@ -973,9 +1093,9 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
         <div
           id={"hole-cards-#{@seat_index}"}
           class={[
-            "flex gap-1 lg:gap-2",
+            "flex justify-center gap-1 lg:gap-2",
             @mine? && "w-60 lg:w-72",
-            !@mine? && "w-32 lg:w-40"
+            !@mine? && "w-24 sm:w-32 lg:w-40"
           ]}
           phx-hook=".SeatFold"
           data-folded={to_string(@folded?)}
@@ -1058,12 +1178,16 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   attr :amount, :integer, required: true
   attr :chip_size, :string, required: true
 
-  # A small stack of casino chips, colored and counted (1-3) by how large
+  # A small stack of casino chips, colored and counted (1-5) by how large
   # `amount` is - a stand-in for a real denomination breakdown, since a
   # poker bet is rarely made of neat, individually-tracked chip values.
+  # `h-11 w-11` comfortably fits the tallest tier (5 chips at 4px of
+  # visible rise each, plus the pot's own `size-7` chip height - the
+  # largest combination in play) without clipping; a shorter stack or
+  # smaller `chip_size` just leaves empty space above it.
   defp chip_stack(assigns) do
     ~H"""
-    <div class="relative flex h-8 w-8 items-end justify-center">
+    <div class="relative flex h-11 w-11 items-end justify-center">
       <div
         :for={i <- 0..(chip_count(@amount) - 1)}
         id={"#{@id}-chip-#{i}"}
@@ -1079,13 +1203,16 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     """
   end
 
-  defp chip_count(amount) when amount >= 10_000, do: 3
-  defp chip_count(amount) when amount >= 2_500, do: 2
+  defp chip_count(amount) when amount >= 30_000, do: 5
+  defp chip_count(amount) when amount >= 8_000, do: 4
+  defp chip_count(amount) when amount >= 2_000, do: 3
+  defp chip_count(amount) when amount >= 400, do: 2
   defp chip_count(_amount), do: 1
 
-  defp chip_tier_color(amount) when amount >= 10_000, do: "border-amber-300 bg-amber-500"
-  defp chip_tier_color(amount) when amount >= 2_500, do: "border-neutral-600 bg-neutral-900"
-  defp chip_tier_color(amount) when amount >= 500, do: "border-red-300 bg-red-600"
+  defp chip_tier_color(amount) when amount >= 30_000, do: "border-purple-300 bg-purple-600"
+  defp chip_tier_color(amount) when amount >= 8_000, do: "border-amber-300 bg-amber-500"
+  defp chip_tier_color(amount) when amount >= 2_000, do: "border-neutral-600 bg-neutral-900"
+  defp chip_tier_color(amount) when amount >= 400, do: "border-red-300 bg-red-600"
   defp chip_tier_color(_amount), do: "border-neutral-400 bg-neutral-100"
 
   # A seat's most recent action this street (cleared once the street
@@ -1454,17 +1581,16 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
     """
   end
 
-  # The screen slot a seat renders in - always relative to a viewer's own
-  # anchor seat, so every viewer sees that seat at `@seat_positions`' bottom-
-  # center slot (index 0) with the rest of the table rotated around it the
-  # same way it would be at a real table, rather than everyone sharing one
+  # The screen slot a seat renders in - relative to a seated viewer's own
+  # seat, so a player sees themselves at `@seat_positions`' bottom-center
+  # slot (index 0) with the rest of the table rotated around them the same
+  # way it would be at a real table, rather than everyone sharing one
   # fixed, absolute layout. `view_anchor_seat` (the `my_seat_index` param
-  # here) is the viewer's own seat when they're playing, or the current
-  # `button_seat` for a spectator with no seat of their own - anchoring on
-  # the button gives a spectator's view a meaningful frame (action starts
-  # right after it) instead of an arbitrary one. It's `nil` only when
-  # neither exists yet (a fresh table with no hand dealt), which falls back
-  # to the natural, unrotated seat order.
+  # here) is `nil` for a spectator with no seat of their own, which falls
+  # back to the natural, unrotated seat order - deliberately not the
+  # current `button_seat`, which rotates every hand and would otherwise
+  # make every player appear to change position each hand for anyone just
+  # watching, with nothing seated to hold the frame steady against it.
   defp seat_position(seat_index, my_seat_index),
     do: Enum.at(@seat_positions, display_seat_index(seat_index, my_seat_index))
 
@@ -1472,6 +1598,41 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
 
   defp display_seat_index(seat_index, my_seat_index),
     do: rem(seat_index - my_seat_index + PokerTables.seats(), PokerTables.seats())
+
+  # A seat's own `top`/`left` position, as literal Tailwind classes rather
+  # than the inline `top: N%; left: N%;` style every other positioned
+  # element on this page uses (see `.InlineStyle`) - deliberately, since an
+  # inline style always wins over a class regardless of the class's own
+  # media query, which would make it impossible for either `max-sm:`
+  # override below to ever take effect. One clause per distinct value in
+  # `@seat_positions` (5 `top`s, 7 `left`s), each a plain literal so
+  # Tailwind's build-time scan can actually find and generate it.
+  #
+  # `top: 48` carries an override for the reason given in `@seat_positions`'
+  # own doc comment (it sits in the community cards' band). The `left`
+  # overrides are a separate, narrower problem: `w-36`(non-mine)/`w-64`
+  # (mine) seat cards, centered via `-translate-x-1/2` on an anchor as far
+  # out as 6%/94%, overhang past the felt - and on a narrow phone, past the
+  # viewport itself with no scrollbar to reach it - regardless of how much
+  # margin the felt itself has (widening the felt just moves the same
+  # relative overhang further in absolute pixels, it doesn't remove it).
+  # Pulling the anchor in on mobile, together with the non-mine seat/
+  # hole-card width already shrinking a step earlier at this breakpoint,
+  # keeps the card and username readable within the screen instead of
+  # clipped off either edge.
+  defp seat_top_class(0), do: "top-[0%]"
+  defp seat_top_class(12), do: "top-[12%]"
+  defp seat_top_class(48), do: "top-[48%] max-sm:top-[24%]"
+  defp seat_top_class(80), do: "top-[80%]"
+  defp seat_top_class(94), do: "top-[94%]"
+
+  defp seat_left_class(6), do: "left-[6%] max-sm:left-[18%]"
+  defp seat_left_class(10), do: "left-[10%] max-sm:left-[22%]"
+  defp seat_left_class(12), do: "left-[12%] max-sm:left-[22%]"
+  defp seat_left_class(50), do: "left-[50%]"
+  defp seat_left_class(88), do: "left-[88%] max-sm:left-[76%]"
+  defp seat_left_class(90), do: "left-[90%] max-sm:left-[78%]"
+  defp seat_left_class(94), do: "left-[94%] max-sm:left-[82%]"
 
   # Well over halfway from the seat toward the felt's center - clear of
   # the (fairly tall, once a hand's dealt) seat marker's own name/stack
@@ -1510,9 +1671,11 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   defp reveal_hole_cards?(nil, _mine?, _hand, _seat_index), do: false
   defp reveal_hole_cards?(_hand_seat, true, _hand, _seat_index), do: true
 
-  # A winner's cards only show once they've chosen to reveal them (see
-  # `Poker.reveal_hand/2`) - everyone else who didn't fold (i.e. a
-  # showdown participant who lost) is still shown automatically.
+  # An uncontested winner's cards only show once they've chosen to reveal
+  # them (see `Poker.reveal_hand/2`) - a genuine showdown's winner(s) are
+  # already force-revealed by `Poker.showdown/1` itself by the time this
+  # runs. Everyone else who didn't fold (i.e. a showdown participant who
+  # lost) is still shown automatically either way.
   defp reveal_hole_cards?(hand_seat, false, hand, seat_index) do
     hand.status == :hand_over and hand_seat.status != :folded and
       (seat_index not in Poker.winning_seats(hand) or seat_index in hand.revealed_seats)
@@ -1528,7 +1691,11 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   # winning seat is already in `revealed_seats` by the time this runs (see
   # `PokerTable`'s `auto_reveal_never_muck/1`), so the plain
   # `not in hand.revealed_seats` check below already excludes it. A real
-  # showdown always keeps the button regardless of either preference.
+  # showdown's winner is likewise already in `revealed_seats` by the time
+  # this runs (forced by `Poker.showdown/1` itself, not a preference), so
+  # the same check excludes them too - there's no muck option to offer.
+  # This function only ever ends up offering the button for an uncontested
+  # win the player hasn't set "always muck" for.
   defp can_reveal?(%Poker{status: :hand_over} = hand, seat_index, muck_preference) do
     seat_index in Poker.winning_seats(hand) and seat_index not in hand.revealed_seats and
       not (muck_preference == "always" and not Poker.showdown?(hand))
@@ -1574,18 +1741,42 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
 
   defp pot_total(%Poker{pots: pots}), do: pots |> Enum.map(& &1.amount) |> Enum.sum()
 
-  # While a hand is live, the pot sits at `@pot_position`. Once it's over,
-  # it slides to whichever single seat won everything - the same
-  # near-but-not-on `bet_chip_position/2` spot a live bet rests at, not the
-  # seat's own anchor, so it doesn't land directly on top of the winner's
-  # name/stack. A split pot (more than one distinct winning seat, whether
-  # from one pot split multiple ways or separate side pots going to
-  # different seats) has no single destination to animate toward, so it
-  # just stays put and lets the winner banner's text explain it instead.
-  defp pot_chip_position(hand, my_seat_index) do
+  # A stable key that changes exactly once, right when a hand ends with a
+  # single winner - deliberately not tied to `pot_total` (the natural
+  # choice, matching `.ChipFlight`'s existing growth-triggered
+  # `data-flight-key`), because `pot_total` *doesn't* actually change at
+  # the in-progress -> hand_over transition: `Poker.showdown/1`'s pot
+  # amounts are just a re-bucketing of the same `total_contributed`
+  # figures already summed while live, so reusing that key would never
+  # fire a fresh animation for the payout itself. `nil` (hand still live,
+  # or no single winner) tells the hook there's no payout flight to play.
+  defp payout_flight_key(%Poker{status: :hand_over} = hand) do
     case Poker.winning_seats(hand) do
-      [seat] -> bet_chip_position(seat, my_seat_index)
-      _ -> @pot_position
+      [seat] -> "#{pot_total(hand)}-#{seat}"
+      _ -> nil
+    end
+  end
+
+  defp payout_flight_key(_hand), do: nil
+
+  # The pot's flight offset (percent of the felt, matching `.ChipFlight`'s
+  # existing entry-flight `dx`/`dy` convention) from its resting spot
+  # (`@pot_position`) to the winning seat's own anchor - all the way
+  # there, not the partway `bet_chip_position/2` waypoint a live bet
+  # rests at, so the payout reads as chips actually arriving at the
+  # player rather than drifting toward the middle of the table. A split
+  # pot (more than one distinct winning seat, whether from one pot split
+  # multiple ways or separate side pots going to different seats) has no
+  # single destination, so the offset is zero and it doesn't move - the
+  # winner banner's text explains it instead.
+  defp payout_offset(hand, my_seat_index) do
+    case Poker.winning_seats(hand) do
+      [seat] ->
+        destination = seat_position(seat, my_seat_index)
+        %{dx: destination.left - @pot_position.left, dy: destination.top - @pot_position.top}
+
+      _ ->
+        %{dx: 0, dy: 0}
     end
   end
 
@@ -1596,9 +1787,49 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
   # rather than everyone else simply folding - the winning hand's
   # category, e.g. "Flush".
   defp winner_text(%Poker{status: :hand_over} = hand),
-    do: hand.pots |> Enum.map(&pot_summary(&1, hand)) |> Enum.join("  •  ")
+    do:
+      hand.pots
+      |> merge_pots_by_winners()
+      |> Enum.map(&pot_summary(&1, hand))
+      |> Enum.join("  •  ")
 
   defp winner_text(_hand), do: nil
+
+  # `Poker.showdown/1` builds one pot per distinct contribution tier - the
+  # standard side-pot algorithm, correct for capping what a short-stacked
+  # all-in seat can win. But a tier boundary just as often comes from a
+  # seat *folding* after posting a blind rather than going all-in, and
+  # since a folded seat is never eligible for any pot regardless of tier,
+  # that split changes nothing about who's eligible - every pot on either
+  # side of it ends up with the exact same winner(s). Left unmerged, that
+  # announces as "X wins 600 Tokens ... X wins 400 Tokens ..." back to
+  # back, reading as a duplicated/glitched message rather than the two
+  # separate (if only technically separate) pots it actually is. Adjacent
+  # pots only - `showdown/1` emits them in ascending contribution order,
+  # and eligibility only ever shrinks (never reopens) as the level rises,
+  # so two pots sharing a winner set can't have a different-winner pot
+  # sandwiched between them. This only simplifies the announcement - the
+  # actual per-seat chip awards already happened in `Poker.showdown/1`
+  # against the unmerged pots, and are untouched here.
+  defp merge_pots_by_winners(pots) do
+    pots
+    |> Enum.reduce([], fn pot, acc ->
+      case acc do
+        [%{winners: winners} = last | rest] when winners == pot.winners ->
+          merged = %{
+            last
+            | amount: last.amount + pot.amount,
+              eligible: Enum.uniq(last.eligible ++ pot.eligible)
+          }
+
+          [merged | rest]
+
+        _ ->
+          [pot | acc]
+      end
+    end)
+    |> Enum.reverse()
+  end
 
   defp pot_summary(pot, hand) do
     names = pot.winners |> Enum.map(&Map.fetch!(hand.seats, &1).username) |> Enum.join(" & ")
