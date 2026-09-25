@@ -85,12 +85,13 @@ defmodule HighSocietyWeb.TournamentLive do
           />
           <.header>
             {@tournament.name}
-            <:subtitle>
-              1st place wins $75 in ETH plus an exclusive High Society NFT, 2nd place wins $25
-              in ETH. Winners can optionally receive their prize to an Ethereum address of
-              their choosing.
-            </:subtitle>
           </.header>
+          <span class="badge badge-outline">No Limit Texas Hold'em</span>
+          <p class="mt-2 text-sm text-base-content/70">
+            1st place wins $75 in ETH plus an exclusive High Society NFT, 2nd place wins $25
+            in ETH. Winners can optionally receive their prize to an Ethereum address of
+            their choosing.
+          </p>
         </div>
 
         <div :if={@tournament.status == "running"} class="mb-4 flex justify-center gap-2">

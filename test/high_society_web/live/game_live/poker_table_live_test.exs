@@ -248,7 +248,7 @@ defmodule HighSocietyWeb.GameLive.PokerTableLiveTest do
     assert hand.current_bet == 400
   end
 
-  test "a winner's cards stay hidden at showdown until they choose to reveal them", %{
+  test "a genuine showdown reveals the winner's cards automatically, with no reveal button", %{
     conn: conn,
     user: user1
   } do
@@ -278,27 +278,15 @@ defmodule HighSocietyWeb.GameLive.PokerTableLiveTest do
     hand = HighSociety.Games.PokerTable.get_state(@slug).hand
     assert hand.status == :hand_over
     winning_seats = hand.pots |> Enum.flat_map(& &1.winners) |> Enum.uniq()
-    # A rare tie (both seats winning) has no genuine loser - pick either
-    # winning seat for the reveal-flow check below, which holds either way.
     [winning_seat | _] = winning_seats
-    losing_seats = Map.keys(hand.seats) -- winning_seats
 
     winner_cards = hand.seats[winning_seat].hole_cards
     {winner_view, other_view} = if winning_seat == 0, do: {view1, view2}, else: {view2, view1}
 
-    # Nobody's revealed yet: a genuine loser's cards (who didn't fold) are
-    # shown automatically (a no-op on a tie, where there is no loser), but
-    # the winner's stay hidden from everyone, including their opponent.
-    for seat <- losing_seats, card <- hand.seats[seat].hole_cards do
-      assert render(view1) =~ ~s(alt="#{card}")
-    end
-
-    for card <- winner_cards, do: refute(render(other_view) =~ ~s(alt="#{card}"))
-
-    assert has_element?(winner_view, "#reveal-hand-button-#{winning_seat}")
-
-    winner_view |> element("#reveal-hand-button-#{winning_seat}") |> render_click()
-
+    # A genuine showdown force-reveals every pot's winner the instant the
+    # hand ends - nobody folded, so the winner has to prove they actually
+    # had the best hand rather than being able to muck. No click required,
+    # and no reveal button is offered since there's nothing left to reveal.
     for card <- winner_cards, do: assert(render(winner_view) =~ ~s(alt="#{card}"))
     for card <- winner_cards, do: assert(render(other_view) =~ ~s(alt="#{card}"))
     refute has_element?(winner_view, "#reveal-hand-button-#{winning_seat}")

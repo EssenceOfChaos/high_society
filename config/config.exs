@@ -55,6 +55,12 @@ config :high_society, HighSociety.Mailer, adapter: Swoosh.Adapters.Local
 config :high_society, :mailer_from_email, "noreply@highsociety.cc"
 config :high_society, :support_email, "support@highsociety.cc"
 
+# Empty outside prod (see config/runtime.exs) - every notifier falls back
+# to its plain-text body when a given template's id isn't configured, so
+# `/dev/mailbox` keeps showing readable content locally instead of a
+# blank Resend-template placeholder no dev adapter can actually render.
+config :high_society, :resend_templates, []
+
 # Emails allowed into the /admin section (see HighSocietyWeb.UserAuth's
 # :require_admin on_mount). Empty by default - add your own email in
 # config/dev.exs to reach it locally, and set ADMIN_EMAILS in prod (see

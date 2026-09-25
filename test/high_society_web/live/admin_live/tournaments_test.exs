@@ -48,22 +48,40 @@ defmodule HighSocietyWeb.AdminLive.TournamentsTest do
     assert length(tournament.blind_levels) == 15
   end
 
-  test "an admin can set an announced start time", %{conn: conn, user: admin} do
+  test "an admin can set an announced start time, shown in the tournament list", %{
+    conn: conn,
+    user: admin
+  } do
     Application.put_env(:high_society, :admin_emails, [admin.email])
 
     {:ok, view, _html} = live(conn, ~p"/admin/tournaments")
 
-    view
-    |> form("#tournament_form", %{
-      "poker_tournament" => %{
-        "name" => "Scheduled Freeroll",
-        "scheduled_start_at" => "2026-10-30T21:00"
-      }
-    })
-    |> render_submit()
+    html =
+      view
+      |> form("#tournament_form", %{
+        "poker_tournament" => %{
+          "name" => "Scheduled Freeroll",
+          "scheduled_start_at" => "2026-10-30T21:00"
+        }
+      })
+      |> render_submit()
 
     tournament = Tournaments.list_tournaments() |> List.first()
     assert tournament.scheduled_start_at == ~U[2026-10-30 21:00:00Z]
+    assert html =~ "Oct 30, 2026 9:00 PM UTC"
+  end
+
+  test "a tournament with no announced start time shows a placeholder", %{
+    conn: conn,
+    user: admin
+  } do
+    Application.put_env(:high_society, :admin_emails, [admin.email])
+    tournament_fixture(%{name: "No Announced Time"})
+
+    {:ok, _view, html} = live(conn, ~p"/admin/tournaments")
+
+    assert html =~ "No Announced Time"
+    assert html =~ "—"
   end
 
   test "re-renders with an error for an invalid tournament", %{conn: conn, user: admin} do

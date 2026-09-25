@@ -325,7 +325,16 @@ defmodule HighSocietyWeb.TokensLive do
     assigns = assign(assigns, :ticks, coin_ticks())
 
     ~H"""
-    <div class="[perspective:900px]">
+    <%!-- 1600px rather than a tighter value: at a coin-sized element,
+    a closer perspective distance visibly converges the top and bottom
+    of the rim toward a vanishing point as it turns edge-on (correct
+    wide-angle-lens behavior, but for a coin that's meant to read as
+    small and far enough away to be flat-on to the viewer, it shows up
+    as the rim looking uneven top-to-bottom rather than a uniform band).
+    A longer distance flattens that convergence toward parallel,
+    closer to a telephoto lens - the coin still turns in 3D, just
+    without that extra, unwanted distortion on top of it. --%>
+    <div class="[perspective:1600px]">
       <div
         id={@id}
         phx-hook=".CoinIdleSpin"
@@ -359,6 +368,8 @@ defmodule HighSocietyWeb.TokensLive do
             return
           }
 
+          this.buildRim()
+
           animate(this.el, {
             opacity: [0, 1],
             scale: [0.6, 1],
@@ -367,7 +378,9 @@ defmodule HighSocietyWeb.TokensLive do
             onComplete: () => {
               // A single one-way sweep, restarted from 0 on every loop
               // (not alternate), so it keeps turning the same direction
-              // instead of winding back and forth.
+              // instead of winding back and forth. The rim built below is
+              // a plain child of `this.el`, so it turns right along with
+              // it for free - nothing here needs to know the rim exists.
               this.spin = animate(this.el, {
                 rotateY: [0, 360],
                 duration: 3200,
@@ -377,6 +390,99 @@ defmodule HighSocietyWeb.TokensLive do
             }
           })
         },
+
+        // The coin's rim, giving the spin actual depth instead of a flat
+        // image just narrowing to nothing edge-on. Three earlier versions
+        // of this each got the geometry wrong in a different way:
+        //
+        //   1. A single flat plane rotated in place (no `translateZ`) drew
+        //      a bar through the *center* of the coin at every angle
+        //      instead of its boundary - with no outward push, a rotated
+        //      plane just turns about the coin's own central axis. Opacity
+        //      tricks on top of that (a hard keyframe blink, then a smooth
+        //      `sin`-driven fade) only ever changed how visible the
+        //      misplaced bar was, never where it appeared.
+        //   2. A ring of strips placed with `rotateY(angle)
+        //      translateZ(radius)` per strip - the standard recipe for a
+        //      CSS "carousel" - looked like a solid wooden barrel/fluted
+        //      column from any angle, including face-on. That recipe faces
+        //      each strip *outward*, like carousel items facing the people
+        //      walking around them, which is the wrong shape entirely: a
+        //      coin's rim should be invisible (edge-on to the viewer) at
+        //      rest, from every angle around it, not facing outward.
+        //
+        // The difference is which way each strip's *normal* points before
+        // the parent's own spin is applied. A real rim patch at angle φ
+        // around the coin's face has a normal of (cos φ, sin φ, 0) - it
+        // has no Z-component at all, which is exactly why the whole rim is
+        // invisible when the coin is face-on (p=0): every patch is
+        // edge-on to the viewer simultaneously, regardless of φ. Composed
+        // CSS rotations (`rotateY(φ) translateZ(r)`) don't produce that -
+        // they're the carousel case, normal (sin φ, 0, cos φ), which
+        // faces the viewer near φ=0 rather than staying edge-on. Rather
+        // than fight CSS's rotation-order semantics again, each strip's
+        // final orientation and position is written directly as a
+        // `matrix3d`, built from exactly the three basis vectors this
+        // rim actually needs:
+        //   - local X (the strip's own width, tangent to the ring) -> (-sin φ, cos φ, 0)
+        //   - local Y (the strip's own height, the coin's thickness)  -> (0, 0, 1)
+        //   - local Z (the strip's face normal)                      -> (cos φ, sin φ, 0)
+        //   - translation, the strip's position on the ring           -> (R cos φ, R sin φ, 0)
+        // Every strip is still a plain child of `this.el`, so the whole
+        // rim turns for free the instant the parent's own `rotateY` does -
+        // nested transforms compose regardless of how the inner one was
+        // built. `backfaceVisibility: hidden` per strip then lets the
+        // browser's real 3D compositing decide which ones face the viewer
+        // at any given moment, the same way it already does for the two
+        // coin faces.
+        buildRim() {
+          const size = this.el.getBoundingClientRect().width
+          if (!size) return
+
+          const radius = size * 0.467
+          const thickness = size * 0.12
+          const stripCount = 64
+          const width = ((2 * Math.PI * radius) / stripCount) * 1.3
+
+          // Pulled in a hair short of the true radius - at that exact
+          // radius, the rim's outer edge and the coin face's own edge
+          // sit at the *same* depth (both at Z=0, the face by never
+          // getting a translateZ of its own, the rim because a ring
+          // traces the face's boundary circle, Z=0 too) with nothing to
+          // separate them but floating-point luck once perspective and
+          // rotation are both in play - a coin-flip coin toss for which
+          // one the renderer draws on top at their shared seam, frame to
+          // frame. Nudging the rim a couple pixels inward breaks that tie
+          // in the rim's favor consistently, well under a pixel's worth
+          // of visual difference in radius.
+          const inset = radius - Math.min(2, radius * 0.03)
+
+          for (let i = 0; i < stripCount; i++) {
+            const phi = (2 * Math.PI * i) / stripCount
+            const cos = Math.cos(phi)
+            const sin = Math.sin(phi)
+            const strip = document.createElement("div")
+
+            strip.style.position = "absolute"
+            strip.style.left = "50%"
+            strip.style.top = "50%"
+            strip.style.width = `${width}px`
+            strip.style.height = `${thickness}px`
+            strip.style.marginLeft = `${-width / 2}px`
+            strip.style.marginTop = `${-thickness / 2}px`
+            strip.style.background = "linear-gradient(90deg, #87631c, #f6d77c 50%, #87631c)"
+            strip.style.backfaceVisibility = "hidden"
+            strip.style.transform = `matrix3d(
+              ${-sin}, ${cos}, 0, 0,
+              0, 0, 1, 0,
+              ${cos}, ${sin}, 0, 0,
+              ${inset * cos}, ${inset * sin}, 0, 1
+            )`
+
+            this.el.appendChild(strip)
+          }
+        },
+
         destroyed() {
           this.spin?.revert()
         }
@@ -388,39 +494,13 @@ defmodule HighSocietyWeb.TokensLive do
   attr :id, :string, required: true
   attr :ticks, :list, required: true
 
+  # TRIAL: swapped in the new `hs-token.png` artwork in place of the
+  # hand-drawn rim-ticks/gradient/"HS" SVG face, to compare side by side -
+  # revert to the SVG version above (in git history) if it's not a clear
+  # improvement.
   defp coin_face(assigns) do
     ~H"""
-    <defs>
-      <linearGradient id={"#{@id}-gold"} x1="0" y1="0" x2="1" y2="1">
-        <stop stop-color="#f6d77c" />
-        <stop offset=".5" stop-color="#c8a24d" />
-        <stop offset="1" stop-color="#87631c" />
-      </linearGradient>
-    </defs>
-
-    <circle cx="60" cy="60" r="56" fill="#111" stroke={"url(##{@id}-gold)"} stroke-width="4" />
-    <circle
-      cx="60"
-      cy="60"
-      r="46"
-      fill="none"
-      stroke={"url(##{@id}-gold)"}
-      stroke-width="1.5"
-      stroke-opacity=".4"
-    />
-
-    <g stroke={"url(##{@id}-gold)"} stroke-width="2" stroke-linecap="round" opacity=".5">
-      <line :for={t <- @ticks} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2} />
-    </g>
-
-    <foreignObject x="14" y="34" width="92" height="52">
-      <div
-        xmlns="http://www.w3.org/1999/xhtml"
-        class="flex h-full w-full items-center justify-center font-serif text-[42px] font-bold text-[#c8a24d]"
-      >
-        HS
-      </div>
-    </foreignObject>
+    <image href="/images/hs-token.png" x="0" y="0" width="120" height="120" />
     """
   end
 

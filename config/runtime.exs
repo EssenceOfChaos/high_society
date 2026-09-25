@@ -170,6 +170,23 @@ if config_env() == :prod do
 
   config :high_society, :mailer_from_email, mailer_from_email
 
+  # Resend's own dashboard-managed Templates (see `priv/resend_templates/`
+  # for the HTML to paste in when creating each one, and Swoosh.Adapters
+  # .Resend's "Using Templates" moduledoc section for how the id + a
+  # `variables` map get sent). Each is optional and independent - unset
+  # ones just fall back to the plain-text body the notifier already sends,
+  # so nothing breaks before a template's been created, and one team's
+  # design work in Resend doesn't block deploying another's.
+  resend_templates =
+    [
+      login: System.get_env("RESEND_LOGIN_TEMPLATE_ID"),
+      tournament_registration: System.get_env("RESEND_TOURNAMENT_REGISTRATION_TEMPLATE_ID"),
+      tournament_results: System.get_env("RESEND_TOURNAMENT_RESULTS_TEMPLATE_ID")
+    ]
+    |> Enum.reject(fn {_key, id} -> is_nil(id) end)
+
+  config :high_society, :resend_templates, resend_templates
+
   if support_email = System.get_env("SUPPORT_EMAIL") do
     config :high_society, :support_email, support_email
   end

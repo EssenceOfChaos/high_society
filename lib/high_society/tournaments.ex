@@ -148,7 +148,7 @@ defmodule HighSociety.Tournaments do
     |> Repo.insert_or_update()
     |> case do
       {:ok, entry} ->
-        Notifier.deliver_registration_confirmation(scope.user, entry)
+        Notifier.deliver_registration_confirmation(scope.user, tournament, entry)
         {:ok, entry}
 
       {:error, changeset} ->
