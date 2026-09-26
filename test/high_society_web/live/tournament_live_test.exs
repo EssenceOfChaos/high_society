@@ -133,10 +133,210 @@ defmodule HighSocietyWeb.TournamentLiveTest do
       assert has_element?(view, "input[name='poker_tournament_entry[first_name]']")
       assert has_element?(view, "input[name='poker_tournament_entry[last_name]']")
       assert has_element?(view, "input[name='poker_tournament_entry[address]']")
+      assert has_element?(view, "select[name='poker_tournament_entry[country]']")
       assert has_element?(view, "input[name='poker_tournament_entry[city]']")
-      assert has_element?(view, "input[name='poker_tournament_entry[state]']")
       assert has_element?(view, "input[name='poker_tournament_entry[zip_code]']")
       assert has_element?(view, "input[name='poker_tournament_entry[date_of_birth]']")
+    end
+
+    test "defaults Country to the US, rendering State as a dropdown", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/tournament")
+
+      assert has_element?(view, "select[name='poker_tournament_entry[state]']")
+
+      assert has_element?(
+               view,
+               "select[name='poker_tournament_entry[country]'] option[value='US'][selected]"
+             )
+    end
+
+    test "switches State to a province dropdown when Country is changed to Canada", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, ~p"/tournament")
+
+      html =
+        view
+        |> form("#tournament_form", %{"poker_tournament_entry" => %{"country" => "CA"}})
+        |> render_change()
+
+      assert has_element?(view, "select[name='poker_tournament_entry[state]']")
+      assert html =~ "Province"
+      assert html =~ "Ontario"
+    end
+
+    test "renders State as free-text 'Region' when Country is Other", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/tournament")
+
+      html =
+        view
+        |> form("#tournament_form", %{"poker_tournament_entry" => %{"country" => "OTHER"}})
+        |> render_change()
+
+      refute has_element?(view, "select[name='poker_tournament_entry[state]']")
+      assert has_element?(view, "input[name='poker_tournament_entry[state]']")
+      assert html =~ "Region"
+    end
+
+    test "tabbing off the ZIP field autofills City and State (Country defaults to US)", %{
+      conn: conn
+    } do
+      Req.Test.stub(HighSociety.Tournaments.Zippopotamus, fn conn ->
+        assert conn.request_path == "/us/19406"
+
+        Req.Test.json(conn, %{
+          "places" => [%{"place name" => "King Of Prussia", "state abbreviation" => "PA"}]
+        })
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/tournament")
+
+      html =
+        view
+        |> element("input[name='poker_tournament_entry[zip_code]']")
+        |> render_blur(%{"value" => "19406"})
+
+      assert has_element?(
+               view,
+               "select[name='poker_tournament_entry[state]'] option[value='PA'][selected]"
+             )
+
+      assert html =~ "King Of Prussia"
+    end
+
+    test "a second, different ZIP re-triggers autofill instead of getting stuck on the first result",
+         %{conn: conn} do
+      Req.Test.stub(HighSociety.Tournaments.Zippopotamus, fn conn ->
+        case conn.request_path do
+          "/us/19406" ->
+            Req.Test.json(conn, %{
+              "places" => [%{"place name" => "King Of Prussia", "state abbreviation" => "PA"}]
+            })
+
+          "/us/10001" ->
+            Req.Test.json(conn, %{
+              "places" => [%{"place name" => "New York", "state abbreviation" => "NY"}]
+            })
+        end
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/tournament")
+
+      view
+      |> element("input[name='poker_tournament_entry[zip_code]']")
+      |> render_blur(%{"value" => "19406"})
+
+      assert has_element?(
+               view,
+               "input[name='poker_tournament_entry[city]'][value='King Of Prussia']"
+             )
+
+      html =
+        view
+        |> element("input[name='poker_tournament_entry[zip_code]']")
+        |> render_blur(%{"value" => "10001"})
+
+      assert has_element?(view, "input[name='poker_tournament_entry[city]'][value='New York']")
+
+      assert has_element?(
+               view,
+               "select[name='poker_tournament_entry[state]'] option[value='NY'][selected]"
+             )
+
+      assert html =~ "New York"
+    end
+
+    test "a manual edit after autofill is preserved on a later ZIP lookup", %{conn: conn} do
+      Req.Test.stub(HighSociety.Tournaments.Zippopotamus, fn conn ->
+        Req.Test.json(conn, %{
+          "places" => [%{"place name" => "King Of Prussia", "state abbreviation" => "PA"}]
+        })
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/tournament")
+
+      view
+      |> element("input[name='poker_tournament_entry[zip_code]']")
+      |> render_blur(%{"value" => "19406"})
+
+      assert has_element?(
+               view,
+               "input[name='poker_tournament_entry[city]'][value='King Of Prussia']"
+             )
+
+      view
+      |> form("#tournament_form", %{"poker_tournament_entry" => %{"city" => "Villanova"}})
+      |> render_change()
+
+      view
+      |> element("input[name='poker_tournament_entry[zip_code]']")
+      |> render_blur(%{"value" => "19406"})
+
+      assert has_element?(view, "input[name='poker_tournament_entry[city]'][value='Villanova']")
+    end
+
+    test "does not overwrite a City/State the player already typed", %{conn: conn} do
+      Req.Test.stub(HighSociety.Tournaments.Zippopotamus, fn conn ->
+        Req.Test.json(conn, %{
+          "places" => [%{"place name" => "King Of Prussia", "state abbreviation" => "PA"}]
+        })
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/tournament")
+
+      view
+      |> form("#tournament_form", %{
+        "poker_tournament_entry" => %{"city" => "Philadelphia", "state" => "NY"}
+      })
+      |> render_change()
+
+      view
+      |> element("input[name='poker_tournament_entry[zip_code]']")
+      |> render_blur(%{"value" => "19406"})
+
+      assert has_element?(
+               view,
+               "input[name='poker_tournament_entry[city]'][value='Philadelphia']"
+             )
+
+      assert has_element?(
+               view,
+               "select[name='poker_tournament_entry[state]'] option[value='NY'][selected]"
+             )
+    end
+
+    test "does nothing when Country is Other", %{conn: conn} do
+      Req.Test.stub(HighSociety.Tournaments.Zippopotamus, fn _conn ->
+        flunk("should never look up a ZIP code outside US/CA/MX")
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/tournament")
+
+      view
+      |> form("#tournament_form", %{"poker_tournament_entry" => %{"country" => "OTHER"}})
+      |> render_change()
+
+      view
+      |> element("input[name='poker_tournament_entry[zip_code]']")
+      |> render_blur(%{"value" => "75001"})
+
+      assert has_element?(view, "input[name='poker_tournament_entry[city]'][value='']")
+    end
+
+    test "a failed lookup leaves the form untouched instead of erroring", %{conn: conn} do
+      Req.Test.stub(HighSociety.Tournaments.Zippopotamus, fn conn ->
+        Plug.Conn.send_resp(conn, 404, "Not Found")
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/tournament")
+
+      html =
+        view
+        |> element("input[name='poker_tournament_entry[zip_code]']")
+        |> render_blur(%{"value" => "00000"})
+
+      refute html =~ "King Of Prussia"
+      assert has_element?(view, "#tournament_form")
     end
 
     test "can be submitted together with a valid Ethereum address", %{conn: conn} do

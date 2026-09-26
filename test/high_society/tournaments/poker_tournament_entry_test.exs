@@ -81,6 +81,81 @@ defmodule HighSociety.Tournaments.PokerTournamentEntryTest do
 
       assert changeset.valid?
     end
+
+    test "rejects an unrecognized country", %{scope: scope, tournament: tournament} do
+      changeset =
+        PokerTournamentEntry.changeset(entry(scope, tournament), %{"country" => "not-a-country"})
+
+      assert %{country: ["is invalid"]} = errors_on(changeset)
+    end
+
+    test "rejects a comprehensively OFAC-sanctioned country", %{
+      scope: scope,
+      tournament: tournament
+    } do
+      for code <- ~w(CU IR KP SY) do
+        changeset = PokerTournamentEntry.changeset(entry(scope, tournament), %{"country" => code})
+        assert %{country: ["is invalid"]} = errors_on(changeset)
+      end
+    end
+
+    test "accepts a country from the expanded international list", %{
+      scope: scope,
+      tournament: tournament
+    } do
+      changeset = PokerTournamentEntry.changeset(entry(scope, tournament), %{"country" => "GB"})
+      assert changeset.valid?
+    end
+
+    test "accepts a US state code when country is US", %{scope: scope, tournament: tournament} do
+      attrs = %{"country" => "US", "state" => "PA"}
+      changeset = PokerTournamentEntry.changeset(entry(scope, tournament), attrs)
+      assert changeset.valid?
+    end
+
+    test "rejects a state code that isn't valid for the chosen country", %{
+      scope: scope,
+      tournament: tournament
+    } do
+      attrs = %{"country" => "US", "state" => "ON"}
+      changeset = PokerTournamentEntry.changeset(entry(scope, tournament), attrs)
+
+      assert %{state: ["isn't a valid selection for the chosen country"]} = errors_on(changeset)
+    end
+
+    test "accepts a Canadian province code when country is CA", %{
+      scope: scope,
+      tournament: tournament
+    } do
+      attrs = %{"country" => "CA", "state" => "ON"}
+      changeset = PokerTournamentEntry.changeset(entry(scope, tournament), attrs)
+      assert changeset.valid?
+    end
+
+    test "accepts a Mexican state code when country is MX", %{
+      scope: scope,
+      tournament: tournament
+    } do
+      attrs = %{"country" => "MX", "state" => "JAL"}
+      changeset = PokerTournamentEntry.changeset(entry(scope, tournament), attrs)
+      assert changeset.valid?
+    end
+
+    test "accepts free-text state when country is OTHER or not set", %{
+      scope: scope,
+      tournament: tournament
+    } do
+      changeset =
+        PokerTournamentEntry.changeset(entry(scope, tournament), %{
+          "country" => "OTHER",
+          "state" => "Bavaria"
+        })
+
+      assert changeset.valid?
+
+      changeset = PokerTournamentEntry.changeset(entry(scope, tournament), %{"state" => "PA"})
+      assert changeset.valid?
+    end
   end
 
   describe "encryption at rest" do

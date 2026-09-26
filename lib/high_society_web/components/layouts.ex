@@ -188,11 +188,13 @@ defmodule HighSocietyWeb.Layouts do
       }
     </script>
 
-    {render_slot(@hero)}
+    <main>
+      {render_slot(@hero)}
 
-    <main class="relative z-20 bg-base-100 px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-7xl space-y-4">
-        {render_slot(@inner_block)}
+      <div class="relative z-20 bg-base-100 px-4 py-20 sm:px-6 lg:px-8">
+        <div class="mx-auto max-w-7xl space-y-4">
+          {render_slot(@inner_block)}
+        </div>
       </div>
     </main>
 
@@ -222,7 +224,7 @@ defmodule HighSocietyWeb.Layouts do
             href="https://x.com/High_Societycc"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="X (Twitter)"
+            aria-label="X (Twitter) (opens in a new tab)"
             class="text-base-content/50 transition-colors hover:text-base-content"
           >
             <.social_icon name="x" />
@@ -231,7 +233,7 @@ defmodule HighSocietyWeb.Layouts do
             href="https://www.facebook.com/profile.php?id=61594799933383"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Facebook"
+            aria-label="Facebook (opens in a new tab)"
             class="text-base-content/50 transition-colors hover:text-base-content"
           >
             <.social_icon name="facebook" />
@@ -240,7 +242,7 @@ defmodule HighSocietyWeb.Layouts do
             href="https://www.instagram.com/high_societycc/"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Instagram"
+            aria-label="Instagram (opens in a new tab)"
             class="text-base-content/50 transition-colors hover:text-base-content"
           >
             <.social_icon name="instagram" />
@@ -249,7 +251,7 @@ defmodule HighSocietyWeb.Layouts do
             href="#"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Reddit"
+            aria-label="Reddit (opens in a new tab)"
             class="text-base-content/50 transition-colors hover:text-base-content"
           >
             <.social_icon name="reddit" />
@@ -287,7 +289,11 @@ defmodule HighSocietyWeb.Layouts do
         <.link navigate={~p"/responsible-gaming"} class="link link-hover">
           Responsible Gaming
         </.link>
-        <.link navigate={~p"/age-restriction"} class="link link-hover">
+        <.link
+          navigate={~p"/age-restriction"}
+          class="link link-hover"
+          aria-label="Age restriction policy (18+)"
+        >
           18+
         </.link>
         <.link navigate={~p"/tournament/rules"} class="link link-hover">
@@ -440,6 +446,7 @@ defmodule HighSocietyWeb.Layouts do
         class="flex p-2 cursor-pointer w-1/3"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="system"
+        aria-label="Use system theme"
       >
         <.icon name="hero-computer-desktop-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
@@ -448,6 +455,7 @@ defmodule HighSocietyWeb.Layouts do
         class="flex p-2 cursor-pointer w-1/3"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="light"
+        aria-label="Use light theme"
       >
         <.icon name="hero-sun-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>
@@ -456,6 +464,7 @@ defmodule HighSocietyWeb.Layouts do
         class="flex p-2 cursor-pointer w-1/3"
         phx-click={JS.dispatch("phx:set-theme")}
         data-phx-theme="dark"
+        aria-label="Use dark theme"
       >
         <.icon name="hero-moon-micro" class="size-4 opacity-75 hover:opacity-100" />
       </button>

@@ -19,6 +19,7 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
   alias HighSociety.Games.Poker
   alias HighSociety.Games.Poker.HandEvaluator
   alias HighSociety.Games.PokerTables
+  alias HighSociety.Games.TournamentCoordinator
   alias HighSociety.Games.TournamentTable
   alias HighSociety.Tokens
   alias HighSociety.Tournaments
@@ -135,7 +136,9 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
             viewer_count: viewer_count,
             action_error: nil,
             hand_rankings_open?: false,
-            settings_open?: false
+            settings_open?: false,
+            tournament_info_open?: false,
+            tournament_info: nil
           )
 
         {:ok, socket}
@@ -159,6 +162,17 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
     case GenServer.whereis(TournamentTable.via(slug)) do
       nil -> nil
       _pid -> TournamentTable.get_state(slug)
+    end
+  end
+
+  # `nil` if the coordinator process isn't around for some reason (it
+  # isn't expected to ever stop itself, but this is defensive in the same
+  # spirit as `fetch_state/2` above) - the info modal just shows what it
+  # can without it rather than crashing the whole table screen.
+  defp fetch_tournament_state(tournament_id) do
+    case GenServer.whereis(TournamentCoordinator.via(tournament_id)) do
+      nil -> nil
+      _pid -> TournamentCoordinator.get_state(tournament_id)
     end
   end
 
@@ -189,6 +203,26 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
 
   def handle_event("close_settings", _params, socket),
     do: {:noreply, assign(socket, :settings_open?, false)}
+
+  # Fetched fresh on each open rather than kept live-subscribed - this is
+  # an on-demand "check the current state" modal, not something a player
+  # is expected to leave open while play continues, so a per-open
+  # coordinator call is simpler than a second PubSub subscription for a
+  # rarely-open panel. `entrant_count` is a live DB count too (it can
+  # still grow during late registration), not a snapshot taken at mount.
+  def handle_event("open_tournament_info", _params, socket) do
+    tournament_id = socket.assigns.tournament.id
+
+    tournament_info = %{
+      coordinator: fetch_tournament_state(tournament_id),
+      entrant_count: Tournaments.entrant_count(socket.assigns.tournament)
+    }
+
+    {:noreply, assign(socket, tournament_info_open?: true, tournament_info: tournament_info)}
+  end
+
+  def handle_event("close_tournament_info", _params, socket),
+    do: {:noreply, assign(socket, :tournament_info_open?, false)}
 
   # `choice`, not `value` - see the matching comment in `GameLive.PokerTable`
   # for why a plain `<button>`'s native `.value` DOM property makes that
@@ -277,7 +311,7 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
         class={["mx-auto max-w-4xl", @my_turn? && "pb-28"]}
         phx-hook=".SoundEffects"
       >
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-y-2">
           <div>
             <.link
               navigate={~p"/tournament/#{@tournament.id}/tables"}
@@ -296,7 +330,7 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
               Tournament is on a break
             </p>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="flex flex-wrap items-center justify-end gap-3">
             <button
               id="sound-toggle-button"
               type="button"
@@ -327,6 +361,16 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
               data-tip="Hand Rankings"
             >
               <.icon name="hero-question-mark-circle" class="size-5" />
+            </button>
+            <button
+              id="tournament-info-button"
+              type="button"
+              phx-click="open_tournament_info"
+              class="btn btn-ghost btn-sm btn-circle tooltip tooltip-bottom"
+              aria-label="Tournament info"
+              data-tip="Tournament Info"
+            >
+              <.icon name="hero-information-circle" class="size-5" />
             </button>
           </div>
         </div>
@@ -412,6 +456,8 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
       <.hand_rankings_modal :if={@hand_rankings_open?} />
 
       <.settings_modal :if={@settings_open?} user={@current_scope.user} />
+
+      <.tournament_info_modal :if={@tournament_info_open?} info={@tournament_info} />
 
       <script :type={Phoenix.LiveView.ColocatedHook} name=".ActionTimer">
         export default {
@@ -953,6 +999,145 @@ defmodule HighSocietyWeb.GameLive.TournamentTable do
         </ol>
       </div>
     </div>
+    """
+  end
+
+  attr :info, :map, required: true
+
+  defp tournament_info_modal(assigns) do
+    ~H"""
+    <div
+      id="tournament-info-modal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+    >
+      <div
+        phx-click-away="close_tournament_info"
+        class="w-full max-w-sm rounded-2xl bg-base-100 p-6 shadow-xl"
+      >
+        <div class="flex items-start justify-between gap-4">
+          <h2 class="text-lg font-bold">Tournament Info</h2>
+          <button
+            type="button"
+            phx-click="close_tournament_info"
+            class="btn btn-ghost btn-sm btn-circle shrink-0"
+            aria-label="Close"
+          >
+            <.icon name="hero-x-mark" class="size-4" />
+          </button>
+        </div>
+
+        <div :if={@info.coordinator} class="mt-4 flex flex-col gap-3">
+          <.tournament_info_row
+            id="tournament-info-entrants"
+            label="Entrants"
+            value={@info.entrant_count}
+          />
+          <.tournament_info_row
+            id="tournament-info-remaining"
+            label="Players remaining"
+            value={@info.coordinator.remaining}
+          />
+          <.tournament_info_row
+            id="tournament-info-level"
+            label="Level"
+            value={"#{@info.coordinator.current_level} of #{@info.coordinator.level_count}"}
+          />
+          <.tournament_info_row
+            id="tournament-info-blinds"
+            label="Blinds"
+            value={
+              "#{Tokens.format(@info.coordinator.small_blind)} / #{Tokens.format(@info.coordinator.big_blind)}"
+            }
+          />
+
+          <div class="rounded-xl bg-base-200 p-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-base-content/50">
+              {break_status_heading(@info.coordinator)}
+            </p>
+            <.compact_countdown
+              :if={break_countdown_target(@info.coordinator)}
+              id="tournament-info-break-countdown"
+              target={break_countdown_target(@info.coordinator)}
+            />
+            <p :if={!break_countdown_target(@info.coordinator)} class="mt-1 text-sm font-semibold">
+              No more breaks scheduled
+            </p>
+          </div>
+        </div>
+
+        <p :if={!@info.coordinator} class="mt-4 text-sm text-base-content/60">
+          Tournament status is temporarily unavailable.
+        </p>
+      </div>
+    </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  attr :value, :any, required: true
+
+  defp tournament_info_row(assigns) do
+    ~H"""
+    <div id={@id} class="flex items-center justify-between rounded-xl bg-base-200 p-3">
+      <span class="text-sm font-medium text-base-content/70">{@label}</span>
+      <span class="text-sm font-bold">{@value}</span>
+    </div>
+    """
+  end
+
+  defp break_status_heading(%{on_break: true}), do: "On a break - resumes in"
+
+  defp break_status_heading(coordinator) do
+    if TournamentCoordinator.next_break_at(coordinator), do: "Next break in", else: "Breaks"
+  end
+
+  defp break_countdown_target(%{on_break: true, break_ends_at: ends_at}), do: ends_at
+  defp break_countdown_target(coordinator), do: TournamentCoordinator.next_break_at(coordinator)
+
+  attr :id, :string, required: true
+  attr :target, :any, required: true
+
+  # A compact "M:SS" ticking countdown - `CoreComponents.countdown/1` is a
+  # full Days/Hours/Minutes/Seconds hero display, too heavy for a single
+  # row in this modal, but the underlying idea is the same: tick a target
+  # timestamp down client-side so this never needs a server round trip
+  # (or the live PubSub subscription this on-demand modal deliberately
+  # skips - see `handle_event("open_tournament_info", ...)`).
+  defp compact_countdown(assigns) do
+    ~H"""
+    <span
+      id={@id}
+      phx-hook=".CompactCountdown"
+      data-target={DateTime.to_iso8601(@target)}
+      class="mt-1 block font-mono text-sm font-bold"
+    >
+      --:--
+    </span>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".CompactCountdown">
+      export default {
+        mounted() {
+          this.targetMs = new Date(this.el.dataset.target).getTime()
+          this.tick()
+          this.interval = setInterval(() => this.tick(), 1000)
+        },
+        updated() {
+          this.targetMs = new Date(this.el.dataset.target).getTime()
+          this.tick()
+        },
+        destroyed() {
+          clearInterval(this.interval)
+        },
+        tick() {
+          const remainingMs = Math.max(0, this.targetMs - Date.now())
+          const totalSeconds = Math.floor(remainingMs / 1000)
+          const minutes = Math.floor(totalSeconds / 60)
+          const seconds = totalSeconds % 60
+          this.el.textContent = `${minutes}:${String(seconds).padStart(2, "0")}`
+        }
+      }
+    </script>
     """
   end
 

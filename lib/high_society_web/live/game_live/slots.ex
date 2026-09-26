@@ -185,14 +185,14 @@ defmodule HighSocietyWeb.GameLive.Slots do
         phx-hook=".SoundEffects"
         data-spinning={to_string(@spinning?)}
       >
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-y-2">
           <div>
             <.link navigate={~p"/#games"} class="text-sm text-base-content/60 hover:text-base-content">
               &larr; All games
             </.link>
             <h1 class="mt-1 text-3xl font-bold tracking-tight">Slots</h1>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="flex flex-wrap items-center justify-end gap-3">
             <div class="text-right">
               <div class="text-xs font-medium uppercase tracking-wide text-base-content/50">
                 Balance

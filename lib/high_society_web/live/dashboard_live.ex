@@ -83,8 +83,8 @@ defmodule HighSocietyWeb.DashboardLive do
         "Bet on whichever hand comes closest to nine — the timeless high-roller classic.",
       icon: "hero-rectangle-stack",
       accent: "from-purple-500 to-fuchsia-400",
-      path: nil,
-      available: false
+      path: "/games/baccarat",
+      available: true
     }
   ]
 
@@ -94,6 +94,7 @@ defmodule HighSocietyWeb.DashboardLive do
 
     {:ok,
      assign(socket,
+       page_title: "High Society — Casino Games & Poker Tournaments",
        games: @games,
        tournament: tournament,
        tournament_registered?: tournament_registered?(socket, tournament)
@@ -120,7 +121,7 @@ defmodule HighSocietyWeb.DashboardLive do
       tournament_countdown={Tournaments.scheduled_countdown?(@tournament) && @tournament}
     >
       <:hero>
-        <div class="fixed inset-0 overflow-hidden bg-neutral-900">
+        <div class="fixed inset-0 overflow-hidden bg-neutral-900" aria-hidden="true">
           <video
             class="absolute inset-0 size-full object-cover motion-reduce:hidden"
             autoplay
@@ -243,6 +244,7 @@ defmodule HighSocietyWeb.DashboardLive do
                   navigate={~p"/tournament"}
                   id="tournament-announcement-cta"
                   class="btn btn-primary shrink-0"
+                  aria-label={"Register now for #{tournament_headline(@tournament)}"}
                 >
                   Register now <span aria-hidden="true">&rarr;</span>
                 </.link>
@@ -281,6 +283,7 @@ defmodule HighSocietyWeb.DashboardLive do
                     navigate={game.path}
                     id={"play-#{game.slug}"}
                     class="btn btn-primary btn-block"
+                    aria-label={"Play #{game.name} now"}
                   >
                     Play now <span aria-hidden="true">&rarr;</span>
                   </.link>

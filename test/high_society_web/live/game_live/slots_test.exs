@@ -251,18 +251,32 @@ defmodule HighSocietyWeb.GameLive.SlotsTest do
 
     refute render(view) =~ "Bonus round total"
 
-    await_reveal(view)
+    # `await_round_settled/1`, not a single `await_reveal/1` - free spins
+    # auto-chain, so the one queued spin can itself retrigger more before
+    # the round is genuinely over (see that helper's own doc). Settling
+    # here guarantees `free_spins_remaining == 0` below, rather than
+    # racing however many auto-spins fire against a single reveal wait.
+    html = await_round_settled(view)
 
     game = Repo.get_by!(SlotsGame, user_id: user.id)
-    html = render(view)
+    assert game.free_spins_remaining == 0
 
-    # The one queued free spin always fires; on the rare draw where it also
-    # relands a fresh bonus, the round keeps going instead of ending here,
-    # so there's no total to show yet - same caveat as the test above.
-    if game.free_spins_remaining == 0 do
-      assert html =~ "Bonus round total: #{Tokens.format(game.total_win)} Tokens"
+    # `game.total_win` is this last spin's own win, not the bonus round's
+    # cumulative total (the running total sums every spin in the chain,
+    # tracked in the LiveView, not the discard-and-replace DB row) - so
+    # the per-spin line and the running total are asserted separately
+    # rather than assuming they're ever the same number. The "You won"
+    # line only renders at all when this last spin itself won something
+    # (see slots.ex's own `:if={@slots_game.total_win > 0}`) - a losing
+    # final spin shows "Try again." instead, same as any other spin.
+    if game.total_win > 0 do
+      assert html =~ "You won #{Tokens.format(game.total_win)} Tokens!"
     else
-      refute html =~ "Bonus round total"
+      assert html =~ "Try again."
     end
+
+    assert [_, bonus_total_text] = Regex.run(~r/Bonus round total: ([\d,]+) Tokens/, html)
+    bonus_total = bonus_total_text |> String.replace(",", "") |> String.to_integer()
+    assert bonus_total >= game.total_win
   end
 end

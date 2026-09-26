@@ -5,12 +5,29 @@ alias HighSociety.Accounts.{
 }
 
 alias HighSociety.Repo
+alias HighSociety.Healthcheck
 
 alias HighSociety.Games.{
   Blackjack,
   War,
   BlackjackGame,
-  WarGame
+  WarGame,
+  Baccarat,
+  BaccaratGame,
+  Battleship,
+  BattleshipGame,
+  ZombieAttack,
+  ZombieAttackGame,
+  Poker,
+  PokerTables,
+  PokerGame,
+  PokerTournament,
+  TournamentBlinds,
+  TournamentPlayers,
+  TournamentPlayer,
+  TournamentGame,
+  TournamentGamePlayer,
+  TournamentGamePlayerAction
 }
 
 alias HighSociety.Badges

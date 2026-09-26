@@ -11,6 +11,8 @@ defmodule HighSociety.Games do
   alias HighSociety.Accounts.Scope
   alias HighSociety.Accounts.User
   alias HighSociety.Repo
+  alias HighSociety.Games.Baccarat
+  alias HighSociety.Games.BaccaratGame
   alias HighSociety.Games.Blackjack
   alias HighSociety.Games.BlackjackGame
   alias HighSociety.Games.Roulette
@@ -512,6 +514,75 @@ defmodule HighSociety.Games do
 
   defp stringify_settled_bet(%{} = bet) do
     %{"key" => bet.key, "amount" => bet.amount, "payout" => bet.payout, "won" => bet.won?}
+  end
+
+  @doc """
+  Returns the current user's most recent Baccarat round, or `nil` if
+  they've never played. Kept regardless of outcome purely so the last
+  result is still shown on remount instead of an empty table.
+  """
+  @spec get_active_baccarat_game(Scope.t()) :: BaccaratGame.t() | nil
+  def get_active_baccarat_game(%Scope{user: user}) do
+    Repo.one(from bg in BaccaratGame, where: bg.user_id == ^user.id)
+  end
+
+  @doc """
+  Places `bets` (a map of `"player"`/`"banker"`/`"tie"` to wagered Tokens -
+  see `HighSociety.Games.Baccarat`) and deals a full round for the current
+  user, debiting the total stake up front and crediting back whatever the
+  round pays out. Discards the user's previous round row.
+  """
+  @spec play_baccarat_round(Scope.t(), Baccarat.bets()) ::
+          {:ok, BaccaratGame.t(), User.t()}
+          | {:error, :no_bets | :invalid_bet | :bet_too_large | :insufficient_funds}
+  def play_baccarat_round(%Scope{user: user}, bets) when is_map(bets) do
+    total = bets |> Map.values() |> Enum.sum()
+
+    cond do
+      map_size(bets) == 0 ->
+        {:error, :no_bets}
+
+      not Enum.all?(bets, fn {key, amount} ->
+        Baccarat.valid_key?(key) and is_integer(amount) and amount > 0
+      end) ->
+        {:error, :invalid_bet}
+
+      Enum.any?(bets, fn {_key, amount} -> amount > Baccarat.max_bet() end) ->
+        {:error, :bet_too_large}
+
+      true ->
+        Repo.transact(fn ->
+          with {:ok, user} <- maybe_debit(user, total, "baccarat_bet") do
+            round = Baccarat.deal(bets)
+            total_payout = round.bets |> Enum.map(& &1.payout) |> Enum.sum()
+
+            Repo.delete_all(from bg in BaccaratGame, where: bg.user_id == ^user.id)
+
+            game =
+              %BaccaratGame{}
+              |> BaccaratGame.changeset(%{
+                user_id: user.id,
+                player_hand: round.player_hand,
+                banker_hand: round.banker_hand,
+                player_total: round.player_total,
+                banker_total: round.banker_total,
+                outcome: Atom.to_string(round.outcome),
+                bets: Enum.map(round.bets, &stringify_settled_bet/1),
+                total_wager: total,
+                total_payout: total_payout
+              })
+              |> Repo.insert!()
+
+            {:ok, user} = Accounts.adjust_tokens_balance(user, total_payout, "baccarat_payout")
+
+            {:ok, {game, user}}
+          end
+        end)
+        |> case do
+          {:ok, {game, user}} -> {:ok, game, user}
+          {:error, reason} -> {:error, reason}
+        end
+    end
   end
 
   defp to_blackjack(%BlackjackGame{} = game) do

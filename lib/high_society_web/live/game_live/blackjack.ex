@@ -496,14 +496,14 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div id="blackjack-screen" class="mx-auto max-w-3xl" phx-hook=".SoundEffects">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-y-2">
           <div>
             <.link navigate={~p"/#games"} class="text-sm text-base-content/60 hover:text-base-content">
               &larr; All games
             </.link>
             <h1 class="mt-1 text-3xl font-bold tracking-tight">Blackjack</h1>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="flex flex-wrap items-center justify-end gap-3">
             <div class="text-right">
               <div class="text-xs font-medium uppercase tracking-wide text-base-content/50">
                 Balance
@@ -541,47 +541,56 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
           </div>
         </div>
 
-        <div :if={betting?(assigns)} id="betting-area" class="mt-10">
-          <div class={[
-            "grid gap-6",
-            @second_hand? && "grid-cols-2",
-            !@second_hand? && "grid-cols-1 justify-items-center"
-          ]}>
-            <.betting_box box={0} amount={@pending_bets[0]} closable?={false} />
-            <.betting_box :if={@second_hand?} box={1} amount={@pending_bets[1]} closable?={true} />
-          </div>
+        <div
+          :if={betting?(assigns)}
+          id="betting-area"
+          class="relative mt-10 overflow-hidden rounded-[2rem] border-4 border-amber-700/60 shadow-2xl ring-2 ring-amber-400/30"
+        >
+          <div class="glamorous-bg absolute inset-0" />
+          <div class="absolute inset-0 bg-black/35" />
 
-          <div :if={!@second_hand?} class="mt-4 flex justify-center">
-            <button
-              id="add-second-hand-button"
-              type="button"
-              phx-click="add_second_hand"
-              class="btn btn-outline btn-sm"
-            >
-              + Play a second hand
-            </button>
-          </div>
+          <div class="relative p-4 sm:p-8">
+            <div class={[
+              "grid gap-6",
+              @second_hand? && "grid-cols-2",
+              !@second_hand? && "grid-cols-1 justify-items-center"
+            ]}>
+              <.betting_box box={0} amount={@pending_bets[0]} closable?={false} />
+              <.betting_box :if={@second_hand?} box={1} amount={@pending_bets[1]} closable?={true} />
+            </div>
 
-          <p class="mt-4 text-center text-xs text-base-content/50">
-            Max {Tokens.format(Blackjack.max_bet())} Tokens per hand.
-          </p>
+            <div :if={!@second_hand?} class="mt-4 flex justify-center">
+              <button
+                id="add-second-hand-button"
+                type="button"
+                phx-click="add_second_hand"
+                class="btn btn-outline btn-sm border-white/40 text-white hover:border-white hover:bg-white/10"
+              >
+                + Play a second hand
+              </button>
+            </div>
 
-          <div class="mt-6 flex flex-col items-center gap-2">
-            <p :if={@bet_error} id="bet-error" class="text-sm font-medium text-error">
-              {@bet_error}
+            <p class="mt-4 text-center text-xs text-amber-200/60">
+              Max {Tokens.format(Blackjack.max_bet())} Tokens per hand.
             </p>
-            <button
-              id="deal-button"
-              type="button"
-              phx-click="deal"
-              disabled={total_bet(@pending_bets) == 0}
-              class={[
-                "btn btn-primary btn-lg px-12",
-                total_bet(@pending_bets) > 0 && "animate-pulse"
-              ]}
-            >
-              Deal
-            </button>
+
+            <div class="mt-6 flex flex-col items-center gap-2">
+              <p :if={@bet_error} id="bet-error" class="text-sm font-medium text-error">
+                {@bet_error}
+              </p>
+              <button
+                id="deal-button"
+                type="button"
+                phx-click="deal"
+                disabled={total_bet(@pending_bets) == 0}
+                class={[
+                  "btn btn-primary btn-lg px-12",
+                  total_bet(@pending_bets) > 0 && "animate-pulse"
+                ]}
+              >
+                Deal
+              </button>
+            </div>
           </div>
         </div>
 
@@ -826,22 +835,24 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
     ~H"""
     <div
       id={"betting-box-#{@box}"}
-      class="relative flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-base-300 bg-base-200 p-4"
+      class="relative flex flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-white/25 bg-white/5 p-4 backdrop-blur-sm"
     >
       <button
         :if={@closable?}
         id="remove-second-hand-button"
         type="button"
         phx-click="remove_second_hand"
-        class="btn btn-ghost btn-xs btn-circle absolute right-2 top-2"
+        class="btn btn-ghost btn-xs btn-circle absolute right-2 top-2 text-white/70 hover:text-white"
         aria-label="Remove second hand"
       >
         <.icon name="hero-x-mark" class="size-4" />
       </button>
-      <span class="text-xs font-semibold uppercase tracking-wide text-base-content/50">
+      <span class="text-xs font-semibold uppercase tracking-wide text-amber-200/70">
         Hand {@box + 1}
       </span>
-      <div id={"bet-amount-#{@box}"} class="text-2xl font-bold">{Tokens.format(@amount)} Tokens</div>
+      <div id={"bet-amount-#{@box}"} class="text-2xl font-bold text-white">
+        {Tokens.format(@amount)} Tokens
+      </div>
       <div class="flex flex-wrap justify-center gap-2">
         <button
           :for={chip <- chip_values()}
@@ -851,7 +862,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
           phx-value-box={@box}
           phx-value-amount={chip}
           class={[
-            "flex size-12 items-center justify-center rounded-full border-4 border-dashed text-xs font-bold shadow-md transition-transform hover:-translate-y-0.5",
+            "flex size-12 items-center justify-center rounded-full border-4 border-dashed text-xs font-bold shadow-lg shadow-black/40 ring-2 ring-inset ring-white/40 transition-transform hover:-translate-y-0.5 hover:shadow-xl",
             chip_color(chip)
           ]}
         >
@@ -864,7 +875,7 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
         type="button"
         phx-click="clear_bet"
         phx-value-box={@box}
-        class="btn btn-ghost btn-xs"
+        class="btn btn-ghost btn-xs text-white/70 hover:text-white"
       >
         Clear
       </button>
@@ -882,10 +893,17 @@ defmodule HighSocietyWeb.GameLive.Blackjack do
       else: "bg-amber-400 text-amber-950"
   end
 
-  defp chip_color(500), do: "border-neutral-400 bg-neutral-100 text-neutral-900"
-  defp chip_color(2_500), do: "border-red-300 bg-red-600 text-white"
-  defp chip_color(10_000), do: "border-neutral-600 bg-neutral-900 text-white"
-  defp chip_color(50_000), do: "border-amber-300 bg-amber-500 text-amber-950"
+  defp chip_color(500),
+    do: "border-neutral-400 bg-gradient-to-br from-white to-neutral-300 text-neutral-900"
+
+  defp chip_color(2_500),
+    do: "border-red-200 bg-gradient-to-br from-red-500 to-red-800 text-white"
+
+  defp chip_color(10_000),
+    do: "border-neutral-400 bg-gradient-to-br from-neutral-700 to-black text-white"
+
+  defp chip_color(50_000),
+    do: "border-amber-200 bg-gradient-to-br from-amber-400 to-amber-600 text-amber-950"
 
   attr :game_id, :any, required: true
   attr :hand, :map, required: true

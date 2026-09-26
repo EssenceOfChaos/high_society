@@ -56,6 +56,33 @@ defmodule HighSociety.Games.TournamentCoordinator do
   def get_state(tournament_id), do: GenServer.call(via(tournament_id), :get_state)
 
   @doc """
+  The absolute time the next break will start, given a `get_state/1`
+  view - `nil` if already on break (see that view's `break_ends_at`
+  instead) or if no break remains in the schedule (every level from here
+  to the end of the tournament falls after the last scheduled break).
+  """
+  @spec next_break_at(map()) :: DateTime.t() | nil
+  def next_break_at(%{on_break: true}), do: nil
+
+  def next_break_at(%{
+        current_level: current_level,
+        level_count: level_count,
+        level_started_at: level_started_at,
+        level_minutes: level_minutes,
+        levels_per_break: levels_per_break
+      }) do
+    levels_until_break = levels_per_break - rem(current_level - 1, levels_per_break)
+    break_level = current_level + levels_until_break - 1
+
+    # Strictly less than: a break only ever fires after a *non-final*
+    # level (see `should_break?/1`'s own `not final_level?(state)` guard)
+    # - a break boundary landing exactly on the last level never happens.
+    if break_level < level_count do
+      DateTime.add(level_started_at, levels_until_break * level_minutes * 60, :second)
+    end
+  end
+
+  @doc """
   Seats `user_id` (with `username`) at whichever active table has room
   (creating a fresh one if every table's full), using the tournament's
   starting stack - only while still inside the tournament's late
@@ -479,6 +506,10 @@ defmodule HighSociety.Games.TournamentCoordinator do
     %{
       tournament_id: state.tournament_id,
       current_level: state.current_level,
+      level_count: length(state.blind_levels),
+      level_started_at: state.level_started_at,
+      level_minutes: state.level_minutes,
+      levels_per_break: state.levels_per_break,
       small_blind: sb,
       big_blind: bb,
       on_break: state.on_break,

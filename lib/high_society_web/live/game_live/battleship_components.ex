@@ -35,6 +35,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipComponents do
   attr :disabled, :boolean, default: false
   attr :preview_length, :integer, default: nil
   attr :preview_orientation, :atom, default: :horizontal
+  attr :dark_bg, :boolean, default: false
 
   def board(assigns) do
     ~H"""
@@ -48,13 +49,19 @@ defmodule HighSocietyWeb.GameLive.BattleshipComponents do
       <div />
       <div
         :for={col <- 0..(board_size() - 1)}
-        class="text-center text-xs font-semibold text-base-content/50"
+        class={[
+          "text-center text-xs font-semibold",
+          if(@dark_bg, do: "text-white/50", else: "text-base-content/50")
+        ]}
       >
         {column_letter(col)}
       </div>
 
       <%= for row <- 0..(board_size() - 1) do %>
-        <div class="flex items-center justify-center text-xs font-semibold text-base-content/50">
+        <div class={[
+          "flex items-center justify-center text-xs font-semibold",
+          if(@dark_bg, do: "text-white/50", else: "text-base-content/50")
+        ]}>
           {row + 1}
         </div>
         <button

@@ -102,6 +102,8 @@ defmodule HighSocietyWeb.Router do
       live "/games/slots", GameLive.Slots, :show
       live "/games/roulette", GameLive.Roulette, :show
       live "/games/zombie-attack", GameLive.ZombieAttack, :show
+      live "/games/baccarat", GameLive.Baccarat, :show
+      live "/games/baccarat/leaderboard", GameLive.Leaderboard, :baccarat
     end
 
     post "/users/update-password", UserSessionController, :update_password

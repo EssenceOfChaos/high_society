@@ -58,6 +58,10 @@ config :high_society, :slots_free_spin_delay_ms, 10
 config :high_society, :roulette_spin_reveal_delay_ms, 10
 config :high_society, :roulette_landing_delay_ms, 10
 
+# Keep the paced card reveal (see HighSocietyWeb.GameLive.Baccarat) fast in
+# tests instead of waiting out the realistic in-app delay.
+config :high_society, :baccarat_deal_step_delay_ms, 10
+
 # Fixed so ResendWebhookControllerTest can sign fixture payloads with the
 # same secret the controller verifies against.
 config :high_society, :resend_webhook_secret, "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
@@ -82,3 +86,8 @@ config :high_society, :threads_app_secret, "test_threads_app_secret"
 
 config :high_society, HighSociety.Social.ThreadsClient,
   plug: {Req.Test, HighSociety.Social.ThreadsClient}
+
+# Never actually looked up anywhere - HighSociety.Tournaments.Zippopotamus
+# is stubbed via Req.Test below instead of making real requests in tests.
+config :high_society, HighSociety.Tournaments.Zippopotamus,
+  plug: {Req.Test, HighSociety.Tournaments.Zippopotamus}

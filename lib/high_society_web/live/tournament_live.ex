@@ -19,6 +19,8 @@ defmodule HighSocietyWeb.TournamentLive do
   use HighSocietyWeb, :live_view
 
   alias HighSociety.Tournaments
+  alias HighSociety.Tournaments.Regions
+  alias HighSociety.Tournaments.Zippopotamus
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -46,6 +48,7 @@ defmodule HighSocietyWeb.TournamentLive do
      |> assign(:page_title, "Poker Tournament")
      |> assign(:tournament, tournament)
      |> assign(:registered?, not is_nil(entry))
+     |> assign(:zip_autofilled, %{city: nil, state: nil})
      |> assign_form(changeset)}
   end
 
@@ -134,12 +137,41 @@ defmodule HighSocietyWeb.TournamentLive do
               <.input field={@form[:last_name]} type="text" label="Last name" />
             </div>
             <div class="mt-3">
+              <.input
+                field={@form[:country]}
+                type="select"
+                label="Country"
+                prompt="Select country"
+                options={Enum.map(Regions.country_options(), fn {value, label} -> {label, value} end)}
+              />
+            </div>
+            <div class="mt-3">
+              <.input
+                field={@form[:zip_code]}
+                type="text"
+                label="ZIP code"
+                phx-blur="lookup_zip"
+              />
+            </div>
+            <div class="mt-3">
               <.input field={@form[:address]} type="text" label="Street address" />
             </div>
-            <div class="mt-3 grid grid-cols-3 gap-3">
+            <div class="mt-3 grid grid-cols-2 gap-3">
               <.input field={@form[:city]} type="text" label="City" />
-              <.input field={@form[:state]} type="text" label="State" />
-              <.input field={@form[:zip_code]} type="text" label="ZIP code" />
+              <.input
+                :if={state_options(@form)}
+                field={@form[:state]}
+                type="select"
+                label={state_label(@form)}
+                prompt={"Select #{state_label(@form)}"}
+                options={Enum.map(state_options(@form), fn {value, label} -> {label, value} end)}
+              />
+              <.input
+                :if={!state_options(@form)}
+                field={@form[:state]}
+                type="text"
+                label="Region"
+              />
             </div>
             <div class="mt-3">
               <.input field={@form[:date_of_birth]} type="date" label="Date of birth" />
@@ -171,6 +203,10 @@ defmodule HighSocietyWeb.TournamentLive do
     {:noreply, assign_form(socket, Map.put(changeset, :action, :validate))}
   end
 
+  def handle_event("lookup_zip", %{"value" => zip}, socket) do
+    {:noreply, autofill_from_zip(socket, zip)}
+  end
+
   def handle_event("save", %{"poker_tournament_entry" => params}, socket) do
     case Tournaments.register(socket.assigns.current_scope, socket.assigns.tournament, params) do
       {:ok, _entry} ->
@@ -190,4 +226,61 @@ defmodule HighSocietyWeb.TournamentLive do
   defp assign_form(socket, %Ecto.Changeset{} = changeset) do
     assign(socket, form: to_form(changeset, as: "poker_tournament_entry"))
   end
+
+  # Best-effort autofill from the ZIP code once a player tabs off it - only
+  # for the three countries `Zippopotamus.lookup/2` supports. Only fills a
+  # City/State field that's either still blank or still holds exactly what
+  # a previous lookup put there (`@zip_autofilled`) - so re-tabbing off a
+  # *changed* ZIP still refreshes City/State, but a value the player typed
+  # themselves (or edited after an autofill) is never overwritten. Any
+  # failure (bad ZIP, network error, country not selected yet) just leaves
+  # the socket untouched - the fields stay editable by hand exactly as
+  # before this existed.
+  defp autofill_from_zip(socket, zip) do
+    zip = String.trim(zip)
+    changeset = socket.assigns.form.source
+    country = Ecto.Changeset.get_field(changeset, :country)
+
+    if zip != "" and country in ~w(US CA MX) do
+      case Zippopotamus.lookup(country, zip) do
+        {:ok, result} ->
+          previously_autofilled = socket.assigns.zip_autofilled
+
+          changeset =
+            changeset
+            |> fill_if_autofillable(:city, result.city, previously_autofilled.city)
+            |> fill_if_autofillable(:state, result.state, previously_autofilled.state)
+
+          socket
+          |> assign(:zip_autofilled, %{city: result.city, state: result.state})
+          |> assign_form(changeset)
+
+        :error ->
+          socket
+      end
+    else
+      socket
+    end
+  end
+
+  defp fill_if_autofillable(changeset, _field, nil, _previously_autofilled), do: changeset
+
+  defp fill_if_autofillable(changeset, field, value, previously_autofilled) do
+    current = Ecto.Changeset.get_field(changeset, field)
+
+    if blank?(current) or current == previously_autofilled do
+      Ecto.Changeset.put_change(changeset, field, value)
+    else
+      changeset
+    end
+  end
+
+  defp blank?(nil), do: true
+  defp blank?(value), do: String.trim(value) == ""
+
+  # `nil` (no country chosen yet) or any country outside the three the form
+  # has a fixed list for - renders State as free text ("Region") instead.
+  defp state_options(form), do: form[:country].value |> to_string() |> Regions.state_options_for()
+
+  defp state_label(form), do: form[:country].value |> to_string() |> Regions.state_field_label()
 end

@@ -47,16 +47,30 @@ defmodule HighSociety.LeaderboardsTest do
       assert Leaderboards.top_players(:blackjack) == []
     end
 
-    test "keeps blackjack and poker winnings separate" do
+    test "keeps blackjack, poker, and baccarat winnings separate" do
       user = user_fixture()
       {:ok, _} = Accounts.adjust_tokens_balance(user, 1_000, "blackjack_payout")
       {:ok, _} = Accounts.adjust_tokens_balance(user, 2_000, "poker_cash_out")
+      {:ok, _} = Accounts.adjust_tokens_balance(user, 3_000, "baccarat_payout")
 
       assert [blackjack_entry] = Leaderboards.top_players(:blackjack)
       assert blackjack_entry.net_tokens_won == 1_000
 
       assert [poker_entry] = Leaderboards.top_players(:poker)
       assert poker_entry.net_tokens_won == 2_000
+
+      assert [baccarat_entry] = Leaderboards.top_players(:baccarat)
+      assert baccarat_entry.net_tokens_won == 3_000
+    end
+
+    test "excludes the baccarat starting grant from net winnings" do
+      user = user_fixture()
+      {:ok, _} = Accounts.adjust_tokens_balance(user, 500_000, "starting_grant_baccarat")
+      {:ok, _} = Accounts.adjust_tokens_balance(user, -1_000, "baccarat_bet")
+      {:ok, _} = Accounts.adjust_tokens_balance(user, 1_950, "baccarat_payout")
+
+      assert [entry] = Leaderboards.top_players(:baccarat)
+      assert entry.net_tokens_won == 950
     end
 
     test "includes the display name, badge, and member-since date" do
