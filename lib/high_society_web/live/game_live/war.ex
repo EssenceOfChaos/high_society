@@ -48,14 +48,14 @@ defmodule HighSocietyWeb.GameLive.War do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div id="war-screen" class="mx-auto max-w-3xl" phx-hook=".SoundEffects">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-y-2">
           <div>
             <.link navigate={~p"/#games"} class="text-sm text-base-content/60 hover:text-base-content">
               &larr; All games
             </.link>
             <h1 class="mt-1 text-3xl font-bold tracking-tight">War</h1>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center justify-end gap-2">
             <button
               id="sound-toggle-button"
               type="button"
@@ -92,121 +92,127 @@ defmodule HighSocietyWeb.GameLive.War do
           :if={@war_game}
           id="war-table"
           class={[
-            "mt-8 rounded-2xl transition-colors duration-500",
-            war_pending?(@war_game) &&
-              "-mx-4 border-4 border-error bg-error/10 p-4 shadow-lg shadow-error/20"
+            "relative mt-8 overflow-hidden rounded-[2rem] border-4 border-amber-700/60 shadow-2xl ring-2 ring-amber-400/30 transition-colors duration-500",
+            war_pending?(@war_game) && "border-error ring-error/50 shadow-error/20"
           ]}
         >
-          <div class="grid grid-cols-2 gap-6">
-            <.pile label="You" count={length(@war_game.player_deck)} align="left" />
-            <.pile label="Computer" count={length(@war_game.computer_deck)} align="right" />
-          </div>
+          <div class="glamorous-bg absolute inset-0" />
+          <div class="absolute inset-0 bg-black/35" />
+          <div :if={war_pending?(@war_game)} class="absolute inset-0 bg-error/20" />
 
-          <div :if={war_pending?(@war_game)} class="mt-6 text-center">
-            <p class="animate-pulse text-4xl font-black uppercase tracking-widest text-error">
-              ⚔️ War! ⚔️
-            </p>
-            <p class="mt-1 text-sm font-medium text-error/80">
-              Three cards burned each. Flip the tiebreaker to see who takes the pot.
-            </p>
-          </div>
-
-          <div :for={tie <- ties(@war_game)} class="mt-8 grid grid-cols-2 gap-6">
-            <div class="flex flex-col items-center gap-1">
-              <span class="text-xs font-semibold uppercase tracking-wide text-base-content/40">
-                Tied — burned
-              </span>
-              <.card_face card={tie["player_card"]} dim size={:large} />
+          <div class="relative p-4 sm:p-8">
+            <div class="grid grid-cols-2 gap-6">
+              <.pile label="You" count={length(@war_game.player_deck)} align="left" />
+              <.pile label="Computer" count={length(@war_game.computer_deck)} align="right" />
             </div>
-            <div class="flex flex-col items-center gap-1">
-              <span class="text-xs font-semibold uppercase tracking-wide text-base-content/40">
-                Tied — burned
-              </span>
-              <.card_face card={tie["computer_card"]} dim size={:large} />
-            </div>
-          </div>
 
-          <div class="mt-8 grid grid-cols-2 gap-6">
-            <div class="flex flex-col items-center gap-1">
-              <span
-                :if={war_round?(@war_game)}
-                class="text-xs font-semibold uppercase tracking-wide text-warning"
-              >
-                Tiebreaker
-              </span>
-              <.card_face
-                id="war-player-card"
-                card={last_card(@war_game, :player_card)}
-                pending={war_pending?(@war_game)}
-                deal_animation
-                size={:large}
-              />
-            </div>
-            <div class="flex flex-col items-center gap-1">
-              <span
-                :if={war_round?(@war_game)}
-                class="text-xs font-semibold uppercase tracking-wide text-warning"
-              >
-                Tiebreaker
-              </span>
-              <.card_face
-                id="war-computer-card"
-                card={last_card(@war_game, :computer_card)}
-                pending={war_pending?(@war_game)}
-                deal_animation
-                size={:large}
-              />
-            </div>
-          </div>
-
-          <div class="mt-6 text-center min-h-8">
-            <p
-              :if={
-                @war_game.last_round && @war_game.status == "in_progress" && !war_pending?(@war_game)
-              }
-              class={[
-                @warring? && "font-bold text-warning text-lg",
-                !@warring? && "text-base-content/70"
-              ]}
-            >
-              {round_message(@war_game.last_round)}
-            </p>
-          </div>
-
-          <div class="mt-6 flex justify-center">
-            <button
-              :if={@war_game.status == "in_progress" && !war_pending?(@war_game)}
-              id="flip-button"
-              phx-click="flip"
-              class="btn btn-primary btn-lg px-12"
-            >
-              Flip
-            </button>
-
-            <button
-              :if={@war_game.status == "in_progress" && war_pending?(@war_game)}
-              id="flip-tiebreaker-button"
-              phx-click="flip"
-              class="btn btn-error btn-lg animate-pulse px-12"
-            >
-              ⚔️ Flip tiebreaker
-            </button>
-
-            <div :if={@war_game.status != "in_progress"} id="game-result" class="text-center">
-              <p class={[
-                "text-2xl font-bold",
-                @war_game.status == "player_won" && "text-success",
-                @war_game.status == "computer_won" && "text-error"
-              ]}>
-                <%= if @war_game.status == "player_won" do %>
-                  You won the game! 🎉
-                <% else %>
-                  The computer won this one.
-                <% end %>
+            <div :if={war_pending?(@war_game)} class="mt-6 text-center">
+              <p class="animate-pulse text-4xl font-black uppercase tracking-widest text-error">
+                ⚔️ War! ⚔️
               </p>
-              <button id="play-again-button" phx-click="new_game" class="btn btn-primary mt-4">
-                Play again
+              <p class="mt-1 text-sm font-medium text-error/80">
+                Three cards burned each. Flip the tiebreaker to see who takes the pot.
+              </p>
+            </div>
+
+            <div :for={tie <- ties(@war_game)} class="mt-8 grid grid-cols-2 gap-6">
+              <div class="flex flex-col items-center gap-1">
+                <span class="text-xs font-semibold uppercase tracking-wide text-white/50">
+                  Tied — burned
+                </span>
+                <.card_face card={tie["player_card"]} dim size={:large} />
+              </div>
+              <div class="flex flex-col items-center gap-1">
+                <span class="text-xs font-semibold uppercase tracking-wide text-white/50">
+                  Tied — burned
+                </span>
+                <.card_face card={tie["computer_card"]} dim size={:large} />
+              </div>
+            </div>
+
+            <div class="mt-8 grid grid-cols-2 gap-6">
+              <div class="flex flex-col items-center gap-1">
+                <span
+                  :if={war_round?(@war_game)}
+                  class="text-xs font-semibold uppercase tracking-wide text-warning"
+                >
+                  Tiebreaker
+                </span>
+                <.card_face
+                  id="war-player-card"
+                  card={last_card(@war_game, :player_card)}
+                  pending={war_pending?(@war_game)}
+                  deal_animation
+                  size={:large}
+                />
+              </div>
+              <div class="flex flex-col items-center gap-1">
+                <span
+                  :if={war_round?(@war_game)}
+                  class="text-xs font-semibold uppercase tracking-wide text-warning"
+                >
+                  Tiebreaker
+                </span>
+                <.card_face
+                  id="war-computer-card"
+                  card={last_card(@war_game, :computer_card)}
+                  pending={war_pending?(@war_game)}
+                  deal_animation
+                  size={:large}
+                />
+              </div>
+            </div>
+
+            <div class="mt-6 text-center min-h-8">
+              <p
+                :if={
+                  @war_game.last_round && @war_game.status == "in_progress" &&
+                    !war_pending?(@war_game)
+                }
+                class={[
+                  @warring? && "font-bold text-warning text-lg",
+                  !@warring? && "text-white/70"
+                ]}
+              >
+                {round_message(@war_game.last_round)}
+              </p>
+            </div>
+
+            <div class="mt-6 flex justify-center">
+              <button
+                :if={@war_game.status == "in_progress" && !war_pending?(@war_game)}
+                id="flip-button"
+                phx-click="flip"
+                class="btn btn-primary btn-lg px-12"
+              >
+                Flip
               </button>
+
+              <button
+                :if={@war_game.status == "in_progress" && war_pending?(@war_game)}
+                id="flip-tiebreaker-button"
+                phx-click="flip"
+                class="btn btn-error btn-lg animate-pulse px-12"
+              >
+                ⚔️ Flip tiebreaker
+              </button>
+
+              <div :if={@war_game.status != "in_progress"} id="game-result" class="text-center">
+                <p class={[
+                  "text-2xl font-bold",
+                  @war_game.status == "player_won" && "text-success",
+                  @war_game.status == "computer_won" && "text-error"
+                ]}>
+                  <%= if @war_game.status == "player_won" do %>
+                    You won the game! 🎉
+                  <% else %>
+                    The computer won this one.
+                  <% end %>
+                </p>
+                <button id="play-again-button" phx-click="new_game" class="btn btn-primary mt-4">
+                  Play again
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -316,9 +322,9 @@ defmodule HighSocietyWeb.GameLive.War do
   defp pile(assigns) do
     ~H"""
     <div class={["flex flex-col gap-1", @align == "right" && "items-end"]}>
-      <span class="text-sm font-medium text-base-content/50">{@label}</span>
-      <span class="text-2xl font-bold">{@count}
-      <span class="text-sm font-normal text-base-content/50">cards</span></span>
+      <span class="text-sm font-medium text-white/60">{@label}</span>
+      <span class="text-2xl font-bold text-white">{@count}
+      <span class="text-sm font-normal text-white/60">cards</span></span>
     </div>
     """
   end

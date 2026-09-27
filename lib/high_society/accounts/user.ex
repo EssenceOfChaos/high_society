@@ -17,6 +17,7 @@ defmodule HighSociety.Accounts.User do
           claimed_slots_tokens_at: DateTime.t() | nil,
           claimed_roulette_tokens_at: DateTime.t() | nil,
           claimed_zombie_attack_tokens_at: DateTime.t() | nil,
+          claimed_baccarat_tokens_at: DateTime.t() | nil,
           active_days_count: integer(),
           last_active_on: Date.t() | nil,
           card_back: String.t(),
@@ -50,6 +51,7 @@ defmodule HighSociety.Accounts.User do
     field :claimed_slots_tokens_at, :utc_datetime
     field :claimed_roulette_tokens_at, :utc_datetime
     field :claimed_zombie_attack_tokens_at, :utc_datetime
+    field :claimed_baccarat_tokens_at, :utc_datetime
     field :active_days_count, :integer, default: 0
     field :last_active_on, :date
     field :card_back, :string, default: "default"

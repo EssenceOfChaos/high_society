@@ -9,12 +9,13 @@ defmodule HighSociety.Leaderboards do
   gift, not winnings, and would flatter everyone's rank by the same fixed
   amount.
 
-  For Blackjack this is an exact lifetime net (every bet/payout is
-  written to the ledger synchronously as it happens - see
-  `HighSociety.Games.debit_and_settle/5`). For Poker it's realized
-  winnings only: `HighSociety.Games.PokerTable` only touches the ledger
-  on `sit`/`stand` (`"poker_buy_in"`/`"poker_cash_out"`) - the chips won
-  or lost hand-by-hand while currently seated live in that table's
+  For Blackjack and Baccarat this is an exact lifetime net (every
+  bet/payout is written to the ledger synchronously as it happens - see
+  `HighSociety.Games.debit_and_settle/5` and `play_baccarat_round/2`).
+  For Poker it's realized winnings only: `HighSociety.Games.PokerTable`
+  only touches the ledger on `sit`/`stand`
+  (`"poker_buy_in"`/`"poker_cash_out"`) - the chips won or lost
+  hand-by-hand while currently seated live in that table's
   `PokerTableState` row, not here, so a player mid-session won't show
   their in-progress stack until they cash out.
   """
@@ -26,7 +27,7 @@ defmodule HighSociety.Leaderboards do
   alias HighSociety.Badges
   alias HighSociety.Repo
 
-  @type game :: :blackjack | :poker
+  @type game :: :blackjack | :poker | :baccarat
 
   @type entry :: %{
           rank: pos_integer(),
@@ -37,8 +38,12 @@ defmodule HighSociety.Leaderboards do
           member_since: DateTime.t()
         }
 
-  @source_prefix %{blackjack: "blackjack_%", poker: "poker_%"}
-  @starting_grant %{blackjack: "starting_grant_blackjack", poker: "starting_grant_poker"}
+  @source_prefix %{blackjack: "blackjack_%", poker: "poker_%", baccarat: "baccarat_%"}
+  @starting_grant %{
+    blackjack: "starting_grant_blackjack",
+    poker: "starting_grant_poker",
+    baccarat: "starting_grant_baccarat"
+  }
 
   @doc """
   The top `limit` players for `game`, ranked highest net Tokens won
@@ -47,7 +52,7 @@ defmodule HighSociety.Leaderboards do
   on the board at all.
   """
   @spec top_players(game(), pos_integer()) :: [entry()]
-  def top_players(game, limit \\ 100) when game in [:blackjack, :poker] do
+  def top_players(game, limit \\ 100) when game in [:blackjack, :poker, :baccarat] do
     prefix = Map.fetch!(@source_prefix, game)
     starting_grant = Map.fetch!(@starting_grant, game)
 

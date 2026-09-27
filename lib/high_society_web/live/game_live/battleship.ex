@@ -207,14 +207,14 @@ defmodule HighSocietyWeb.GameLive.Battleship do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div id="battleship-screen" class="mx-auto max-w-4xl" phx-hook=".SoundEffects">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-y-2">
           <div>
             <.link navigate={~p"/#games"} class="text-sm text-base-content/60 hover:text-base-content">
               &larr; All games
             </.link>
             <h1 class="mt-1 text-3xl font-bold tracking-tight">Battleship</h1>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="flex flex-wrap items-center justify-end gap-3">
             <div class="text-right">
               <div class="text-xs font-medium uppercase tracking-wide text-base-content/50">
                 Balance
@@ -249,145 +249,165 @@ defmodule HighSocietyWeb.GameLive.Battleship do
 
         <p :if={@error} class="mt-4 alert alert-error text-sm">{@error}</p>
 
-        <div :if={is_nil(@game)} class="mt-10 flex flex-col items-center gap-4">
-          <p class="text-base-content/70">Choose a wager to start a game against the computer.</p>
-          <form phx-submit="start_game" class="flex items-center gap-2">
-            <select name="wager" class="select select-bordered">
-              <option :for={amount <- @wager_options} value={amount}>
-                {Tokens.format(amount)} Tokens
-              </option>
-            </select>
-            <button type="submit" class="btn btn-primary">Start game</button>
-          </form>
-        </div>
+        <div class="relative mt-8 overflow-hidden rounded-[2rem] border-4 border-amber-700/60 shadow-2xl ring-2 ring-amber-400/30">
+          <div class="glamorous-bg absolute inset-0" />
+          <div class="absolute inset-0 bg-black/35" />
 
-        <div :if={@game && @battleship && @battleship.status == :placing_fleets} class="mt-8">
-          <h2 class="text-xl font-semibold">Place your fleet</h2>
-          <p class="text-sm text-base-content/60">
-            Pick a ship, then click a cell on your board. Toggle orientation before placing.
-          </p>
-
-          <div class="mt-4 flex flex-wrap items-center gap-2">
-            <button
-              :for={spec <- Battleship.ship_specs()}
-              type="button"
-              phx-click="select_ship"
-              phx-value-type={spec.type}
-              disabled={Enum.any?(@battleship.player_fleet, &(&1.type == spec.type))}
-              class={[
-                "btn btn-sm",
-                @selected_ship_type == spec.type && "btn-primary",
-                @selected_ship_type != spec.type && "btn-outline"
-              ]}
-            >
-              {ship_label(spec.type)} ({spec.length})
-            </button>
-
-            <button type="button" phx-click="toggle_orientation" class="btn btn-sm btn-ghost">
-              <.icon name="hero-arrow-path-rounded-square" class="size-4" />
-              {String.capitalize(to_string(@orientation))}
-            </button>
-
-            <button type="button" phx-click="randomize" class="btn btn-sm btn-ghost">
-              Randomize
-            </button>
-
-            <button
-              type="button"
-              phx-click="clear_placement"
-              disabled={@battleship.player_fleet == []}
-              class="btn btn-sm btn-ghost text-error"
-            >
-              <.icon name="hero-x-mark" class="size-4" /> Clear all
-            </button>
-          </div>
-
-          <div class="mt-6">
-            <.board
-              id="my-board"
-              fleet={@battleship.player_fleet}
-              clickable={!is_nil(@selected_ship_type)}
-              click_event="place_ship"
-              preview_length={@selected_ship_type && Battleship.ship_length(@selected_ship_type)}
-              preview_orientation={@orientation}
-            />
-          </div>
-
-          <button
-            type="button"
-            phx-click="ready"
-            disabled={!Battleship.fleet_complete?(@battleship.player_fleet)}
-            class="btn btn-primary mt-6"
-          >
-            Ready
-          </button>
-        </div>
-
-        <div
-          :if={
-            @game && @battleship &&
-              @battleship.status in [:player_turn, :opponent_turn, :player_won, :opponent_won]
-          }
-          class="mt-8"
-        >
-          <p
-            :if={@battleship.status in [:player_turn, :opponent_turn]}
-            class="text-center text-lg font-semibold"
-          >
-            <%= if @battleship.status == :player_turn do %>
-              Your turn — fire at the computer's fleet
-            <% else %>
-              Computer's turn...
-            <% end %>
-          </p>
-
-          <div :if={@battleship.status == :player_won} class="text-center">
-            <p class="text-2xl font-bold text-success">You sank their fleet! 🎉</p>
-            <p class="text-base-content/70">You won {Tokens.format(@game.payout)} Tokens.</p>
-          </div>
-
-          <div :if={@battleship.status == :opponent_won} class="text-center">
-            <p class="text-2xl font-bold text-error">The computer sank your fleet.</p>
-            <p class="text-base-content/70">Here's where their fleet was hiding.</p>
-          </div>
-
-          <div :if={@last_result} class="mt-2 text-center text-base text-base-content/70">
-            <span>You: {shot_message(@last_result.player)}</span>
-            <span :if={@last_result.computer}> · Computer: {shot_message(@last_result.computer)}</span>
-          </div>
-
-          <div class="mt-6 flex flex-col items-center gap-8 sm:flex-row sm:items-start sm:justify-center">
-            <div>
-              <h3 class="mb-2 text-center text-sm font-semibold uppercase tracking-wide text-base-content/50">
-                Your fleet
-              </h3>
-              <.board
-                id="my-board"
-                fleet={@battleship.player_fleet}
-                shots={@battleship.opponent_shots}
-              />
+          <div class="relative p-4 sm:p-8">
+            <div :if={is_nil(@game)} class="flex flex-col items-center gap-4">
+              <p class="text-white/70">Choose a wager to start a game against the computer.</p>
+              <form phx-submit="start_game" class="flex items-center gap-2">
+                <select name="wager" class="select select-bordered">
+                  <option :for={amount <- @wager_options} value={amount}>
+                    {Tokens.format(amount)} Tokens
+                  </option>
+                </select>
+                <button type="submit" class="btn btn-primary">Start game</button>
+              </form>
             </div>
 
-            <div>
-              <h3 class="mb-2 text-center text-sm font-semibold uppercase tracking-wide text-base-content/50">
-                Computer's fleet
-              </h3>
-              <.board
-                id="enemy-board"
-                fleet={@battleship.opponent_fleet}
-                reveal_only_sunk={@battleship.status in [:player_turn, :opponent_turn]}
-                shots={@battleship.player_shots}
-                clickable={@battleship.status == :player_turn}
-                click_event="fire"
-              />
-            </div>
-          </div>
+            <div :if={@game && @battleship && @battleship.status == :placing_fleets}>
+              <h2 class="text-xl font-semibold text-white">Place your fleet</h2>
+              <p class="text-sm text-white/60">
+                Pick a ship, then click a cell on your board. Toggle orientation before placing.
+              </p>
 
-          <div
-            :if={@battleship.status in [:player_won, :opponent_won]}
-            class="mt-8 flex justify-center"
-          >
-            <button type="button" phx-click="play_again" class="btn btn-primary">Play again</button>
+              <div class="mt-4 flex flex-wrap items-center gap-2">
+                <button
+                  :for={spec <- Battleship.ship_specs()}
+                  type="button"
+                  phx-click="select_ship"
+                  phx-value-type={spec.type}
+                  disabled={Enum.any?(@battleship.player_fleet, &(&1.type == spec.type))}
+                  class={[
+                    "btn btn-sm",
+                    @selected_ship_type == spec.type && "btn-primary",
+                    @selected_ship_type != spec.type &&
+                      "border-white/40 bg-white/5 text-white hover:bg-white/10 hover:border-white/60"
+                  ]}
+                >
+                  {ship_label(spec.type)} ({spec.length})
+                </button>
+
+                <button
+                  type="button"
+                  phx-click="toggle_orientation"
+                  class="btn btn-sm border-white/40 bg-white/5 text-white hover:bg-white/10"
+                >
+                  <.icon name="hero-arrow-path-rounded-square" class="size-4" />
+                  {String.capitalize(to_string(@orientation))}
+                </button>
+
+                <button
+                  type="button"
+                  phx-click="randomize"
+                  class="btn btn-sm border-white/40 bg-white/5 text-white hover:bg-white/10"
+                >
+                  Randomize
+                </button>
+
+                <button
+                  type="button"
+                  phx-click="clear_placement"
+                  disabled={@battleship.player_fleet == []}
+                  class="btn btn-sm border-white/40 bg-white/5 text-error hover:bg-white/10"
+                >
+                  <.icon name="hero-x-mark" class="size-4" /> Clear all
+                </button>
+              </div>
+
+              <div class="mt-6">
+                <.board
+                  id="my-board"
+                  fleet={@battleship.player_fleet}
+                  clickable={!is_nil(@selected_ship_type)}
+                  click_event="place_ship"
+                  preview_length={@selected_ship_type && Battleship.ship_length(@selected_ship_type)}
+                  preview_orientation={@orientation}
+                  dark_bg
+                />
+              </div>
+
+              <button
+                type="button"
+                phx-click="ready"
+                disabled={!Battleship.fleet_complete?(@battleship.player_fleet)}
+                class="btn btn-primary mt-6"
+              >
+                Ready
+              </button>
+            </div>
+
+            <div :if={
+              @game && @battleship &&
+                @battleship.status in [:player_turn, :opponent_turn, :player_won, :opponent_won]
+            }>
+              <p
+                :if={@battleship.status in [:player_turn, :opponent_turn]}
+                class="text-center text-lg font-semibold text-white"
+              >
+                <%= if @battleship.status == :player_turn do %>
+                  Your turn — fire at the computer's fleet
+                <% else %>
+                  Computer's turn...
+                <% end %>
+              </p>
+
+              <div :if={@battleship.status == :player_won} class="text-center">
+                <p class="text-2xl font-bold text-success">You sank their fleet! 🎉</p>
+                <p class="text-white/70">You won {Tokens.format(@game.payout)} Tokens.</p>
+              </div>
+
+              <div :if={@battleship.status == :opponent_won} class="text-center">
+                <p class="text-2xl font-bold text-error">The computer sank your fleet.</p>
+                <p class="text-white/70">Here's where their fleet was hiding.</p>
+              </div>
+
+              <div :if={@last_result} class="mt-2 text-center text-base text-white/70">
+                <span>You: {shot_message(@last_result.player)}</span>
+                <span :if={@last_result.computer}>
+                  · Computer: {shot_message(@last_result.computer)}
+                </span>
+              </div>
+
+              <div class="mt-6 flex flex-col items-center gap-8 sm:flex-row sm:items-start sm:justify-center">
+                <div>
+                  <h3 class="mb-2 text-center text-sm font-semibold uppercase tracking-wide text-amber-200/70">
+                    Your fleet
+                  </h3>
+                  <.board
+                    id="my-board"
+                    fleet={@battleship.player_fleet}
+                    shots={@battleship.opponent_shots}
+                    dark_bg
+                  />
+                </div>
+
+                <div>
+                  <h3 class="mb-2 text-center text-sm font-semibold uppercase tracking-wide text-amber-200/70">
+                    Computer's fleet
+                  </h3>
+                  <.board
+                    id="enemy-board"
+                    fleet={@battleship.opponent_fleet}
+                    reveal_only_sunk={@battleship.status in [:player_turn, :opponent_turn]}
+                    shots={@battleship.player_shots}
+                    clickable={@battleship.status == :player_turn}
+                    click_event="fire"
+                    dark_bg
+                  />
+                </div>
+              </div>
+
+              <div
+                :if={@battleship.status in [:player_won, :opponent_won]}
+                class="mt-8 flex justify-center"
+              >
+                <button type="button" phx-click="play_again" class="btn btn-primary">
+                  Play again
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

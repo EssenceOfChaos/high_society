@@ -1,7 +1,7 @@
 defmodule HighSocietyWeb.GameLive.Leaderboard do
   @moduledoc """
-  Per-game leaderboard - Blackjack or Poker, picked by `@live_action`
-  (see the two routes in the router). Ranks players by lifetime net
+  Per-game leaderboard - Blackjack, Poker, or Baccarat, picked by
+  `@live_action` (see the routes in the router). Ranks players by lifetime net
   Tokens won - see `HighSociety.Leaderboards.top_players/2` for exactly
   what that means and its one documented gap (an in-progress Poker
   session isn't counted until the player cashes out).
@@ -67,7 +67,7 @@ defmodule HighSocietyWeb.GameLive.Leaderboard do
             <:col :let={entry} label="Player">
               <span class={[
                 "font-semibold",
-                entry.user.id == @current_scope.user.id && "text-primary"
+                entry.user.id == @current_scope.user.id && "text-secondary"
               ]}>
                 {entry.display_name}
               </span>
@@ -87,9 +87,11 @@ defmodule HighSocietyWeb.GameLive.Leaderboard do
 
   defp game_name(:blackjack), do: "Blackjack"
   defp game_name(:poker), do: "Poker"
+  defp game_name(:baccarat), do: "Baccarat"
 
   defp game_path(:blackjack), do: ~p"/games/blackjack"
   defp game_path(:poker), do: ~p"/games/poker"
+  defp game_path(:baccarat), do: ~p"/games/baccarat"
 
   defp signed_amount(amount) when amount >= 0, do: "+#{Tokens.format(amount)}"
   defp signed_amount(amount), do: Tokens.format(amount)
@@ -97,7 +99,7 @@ defmodule HighSocietyWeb.GameLive.Leaderboard do
   defp amount_class(amount) when amount >= 0, do: "text-success"
   defp amount_class(_amount), do: "text-error"
 
-  # A rough, human "member since" duration rather than a calendar date -
+  # A rough, human-readable "member since" duration rather than a calendar date -
   # this page is about bragging rights, not precise record-keeping.
   defp member_since_text(%DateTime{} = inserted_at) do
     case DateTime.diff(DateTime.utc_now(), inserted_at, :day) do

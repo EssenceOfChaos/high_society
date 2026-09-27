@@ -211,14 +211,14 @@ defmodule HighSocietyWeb.GameLive.Roulette do
         phx-hook=".SoundEffects"
         data-spinning={to_string(@spinning? or @landing?)}
       >
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-y-2">
           <div>
             <.link navigate={~p"/#games"} class="text-sm text-base-content/60 hover:text-base-content">
               &larr; All games
             </.link>
             <h1 class="mt-1 text-3xl font-bold tracking-tight">Roulette</h1>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="flex flex-wrap items-center justify-end gap-3">
             <div class="text-right">
               <div class="text-xs font-medium uppercase tracking-wide text-base-content/50">
                 Balance
@@ -289,7 +289,7 @@ defmodule HighSocietyWeb.GameLive.Roulette do
               phx-value-amount={chip}
               disabled={@spinning? or @landing?}
               class={[
-                "flex size-12 items-center justify-center rounded-full border-4 border-dashed text-xs font-bold shadow-md transition-transform hover:-translate-y-0.5",
+                "flex size-12 items-center justify-center rounded-full border-4 border-dashed text-xs font-bold shadow-lg shadow-black/40 transition-transform hover:-translate-y-0.5 hover:shadow-xl",
                 chip_color(chip),
                 @selected_chip == chip && "ring-2 ring-offset-2 ring-offset-base-100 ring-amber-400"
               ]}
@@ -398,8 +398,14 @@ defmodule HighSocietyWeb.GameLive.Roulette do
     """
   end
 
-  defp chip_color(100), do: "border-neutral-400 bg-neutral-100 text-neutral-900"
-  defp chip_color(500), do: "border-red-300 bg-red-600 text-white"
-  defp chip_color(2_500), do: "border-neutral-600 bg-neutral-900 text-white"
-  defp chip_color(10_000), do: "border-amber-300 bg-amber-500 text-amber-950"
+  defp chip_color(100),
+    do: "border-neutral-400 bg-gradient-to-br from-white to-neutral-300 text-neutral-900"
+
+  defp chip_color(500), do: "border-red-200 bg-gradient-to-br from-red-500 to-red-800 text-white"
+
+  defp chip_color(2_500),
+    do: "border-neutral-400 bg-gradient-to-br from-neutral-700 to-black text-white"
+
+  defp chip_color(10_000),
+    do: "border-amber-200 bg-gradient-to-br from-amber-400 to-amber-600 text-amber-950"
 end

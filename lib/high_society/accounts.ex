@@ -318,6 +318,37 @@ defmodule HighSociety.Accounts do
     )
   end
 
+  @baccarat_starting_token_amount 5_000 * 100
+
+  @doc "The one-time starting Token grant amount for Baccarat."
+  @spec baccarat_starting_token_amount() :: pos_integer()
+  def baccarat_starting_token_amount, do: @baccarat_starting_token_amount
+
+  @doc """
+  Grants the user's one-time Baccarat starting balance of
+  `#{@baccarat_starting_token_amount}` Tokens. Atomic and idempotent, and
+  tracked separately from the other five games' grants. Also writes a
+  `TokenTransaction` ledger row in the same transaction as the grant.
+
+  ## Examples
+
+      iex> claim_baccarat_tokens(user)
+      {:ok, %User{tokens_balance: 500_000}}
+
+      iex> claim_baccarat_tokens(already_claimed_user)
+      {:error, :already_claimed}
+
+  """
+  @spec claim_baccarat_tokens(User.t()) :: {:ok, User.t()} | {:error, :already_claimed}
+  def claim_baccarat_tokens(%User{} = user) do
+    claim_starting_grant(
+      user,
+      :claimed_baccarat_tokens_at,
+      @baccarat_starting_token_amount,
+      "starting_grant_baccarat"
+    )
+  end
+
   # Shared by every `claim_*_tokens/1` above: an atomic, idempotent grant
   # guarded by `claimed_at_field` being unset, plus its matching ledger row,
   # all in one transaction.

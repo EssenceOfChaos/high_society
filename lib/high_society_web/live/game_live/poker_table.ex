@@ -375,7 +375,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
         class={["mx-auto max-w-4xl", @my_turn? && "pb-20"]}
         phx-hook=".SoundEffects"
       >
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-y-2">
           <div>
             <.link
               navigate={~p"/games/poker"}
@@ -398,7 +398,7 @@ defmodule HighSocietyWeb.GameLive.PokerTable do
               Leave table
             </button>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="flex flex-wrap items-center justify-end gap-3">
             <div class="text-right">
               <div class="text-xs font-medium uppercase tracking-wide text-base-content/50">
                 Balance

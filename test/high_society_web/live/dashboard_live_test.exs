@@ -103,4 +103,88 @@ defmodule HighSocietyWeb.DashboardLiveTest do
     assert has_element?(view, ~s(a#play-blackjack[href="/games/blackjack"]))
     assert has_element?(view, ~s(a#play-poker[href="/games/poker"]))
   end
+
+  describe "accessibility" do
+    test "sets a descriptive page title instead of falling back to the generic default", %{
+      conn: conn
+    } do
+      {:ok, _view, html} = live(conn, ~p"/")
+
+      assert html =~ "<title"
+      assert html =~ "High Society — Casino Games &amp; Poker Tournaments"
+    end
+
+    test "renders exactly one main landmark, containing both the hero and the game cards", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert view |> render() |> String.split("<main") |> length() == 2
+      assert has_element?(view, "main #games")
+    end
+
+    test "hides the purely decorative hero video from assistive tech", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "main div[aria-hidden=true] video")
+    end
+
+    test "each game's play link has a distinct accessible name, not identical 'Play now' text", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, ~s(a#play-war[aria-label="Play War now"]))
+      assert has_element?(view, ~s(a#play-blackjack[aria-label="Play Blackjack now"]))
+      assert has_element?(view, ~s(a#play-poker[aria-label="Play Poker now"]))
+    end
+
+    test "the tournament CTA's accessible name names the tournament, not just 'Register now'", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(
+               view,
+               ~s(a#tournament-announcement-cta[aria-label="Register now for Poker Tournament — Coming Soon"])
+             )
+    end
+
+    test "the theme toggle buttons each have an accessible name", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(
+               view,
+               ~s(button[data-phx-theme="system"][aria-label="Use system theme"])
+             )
+
+      assert has_element?(view, ~s(button[data-phx-theme="light"][aria-label="Use light theme"]))
+      assert has_element?(view, ~s(button[data-phx-theme="dark"][aria-label="Use dark theme"]))
+    end
+
+    test "external footer links say they open in a new tab", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, ~s{a[href$="High_Societycc"][aria-label$="(opens in a new tab)"]})
+
+      assert has_element?(
+               view,
+               ~s{a[href*="facebook.com"][aria-label$="(opens in a new tab)"]}
+             )
+
+      assert has_element?(
+               view,
+               ~s{a[href*="instagram.com"][aria-label$="(opens in a new tab)"]}
+             )
+    end
+
+    test "the footer's 18+ link has a descriptive accessible name", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(
+               view,
+               ~s{a[href="/age-restriction"][aria-label="Age restriction policy (18+)"]}
+             )
+    end
+  end
 end

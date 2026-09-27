@@ -278,6 +278,84 @@ defmodule HighSociety.Games.TournamentCoordinatorTest do
       assert view.current_level == 3
       assert view.small_blind == 200
     end
+
+    test "the public view exposes the schedule fields a level/break countdown needs" do
+      tournament =
+        tournament_fixture(%{
+          level_minutes: 12,
+          break_every_minutes: 24,
+          blind_levels: [
+            %{"small_blind" => 100, "big_blind" => 200},
+            %{"small_blind" => 150, "big_blind" => 300},
+            %{"small_blind" => 200, "big_blind" => 400}
+          ]
+        })
+
+      users = for _ <- 1..2, do: user_fixture()
+      tournament = start_tournament_for_test!(tournament, users)
+
+      view = TournamentCoordinator.get_state(tournament.id)
+      assert view.level_count == 3
+      assert view.level_minutes == 12
+      assert view.levels_per_break == 2
+      assert view.level_started_at != nil
+    end
+  end
+
+  describe "next_break_at/1" do
+    test "nil while already on break - break_ends_at covers that case instead" do
+      assert TournamentCoordinator.next_break_at(%{on_break: true}) == nil
+    end
+
+    test "the start of the level right before the break boundary" do
+      level_started_at = ~U[2026-01-01 12:00:00Z]
+
+      view = %{
+        on_break: false,
+        current_level: 2,
+        level_count: 10,
+        level_started_at: level_started_at,
+        level_minutes: 12,
+        levels_per_break: 2
+      }
+
+      # Level 2 of 2 in this break cycle - the break starts as soon as this
+      # level's own duration elapses.
+      assert TournamentCoordinator.next_break_at(view) ==
+               DateTime.add(level_started_at, 12 * 60, :second)
+    end
+
+    test "several levels before the break boundary" do
+      level_started_at = ~U[2026-01-01 12:00:00Z]
+
+      view = %{
+        on_break: false,
+        current_level: 1,
+        level_count: 10,
+        level_started_at: level_started_at,
+        level_minutes: 12,
+        levels_per_break: 5
+      }
+
+      # 5 levels (1-5) must finish, starting from level 1's own start time.
+      assert TournamentCoordinator.next_break_at(view) ==
+               DateTime.add(level_started_at, 5 * 12 * 60, :second)
+    end
+
+    test "nil once no break remains before the tournament's final level" do
+      view = %{
+        on_break: false,
+        current_level: 9,
+        level_count: 10,
+        level_started_at: ~U[2026-01-01 12:00:00Z],
+        level_minutes: 12,
+        levels_per_break: 5
+      }
+
+      # Next boundary would be level 10 (5 levels from level 6), but the
+      # tournament only has 10 levels total, so no further break happens.
+      assert TournamentCoordinator.next_break_at(view) == nil
+    end
   end
 
   # `:eliminations` is a cast - `get_state/1` is a synchronous call to the

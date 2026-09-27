@@ -156,9 +156,23 @@ defmodule HighSociety.Tournaments do
     end
   end
 
+  # Defaults Country to the US when it isn't set yet (a fresh entry, or one
+  # registered before the Country field existed) - the registration form's
+  # State field only renders as a dropdown when Country resolves to one of
+  # the three it has a fixed list for (see `Tournaments.Regions`), and the
+  # app's tournament is US-run, so this is the sane default rather than
+  # leaving the form's Country prompt blank for almost every entrant.
   defp entry(%Scope{} = scope, %PokerTournament{} = tournament) do
-    get_entry(scope, tournament) ||
-      %PokerTournamentEntry{user_id: scope.user.id, tournament_id: tournament.id}
+    case get_entry(scope, tournament) do
+      nil ->
+        %PokerTournamentEntry{user_id: scope.user.id, tournament_id: tournament.id, country: "US"}
+
+      %PokerTournamentEntry{country: nil} = entry ->
+        %{entry | country: "US"}
+
+      entry ->
+        entry
+    end
   end
 
   @doc "Every tournament, most recently created first - for the admin list."
@@ -223,7 +237,14 @@ defmodule HighSociety.Tournaments do
     end
   end
 
-  defp entrant_count(%PokerTournament{} = tournament) do
+  @doc """
+  How many players have registered for `tournament`, whether or not
+  they've actually bought in yet - a running tournament's entry count
+  can still grow during its late-registration window, so this is a live
+  count, not a snapshot taken only at `start!/1`.
+  """
+  @spec entrant_count(PokerTournament.t()) :: non_neg_integer()
+  def entrant_count(%PokerTournament{} = tournament) do
     Repo.aggregate(
       from(e in PokerTournamentEntry, where: e.tournament_id == ^tournament.id),
       :count

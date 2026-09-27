@@ -84,6 +84,42 @@ defmodule HighSociety.AccountsTest do
     end
   end
 
+  describe "claim_baccarat_tokens/1" do
+    test "grants the starting token amount and records when it was claimed" do
+      user = user_fixture()
+      assert user.tokens_balance == 0
+      assert user.claimed_baccarat_tokens_at == nil
+
+      assert {:ok, updated} = Accounts.claim_baccarat_tokens(user)
+
+      assert updated.tokens_balance == Accounts.baccarat_starting_token_amount()
+      assert updated.claimed_baccarat_tokens_at != nil
+    end
+
+    test "cannot be claimed a second time" do
+      user = user_fixture()
+      {:ok, updated} = Accounts.claim_baccarat_tokens(user)
+
+      assert {:error, :already_claimed} = Accounts.claim_baccarat_tokens(updated)
+
+      assert Accounts.get_user!(user.id).tokens_balance ==
+               Accounts.baccarat_starting_token_amount()
+    end
+
+    test "writes exactly one ledger row on first claim, none on a repeat" do
+      user = user_fixture()
+      {:ok, updated} = Accounts.claim_baccarat_tokens(user)
+
+      assert [transaction] = Repo.all(TokenTransaction)
+      assert transaction.user_id == user.id
+      assert transaction.amount == Accounts.baccarat_starting_token_amount()
+      assert transaction.source == "starting_grant_baccarat"
+
+      assert {:error, :already_claimed} = Accounts.claim_baccarat_tokens(updated)
+      assert Repo.aggregate(TokenTransaction, :count) == 1
+    end
+  end
+
   describe "adjust_tokens_balance/4" do
     test "credits the user's tokens_balance" do
       user = user_fixture()

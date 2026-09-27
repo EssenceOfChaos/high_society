@@ -139,14 +139,14 @@ defmodule HighSocietyWeb.GameLive.ZombieAttack do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div id="zombie-attack-screen" class="mx-auto max-w-4xl" phx-hook=".SoundEffects">
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-y-2">
           <div>
             <.link navigate={~p"/#games"} class="text-sm text-base-content/60 hover:text-base-content">
               &larr; All games
             </.link>
             <h1 class="mt-1 text-3xl font-bold tracking-tight">Zombie Attack</h1>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="flex flex-wrap items-center justify-end gap-3">
             <div class="text-right">
               <div class="text-xs font-medium uppercase tracking-wide text-base-content/50">
                 Balance
@@ -400,6 +400,13 @@ defmodule HighSocietyWeb.GameLive.ZombieAttack do
             this.rafId = null
             this.reportedWaves = new Set()
             this.reportedGameOver = false
+            // See `pause`/`resume`/`gameNow` - reopening the how-to-play
+            // panel mid-match freezes this virtual clock instead of the
+            // real one, so however long it's left open never counts
+            // against the prep countdown or lets the whole spawn queue
+            // dump onto the field the instant it's closed.
+            this.pausedAt = null
+            this.totalPausedMs = 0
 
             this.paletteButtons.forEach(btn => {
               btn.addEventListener("click", () => {
@@ -413,7 +420,17 @@ defmodule HighSocietyWeb.GameLive.ZombieAttack do
             this.el.querySelector("#zombie-how-to-play-dismiss")
               .addEventListener("click", () => this.dismissIntro())
             this.el.querySelector("#zombie-how-to-play-reopen")
-              .addEventListener("click", () => this.introEl.classList.remove("hidden"))
+              .addEventListener("click", () => {
+                this.introEl.classList.remove("hidden")
+                this.pause()
+              })
+            // Clicking the panel's own background (not the button or any
+            // text inside it) dismisses it the same way the button does -
+            // `e.target === this.introEl` is only true for the overlay
+            // element itself, never one of its children.
+            this.introEl.addEventListener("click", e => {
+              if (e.target === this.introEl) this.dismissIntro()
+            })
 
             this.sprites = {}
             const spriteNames = [
@@ -452,12 +469,42 @@ defmodule HighSocietyWeb.GameLive.ZombieAttack do
             this.handleEvent("match_started", payload => this.startMatch(payload))
 
             this.draw()
-            this.rafId = requestAnimationFrame(t => this.tick(t))
+            this.rafId = requestAnimationFrame(() => this.tick())
           },
 
           destroyed() {
             if (this.rafId) cancelAnimationFrame(this.rafId)
             this.music.pause()
+          },
+
+          // The match's own virtual clock: real time minus however long
+          // the how-to-play panel has ever been left open, *including*
+          // whatever's elapsed during a pause still in progress - not just
+          // ones already resumed. Without that second term this stays
+          // accurate only after the fact (once `resume` folds the gap into
+          // `totalPausedMs`), so the HUD's own countdown would still count
+          // down in real time while the panel sits open, even though
+          // `update()` itself is frozen. Every game-time value
+          // (`phaseEndsAt`, a spawn's `spawnAt`, a projectile's
+          // `startedAt`, ...) is set from this instead of raw
+          // `performance.now()`, so none of them silently expire while
+          // paused - a spawn queue that would otherwise dump every
+          // remaining zombie onto the field the instant the panel closes
+          // instead just picks up exactly where it left off.
+          gameNow() {
+            const ongoingPauseMs = this.pausedAt === null ? 0 : performance.now() - this.pausedAt
+            return performance.now() - this.totalPausedMs - ongoingPauseMs
+          },
+
+          pause() {
+            if (this.pausedAt !== null) return
+            this.pausedAt = performance.now()
+          },
+
+          resume() {
+            if (this.pausedAt === null) return
+            this.totalPausedMs += performance.now() - this.pausedAt
+            this.pausedAt = null
           },
 
           isMuted() {
@@ -476,7 +523,10 @@ defmodule HighSocietyWeb.GameLive.ZombieAttack do
           // once when the match starts - so muting mid-match (or a match
           // ending) actually stops it, instead of just blocking future fx.
           syncMusic() {
-            const active = this.game && (this.game.status === "prep" || this.game.status === "wave")
+            const active =
+              this.pausedAt === null &&
+              this.game &&
+              (this.game.status === "prep" || this.game.status === "wave")
 
             if (active && !this.isMuted()) {
               if (this.music.paused) this.music.play().catch(() => {})
@@ -487,7 +537,9 @@ defmodule HighSocietyWeb.GameLive.ZombieAttack do
 
           startMatch(payload) {
             const cellSize = this.canvas.width / payload.columns
-            const now = performance.now()
+            this.pausedAt = null
+            this.totalPausedMs = 0
+            const now = this.gameNow()
             const seenIntro = localStorage.getItem("high_society:zombie_attack_seen_intro") === "true"
 
             this.reportedWaves = new Set()
@@ -522,10 +574,11 @@ defmodule HighSocietyWeb.GameLive.ZombieAttack do
           dismissIntro() {
             localStorage.setItem("high_society:zombie_attack_seen_intro", "true")
             this.introEl.classList.add("hidden")
+            this.resume()
 
             if (this.game && this.game.status === "intro") {
               this.game.status = "prep"
-              this.game.phaseEndsAt = performance.now() + PREP_MS
+              this.game.phaseEndsAt = this.gameNow() + PREP_MS
             }
           },
 
@@ -742,9 +795,11 @@ defmodule HighSocietyWeb.GameLive.ZombieAttack do
             }
           },
 
-          tick(now) {
+          tick() {
             const g = this.game
-            if (g && g.status !== "won" && g.status !== "lost") {
+            const now = this.gameNow()
+
+            if (this.pausedAt === null && g && g.status !== "won" && g.status !== "lost") {
               const dt = Math.min((now - g.lastFrameAt) / 1000, 0.1)
               g.lastFrameAt = now
               this.update(dt, now)
@@ -753,7 +808,7 @@ defmodule HighSocietyWeb.GameLive.ZombieAttack do
             this.updateHud()
             this.draw()
             this.syncMusic()
-            this.rafId = requestAnimationFrame(t => this.tick(t))
+            this.rafId = requestAnimationFrame(() => this.tick())
           },
 
           updateHud() {
@@ -770,7 +825,7 @@ defmodule HighSocietyWeb.GameLive.ZombieAttack do
             if (g.status === "intro") {
               this.statusEl.textContent = "Read the guide to begin"
             } else if (g.status === "prep") {
-              const secs = Math.max(0, Math.ceil((g.phaseEndsAt - performance.now()) / 1000))
+              const secs = Math.max(0, Math.ceil((g.phaseEndsAt - this.gameNow()) / 1000))
               this.statusEl.textContent = `Wave ${waveNum} starts in ${secs}s`
             } else if (g.status === "wave") {
               this.statusEl.textContent = `Wave ${waveNum} in progress`
@@ -850,7 +905,7 @@ defmodule HighSocietyWeb.GameLive.ZombieAttack do
 
             if (!this.game) return
             const g = this.game
-            const now = performance.now()
+            const now = this.gameNow()
 
             for (const d of g.defenders) {
               const cx = d.col * cellSize + cellSize / 2

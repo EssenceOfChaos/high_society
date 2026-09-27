@@ -26,6 +26,7 @@ defmodule HighSociety.Tournaments.PokerTournamentEntry do
           first_name: String.t() | nil,
           last_name: String.t() | nil,
           address: String.t() | nil,
+          country: String.t() | nil,
           city: String.t() | nil,
           state: String.t() | nil,
           zip_code: String.t() | nil,
@@ -40,19 +41,22 @@ defmodule HighSociety.Tournaments.PokerTournamentEntry do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias HighSociety.Tournaments.Regions
+
   # 0x + 40 hex chars - the standard Ethereum address format. Deliberately
   # not checking EIP-55 checksum casing: that's a client-side convenience,
   # not part of the address itself, and rejecting a validly-cased address
   # someone pasted in lowercase would just be user-hostile here.
   @ethereum_address_format ~r/^0x[0-9a-fA-F]{40}$/
 
-  @kyc_text_fields ~w(first_name last_name address city state zip_code)a
+  @kyc_text_fields ~w(first_name last_name address country city state zip_code)a
 
   schema "poker_tournament_entries" do
     field :ethereum_address, :string
     field :first_name, HighSociety.Encrypted.Binary
     field :last_name, HighSociety.Encrypted.Binary
     field :address, HighSociety.Encrypted.Binary
+    field :country, HighSociety.Encrypted.Binary
     field :city, HighSociety.Encrypted.Binary
     field :state, HighSociety.Encrypted.Binary
     field :zip_code, HighSociety.Encrypted.Binary
@@ -89,6 +93,8 @@ defmodule HighSociety.Tournaments.PokerTournamentEntry do
       message: "doesn't look like a valid Ethereum address (0x followed by 40 hex characters)"
     )
     |> validate_date_of_birth()
+    |> validate_inclusion(:country, Enum.map(Regions.country_options(), &elem(&1, 0)))
+    |> validate_state()
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:tournament_id)
     |> unique_constraint([:tournament_id, :user_id],
@@ -113,6 +119,25 @@ defmodule HighSociety.Tournaments.PokerTournamentEntry do
 
         true ->
           []
+      end
+    end)
+  end
+
+  # Only constrained to a fixed list for the countries the form renders a
+  # State/Province dropdown for (see Regions.state_options_for/1) - every
+  # other country leaves State as free text, so nothing to validate there.
+  defp validate_state(changeset) do
+    validate_change(changeset, :state, fn :state, state ->
+      case Regions.state_options_for(get_field(changeset, :country)) do
+        nil ->
+          []
+
+        options ->
+          if state in Enum.map(options, &elem(&1, 0)) do
+            []
+          else
+            [state: "isn't a valid selection for the chosen country"]
+          end
       end
     end)
   end
