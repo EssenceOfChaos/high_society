@@ -360,9 +360,9 @@ defmodule HighSocietyWeb.GameLive.Baccarat do
           </div>
 
           <div class="mt-4 grid grid-cols-2 gap-6">
-            <div class="flex flex-col items-center gap-2">
+            <div class="flex min-w-0 flex-col items-center gap-2">
               <span class="text-xs font-bold uppercase tracking-widest text-sky-200">Player</span>
-              <div class="flex min-h-24 gap-2">
+              <div class="flex w-full min-w-0 min-h-24 justify-center gap-2">
                 <.card_face
                   :for={{card, i} <- Enum.with_index(displayed_hand(assigns, :player))}
                   id={"baccarat-player-card-#{i}"}
@@ -376,9 +376,9 @@ defmodule HighSocietyWeb.GameLive.Baccarat do
               </span>
             </div>
 
-            <div class="flex flex-col items-center gap-2">
+            <div class="flex min-w-0 flex-col items-center gap-2">
               <span class="text-xs font-bold uppercase tracking-widest text-sky-200">Banker</span>
-              <div class="flex min-h-24 gap-2">
+              <div class="flex w-full min-w-0 min-h-24 justify-center gap-2">
                 <.card_face
                   :for={{card, i} <- Enum.with_index(displayed_hand(assigns, :banker))}
                   id={"baccarat-banker-card-#{i}"}

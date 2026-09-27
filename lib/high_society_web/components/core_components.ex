@@ -533,13 +533,19 @@ defmodule HighSocietyWeb.CoreComponents do
           @size == :normal && "[contain-intrinsic-width:7rem] flex-[0_1_7rem]",
           @size == :medium && "[contain-intrinsic-width:8rem] flex-[0_1_8rem]",
           @size == :large && "[contain-intrinsic-width:9rem] flex-[0_1_9rem]",
-          # Below `lg:`, every card shrinks to a common compact size
-          # regardless of `size` - a busy table (5 community cards plus
+          # Below `lg:`, `:normal`/`:medium` cards shrink to a common compact
+          # size regardless of tier - a busy table (5 community cards plus
           # every seat's own hole cards) has nowhere near enough width for
           # even the `:normal` tier at full size until the felt is wide
           # enough (~1024px+) for its aspect-ratio-driven height to give
           # everything room too - see `#poker-felt`'s own `lg:` breakpoint.
-          "max-lg:[contain-intrinsic-width:4rem]! max-lg:flex-[0_1_4rem]!",
+          # `:large` only ever appears where there's little else on screen
+          # (War, Baccarat), so it only compacts below `md:` (~768px) - at
+          # `md:` and up there's already enough room to show it at full
+          # size, same as `lg:`.
+          @size in [:normal, :medium] &&
+            "max-lg:[contain-intrinsic-width:4rem]! max-lg:flex-[0_1_4rem]!",
+          @size == :large && "max-md:[contain-intrinsic-width:6rem]! max-md:flex-[0_1_6rem]!",
           !@deal_animation && "card-deal-in",
           !@card && @pending && "border-2 border-error bg-error text-error-content animate-pulse",
           !@card && !@pending && !@face_down && "border-2 border-dashed border-base-300 bg-base-200",

@@ -41,13 +41,14 @@ defmodule HighSociety.Support.Report do
   @inbound_email_category {"email", "Received by Email (Uncategorized)"}
 
   @games [
-    {"war", "War"},
     {"blackjack", "Blackjack"},
     {"slots", "Slots"},
     {"roulette", "Roulette"},
     {"poker", "Poker"},
+    {"baccarat", "Baccarat"},
     {"battleship", "Battleship"},
     {"zombie_attack", "Zombie Attack"},
+    {"war", "War"},
     {"other", "Other / not sure"}
   ]
 

@@ -230,6 +230,15 @@ defmodule HighSocietyWeb.Layouts do
             <.social_icon name="x" />
           </a>
           <a
+            href="https://bsky.app/profile/highsocietycc.bsky.social"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Bluesky (opens in a new tab)"
+            class="text-base-content/50 transition-colors hover:text-base-content"
+          >
+            <.social_icon name="bluesky" />
+          </a>
+          <a
             href="https://www.facebook.com/profile.php?id=61594799933383"
             target="_blank"
             rel="noopener noreferrer"
@@ -317,6 +326,14 @@ defmodule HighSocietyWeb.Layouts do
     ~H"""
     <svg viewBox="0 0 24 24" fill="currentColor" class="size-5" aria-hidden="true">
       <path d="M18.24 2.25h3.31l-7.23 8.26 8.5 11.24h-6.66l-5.22-6.83-5.97 6.83H1.66l7.73-8.84L1.25 2.25h6.83l4.72 6.24 5.44-6.24Zm-1.16 17.52h1.83L7.02 4.13H5.06l11.99 15.64Z" />
+    </svg>
+    """
+  end
+
+  defp social_icon(%{name: "bluesky"} = assigns) do
+    ~H"""
+    <svg viewBox="0 0 24 24" fill="currentColor" class="size-5" aria-hidden="true">
+      <path d="M12 10.8c-.98-1.9-3.65-5.44-6.14-7.19C3.47 1.94 2.55 2.26 1.95 2.53 1.26 2.84 1 3.87 1 4.5c0 .63.35 5.15.58 5.9.75 2.47 3.44 3.31 5.93 3.02-3.53.52-6.66 1.8-2.55 6.35 4.52 4.7 6.2-1.01 7.04-3.8.84 2.79 1.9 8.29 6.95 3.8 3.86-3.8.99-5.83-2.54-6.35 2.49.29 5.18-.55 5.93-3.02.23-.75.58-5.27.58-5.9 0-.63-.26-1.66-.95-1.97-.6-.27-1.52-.59-3.91 1.08-2.49 1.75-5.16 5.29-6.14 7.19Z" />
     </svg>
     """
   end

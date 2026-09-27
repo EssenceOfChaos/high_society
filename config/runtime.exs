@@ -254,4 +254,15 @@ if config_env() == :prod do
   # flipped, a config change rather than a code change so the human-review
   # step can be removed later without a deploy.
   config :high_society, :social_auto_post?, System.get_env("SOCIAL_AUTO_POST") in ~w(true 1)
+
+  anthropic_api_key =
+    System.get_env("ANTHROPIC_API_KEY") ||
+      raise """
+      environment variable ANTHROPIC_API_KEY is missing.
+      Used by HighSociety.Support.ClaudeClient to draft a suggested
+      category/reply for each inbound support email - get one from
+      https://console.anthropic.com/settings/keys.
+      """
+
+  config :high_society, :anthropic_api_key, anthropic_api_key
 end
