@@ -91,3 +91,10 @@ config :high_society, HighSociety.Social.ThreadsClient,
 # is stubbed via Req.Test below instead of making real requests in tests.
 config :high_society, HighSociety.Tournaments.Zippopotamus,
   plug: {Req.Test, HighSociety.Tournaments.Zippopotamus}
+
+# Never actually called anywhere - HighSociety.Support.ClaudeClient is
+# stubbed via Req.Test below instead of making real requests in tests.
+config :high_society, :anthropic_api_key, "test_anthropic_api_key"
+
+config :high_society, HighSociety.Support.ClaudeClient,
+  plug: {Req.Test, HighSociety.Support.ClaudeClient}

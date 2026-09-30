@@ -19,12 +19,14 @@ defmodule HighSocietyWeb.ResendWebhookControllerTest do
 
       Req.Test.json(conn, %{
         "from" => "Ada Lovelace <ada@example.com>",
-        "to" => ["reply@users.highsociety.cc"],
+        "to" => ["support@mail.highsociety.cc"],
         "subject" => "Question about the tournament",
         "text" => "Does the tournament run every week?",
         "html" => nil
       })
     end)
+
+    stub_claude_draft()
 
     body =
       Jason.encode!(%{
@@ -140,5 +142,19 @@ defmodule HighSocietyWeb.ResendWebhookControllerTest do
 
   defp put_headers(conn, headers) do
     Enum.reduce(headers, conn, fn {k, v}, conn -> put_req_header(conn, k, v) end)
+  end
+
+  defp stub_claude_draft do
+    Req.Test.stub(HighSociety.Support.ClaudeClient, fn conn ->
+      Req.Test.json(conn, %{
+        "content" => [
+          %{
+            "type" => "text",
+            "text" =>
+              Jason.encode!(%{"category" => "gaming", "reply" => "Thanks for reaching out!"})
+          }
+        ]
+      })
+    end)
   end
 end

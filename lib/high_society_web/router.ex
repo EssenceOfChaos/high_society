@@ -142,6 +142,7 @@ defmodule HighSocietyWeb.Router do
       live "/token-transactions", AdminLive.TokenTransactions, :index
       live "/tournaments", AdminLive.Tournaments, :index
       live "/social-posts", AdminLive.SocialPosts, :index
+      live "/inbound-emails", AdminLive.InboundEmails, :index
     end
   end
 

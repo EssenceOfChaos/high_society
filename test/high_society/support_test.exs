@@ -2,6 +2,7 @@ defmodule HighSociety.SupportTest do
   use HighSociety.DataCase, async: true
 
   import Swoosh.TestAssertions
+  import HighSociety.AccountsFixtures
 
   alias HighSociety.Support
 
@@ -73,6 +74,8 @@ defmodule HighSociety.SupportTest do
 
   describe "receive_inbound_email/1" do
     test "forwards an inbound email to the support inbox, reply-to the sender" do
+      stub_claude_draft()
+
       data = %{
         "from" => "Ada Lovelace <ada@example.com>",
         "subject" => "Question about the tournament",
@@ -96,6 +99,7 @@ defmodule HighSociety.SupportTest do
     end
 
     test "falls back to the bare address when there's no display name" do
+      stub_claude_draft()
       data = %{"from" => "ada@example.com", "text" => "hello there"}
 
       assert {:ok, report} = Support.receive_inbound_email(data)
@@ -104,10 +108,130 @@ defmodule HighSociety.SupportTest do
     end
 
     test "falls back to stripped html when there's no plain-text body" do
+      stub_claude_draft()
       data = %{"from" => "ada@example.com", "html" => "<p>Hello <b>there</b></p>"}
 
       assert {:ok, report} = Support.receive_inbound_email(data)
       assert report.message =~ "Hello  there"
     end
+
+    test "also persists an InboundEmail draft with the AI-suggested category/reply" do
+      stub_claude_draft()
+
+      data = %{
+        "from" => "Ada Lovelace <ada@example.com>",
+        "subject" => "Question about the tournament",
+        "text" => "Does the tournament run every week?"
+      }
+
+      Support.receive_inbound_email(data)
+
+      assert [inbound_email] = Support.list_inbound_emails()
+      assert inbound_email.from_name == "Ada Lovelace"
+      assert inbound_email.from_email == "ada@example.com"
+      assert inbound_email.subject == "Question about the tournament"
+      assert inbound_email.body =~ "Does the tournament run every week?"
+      assert inbound_email.status == "pending"
+      assert inbound_email.suggested_category == "gaming"
+      assert inbound_email.draft_reply == "Thanks for reaching out!"
+    end
+
+    test "still persists a draft with an empty AI reply when the AI call fails" do
+      Req.Test.stub(HighSociety.Support.ClaudeClient, fn conn ->
+        Plug.Conn.send_resp(conn, 500, "")
+      end)
+
+      data = %{"from" => "ada@example.com", "text" => "hello there"}
+
+      Support.receive_inbound_email(data)
+
+      assert [inbound_email] = Support.list_inbound_emails()
+      assert inbound_email.status == "pending"
+      assert inbound_email.suggested_category == nil
+      assert inbound_email.draft_reply == nil
+    end
+  end
+
+  describe "the inbound-email review queue" do
+    setup do
+      stub_claude_draft()
+
+      data = %{
+        "from" => "Ada Lovelace <ada@example.com>",
+        "subject" => "Question about the tournament",
+        "text" => "Does the tournament run every week?"
+      }
+
+      Support.receive_inbound_email(data)
+      Phoenix.PubSub.subscribe(HighSociety.PubSub, Support.topic())
+
+      [inbound_email] = Support.list_inbound_emails()
+      reviewer = user_fixture()
+
+      # Drain the raw-forward-to-support-inbox email `receive_inbound_email/1`
+      # already sends (unchanged, existing behavior) and `user_fixture/0`'s
+      # own login-instructions email, so neither is mistaken for the reply
+      # email a test below sends/asserts on.
+      flush_mailbox()
+
+      %{inbound_email: inbound_email, reviewer: reviewer}
+    end
+
+    test "update_draft_reply/2 edits a pending draft's reply", %{inbound_email: inbound_email} do
+      assert {:ok, updated} = Support.update_draft_reply(inbound_email, "Edited reply.")
+      assert updated.draft_reply == "Edited reply."
+    end
+
+    test "approve_and_send!/2 emails the sender and marks the draft sent", %{
+      inbound_email: inbound_email,
+      reviewer: reviewer
+    } do
+      updated = Support.approve_and_send!(inbound_email, reviewer)
+
+      assert updated.status == "sent"
+      assert updated.sent_at != nil
+      assert updated.reviewed_by_user_id == reviewer.id
+      assert_received {:inbound_email_updated, ^updated}
+
+      assert_email_sent(fn email ->
+        assert email.to == [{"", "ada@example.com"}]
+        assert email.subject == "Re: Question about the tournament"
+        assert email.text_body == "Thanks for reaching out!"
+      end)
+    end
+
+    test "reject!/2 marks the draft rejected without sending anything", %{
+      inbound_email: inbound_email,
+      reviewer: reviewer
+    } do
+      updated = Support.reject!(inbound_email, reviewer)
+
+      assert updated.status == "rejected"
+      assert updated.reviewed_by_user_id == reviewer.id
+      assert_received {:inbound_email_updated, ^updated}
+      refute_email_sent()
+    end
+  end
+
+  defp flush_mailbox do
+    receive do
+      {:email, _} -> flush_mailbox()
+    after
+      0 -> :ok
+    end
+  end
+
+  defp stub_claude_draft do
+    Req.Test.stub(HighSociety.Support.ClaudeClient, fn conn ->
+      Req.Test.json(conn, %{
+        "content" => [
+          %{
+            "type" => "text",
+            "text" =>
+              Jason.encode!(%{"category" => "gaming", "reply" => "Thanks for reaching out!"})
+          }
+        ]
+      })
+    end)
   end
 end

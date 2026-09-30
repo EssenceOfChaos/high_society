@@ -1,6 +1,6 @@
 defmodule HighSocietyWeb.ResendWebhookController do
   @moduledoc """
-  Receives Resend's `email.received` webhook for the `users.highsociety.cc`
+  Receives Resend's `email.received` webhook for the `mail.highsociety.cc`
   inbound domain and forwards it into `HighSociety.Support`. See
   `HighSociety.Webhooks.SvixSignature` for how the request is verified, and
   `HighSocietyWeb.Plugs.CacheBodyReader` (installed in the endpoint) for
