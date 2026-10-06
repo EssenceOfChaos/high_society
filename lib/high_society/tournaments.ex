@@ -19,6 +19,12 @@ defmodule HighSociety.Tournaments do
   alias HighSociety.Tournaments.PokerTournament
   alias HighSociety.Tournaments.PokerTournamentEntry
 
+  @min_entrants 2
+
+  @doc "The fewest registered players a tournament needs before it can start."
+  @spec min_entrants() :: pos_integer()
+  def min_entrants, do: @min_entrants
+
   @doc """
   The tournament to show on the registration page right now: the soonest
   tournament still `scheduled`, or - if none is scheduled - a `running`
@@ -216,7 +222,7 @@ defmodule HighSociety.Tournaments do
       tournament.status != "scheduled" ->
         {:error, :already_started}
 
-      entrant_count(tournament) < 2 ->
+      entrant_count(tournament) < @min_entrants ->
         {:error, :not_enough_entrants}
 
       true ->

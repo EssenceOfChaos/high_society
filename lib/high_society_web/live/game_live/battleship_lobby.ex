@@ -17,7 +17,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobby do
 
     socket =
       assign(socket,
-        page_title: "Battleship Lobby",
+        page_title: "Fleet Strike Lobby",
         matches: BattleshipMatches.list_open(),
         wager_options: @wager_options,
         error: nil
@@ -75,9 +75,9 @@ defmodule HighSocietyWeb.GameLive.BattleshipLobby do
               navigate={~p"/games/battleship"}
               class="text-sm text-base-content/60 hover:text-base-content"
             >
-              &larr; Back to Battleship
+              &larr; Back to Fleet Strike
             </.link>
-            <h1 class="mt-1 text-3xl font-bold tracking-tight">Battleship — Live Matches</h1>
+            <h1 class="mt-1 text-3xl font-bold tracking-tight">Fleet Strike — Live Matches</h1>
           </div>
           <div class="flex flex-wrap items-center justify-end gap-3">
             <div class="text-right">

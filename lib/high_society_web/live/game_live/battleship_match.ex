@@ -26,7 +26,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
 
         socket =
           assign(socket,
-            page_title: "Battleship Match",
+            page_title: "Fleet Strike Match",
             slug: slug,
             view: view,
             watching: watching_count(slug),
@@ -294,7 +294,7 @@ defmodule HighSocietyWeb.GameLive.BattleshipMatch do
               &larr; All matches
             </.link>
             <h1 class="mt-1 text-3xl font-bold tracking-tight">
-              Battleship — {Tokens.format(@view.wager)} Tokens match
+              Fleet Strike — {Tokens.format(@view.wager)} Tokens match
             </h1>
           </div>
           <div class="flex flex-wrap items-center justify-end gap-3">

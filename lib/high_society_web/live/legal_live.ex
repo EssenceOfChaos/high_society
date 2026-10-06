@@ -78,7 +78,7 @@ defmodule HighSocietyWeb.LegalLive do
 
         <h2>Multiplayer Conduct</h2>
         <p>
-          Poker and Battleship seat you with other real players. Play fairly and treat other
+          Poker and Fleet Strike seat you with other real players. Play fairly and treat other
           players with respect — the same rules above apply at the table.
         </p>
 

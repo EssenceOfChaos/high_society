@@ -133,7 +133,7 @@ defmodule HighSocietyWeb.TokensLive do
             <div>
               <p class="font-semibold">New game, new stake</p>
               <p class="mt-1 text-base-content/70">
-                Blackjack, Poker, Battleship, Slots, Roulette, Zombie Attack — each one
+                Blackjack, Poker, Fleet Strike, Slots, Roulette, Zombie Attack — each one
                 hands you its own starting stake the first time you take a seat.
               </p>
             </div>
