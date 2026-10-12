@@ -18,6 +18,8 @@ defmodule HighSocietyWeb.TournamentLive do
   """
   use HighSocietyWeb, :live_view
 
+  alias HighSociety.Games.PokerTables
+  alias HighSociety.Tokens
   alias HighSociety.Tournaments
   alias HighSociety.Tournaments.Regions
   alias HighSociety.Tournaments.Zippopotamus
@@ -92,10 +94,62 @@ defmodule HighSocietyWeb.TournamentLive do
           <span class="badge badge-outline">No Limit Texas Hold'em</span>
           <p class="mt-2 text-sm text-base-content/70">
             1st place wins $75 in ETH plus an exclusive High Society NFT, 2nd place wins $25
-            in ETH. Winners can optionally receive their prize to an Ethereum address of
-            their choosing.
+            in ETH. A valid ETH address is required to receive the prize.
           </p>
         </div>
+
+        <dl class="mt-6 mb-6 rounded-box border border-base-300 bg-base-200 p-4 text-sm">
+          <h2 class="mb-2 text-sm font-semibold">Tournament details</h2>
+          <div :if={@tournament.scheduled_start_at} class="flex justify-between gap-4 py-1">
+            <dt class="text-base-content/70">Start time</dt>
+            <dd class="text-right font-medium">
+              <time
+                id="tournament-start-time"
+                phx-hook=".LocalTime"
+                datetime={DateTime.to_iso8601(@tournament.scheduled_start_at)}
+              >
+                {Calendar.strftime(@tournament.scheduled_start_at, "%b %-d, %Y %-I:%M %p UTC")}
+              </time>
+              <span
+                class="tooltip tooltip-left ml-1 align-middle before:max-w-56 before:whitespace-normal"
+                tabindex="0"
+                data-tip={"Shown in your device's local time zone. Starts at #{Calendar.strftime(@tournament.scheduled_start_at, "%-I:%M %p")} UTC."}
+              >
+                <.icon name="hero-information-circle" class="size-4 text-base-content/50" />
+              </span>
+            </dd>
+          </div>
+          <div class="flex justify-between py-1">
+            <dt class="text-base-content/70">Starting chips</dt>
+            <dd class="font-medium">{Tokens.format(@tournament.starting_stack)}</dd>
+          </div>
+          <div class="flex justify-between py-1">
+            <dt class="text-base-content/70">Starting blinds</dt>
+            <dd class="font-medium">{starting_blinds(@tournament)}</dd>
+          </div>
+          <div class="flex justify-between py-1">
+            <dt class="text-base-content/70">Blinds increase every</dt>
+            <dd class="font-medium">{@tournament.level_minutes} minutes</dd>
+          </div>
+          <div class="flex justify-between py-1">
+            <dt class="text-base-content/70">Late registration</dt>
+            <dd class="font-medium">
+              Open for {@tournament.late_registration_minutes} minutes after start
+            </dd>
+          </div>
+          <div class="flex justify-between py-1">
+            <dt class="text-base-content/70">Rebuys</dt>
+            <dd class="font-medium">Not allowed</dd>
+          </div>
+          <div class="flex justify-between py-1">
+            <dt class="text-base-content/70">Minimum players</dt>
+            <dd class="font-medium">{Tournaments.min_entrants()}</dd>
+          </div>
+          <div class="flex justify-between py-1">
+            <dt class="text-base-content/70">Maximum players</dt>
+            <dd class="font-medium">No limit ({PokerTables.seats()} per table)</dd>
+          </div>
+        </dl>
 
         <div :if={@tournament.status == "running"} class="mb-4 flex justify-center gap-2">
           <.link navigate={~p"/tournament/#{@tournament.id}/tables"} class="btn btn-sm btn-outline">
@@ -190,6 +244,26 @@ defmodule HighSocietyWeb.TournamentLive do
           <.link navigate={~p"/tournament/rules"} class="link">Official Tournament Rules</.link>
           for eligibility, prize, and payout details.
         </p>
+        <script :type={Phoenix.LiveView.ColocatedHook} name=".LocalTime">
+          // Server renders UTC as a no-JS fallback; swap in the viewer's local time + zone.
+          function render(el) {
+            const date = new Date(el.getAttribute("datetime"))
+            if (isNaN(date)) return
+            el.textContent = date.toLocaleString(undefined, {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+              timeZoneName: "short"
+            })
+          }
+
+          export default {
+            mounted() { render(this.el) },
+            updated() { render(this.el) }
+          }
+        </script>
       </div>
     </Layouts.app>
     """
@@ -221,6 +295,13 @@ defmodule HighSocietyWeb.TournamentLive do
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign_form(socket, changeset)}
     end
+  end
+
+  defp starting_blinds(%{blind_levels: [first | _]}) do
+    # Stored as a JSON map, so keys come back as strings after a DB round trip.
+    small = first["small_blind"] || first[:small_blind]
+    big = first["big_blind"] || first[:big_blind]
+    "#{Tokens.format(small)} / #{Tokens.format(big)}"
   end
 
   defp assign_form(socket, %Ecto.Changeset{} = changeset) do

@@ -18,7 +18,7 @@ defmodule HighSocietyWeb.GameLive.Battleship do
 
     socket =
       assign(socket,
-        page_title: "Battleship",
+        page_title: "Fleet Strike",
         game: game,
         battleship: battleship,
         selected_ship_type: next_unplaced_type(battleship),
@@ -212,7 +212,7 @@ defmodule HighSocietyWeb.GameLive.Battleship do
             <.link navigate={~p"/#games"} class="text-sm text-base-content/60 hover:text-base-content">
               &larr; All games
             </.link>
-            <h1 class="mt-1 text-3xl font-bold tracking-tight">Battleship</h1>
+            <h1 class="mt-1 text-3xl font-bold tracking-tight">Fleet Strike</h1>
           </div>
           <div class="flex flex-wrap items-center justify-end gap-3">
             <div class="text-right">

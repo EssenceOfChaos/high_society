@@ -203,31 +203,37 @@ defmodule HighSocietyWeb.GameLive.ZombieAttack do
           >
             <div
               id="zombie-how-to-play"
-              class="absolute inset-0 z-10 hidden flex-col items-center justify-center gap-4 rounded-md bg-base-100/95 p-6 text-center backdrop-blur-sm"
+              class="fixed inset-0 z-50 hidden overflow-y-auto bg-base-100/95 p-6 text-center backdrop-blur-sm sm:absolute sm:z-10 sm:rounded-md [&:not(.hidden)]:flex [&:not(.hidden)]:flex-col [&:not(.hidden)]:items-center"
             >
-              <h2 class="text-xl font-bold">How to play</h2>
-              <ul class="max-w-sm space-y-2 text-left text-sm text-base-content/80">
-                <li>
-                  <strong class="text-base-content">Objective:</strong>
-                  survive all {@wave_count} waves. If a single zombie reaches your side, the run ends immediately.
-                </li>
-                <li>
-                  <strong class="text-base-content">Placing defenders:</strong>
-                  click a defender below, then click a lane on the field to place it.
-                </li>
-                <li>
-                  <strong class="text-base-content">Supplies</strong>
-                  build up automatically and pay for defenders.
-                </li>
-                <li :for={type <- @defender_order}>
-                  <% spec = @defender_specs[type] %>
-                  <strong class="text-base-content">{spec.name} ({spec.cost} supplies):</strong>
-                  {defender_tip(type)}
-                </li>
-              </ul>
-              <button type="button" id="zombie-how-to-play-dismiss" class="btn btn-primary mt-6">
-                Got it — let's go
-              </button>
+              <%!-- On phones the panel is a full-screen, scrollable sheet - the
+                   canvas wrapper is too short there to hold this text, so it
+                   used to spill over the footer. `my-auto` centers the content
+                   when it fits and lets it scroll from the top when it doesn't. --%>
+              <div class="my-auto flex flex-col items-center gap-4">
+                <h2 class="text-xl font-bold">How to play</h2>
+                <ul class="max-w-sm space-y-2 text-left text-sm text-base-content/80">
+                  <li>
+                    <strong class="text-base-content">Objective:</strong>
+                    survive all {@wave_count} waves. If a single zombie reaches your side, the run ends immediately.
+                  </li>
+                  <li>
+                    <strong class="text-base-content">Placing defenders:</strong>
+                    click a defender below, then click a lane on the field to place it.
+                  </li>
+                  <li>
+                    <strong class="text-base-content">Supplies</strong>
+                    build up automatically and pay for defenders.
+                  </li>
+                  <li :for={type <- @defender_order}>
+                    <% spec = @defender_specs[type] %>
+                    <strong class="text-base-content">{spec.name} ({spec.cost} supplies):</strong>
+                    {defender_tip(type)}
+                  </li>
+                </ul>
+                <button type="button" id="zombie-how-to-play-dismiss" class="btn btn-primary mt-6">
+                  Got it — let's go
+                </button>
+              </div>
             </div>
 
             <div class="flex w-full max-w-[640px] items-center justify-between text-sm">
@@ -250,10 +256,10 @@ defmodule HighSocietyWeb.GameLive.ZombieAttack do
               height="320"
               class="h-auto max-w-full rounded-md border border-base-300 bg-base-200"
             ></canvas>
-            <div class="flex gap-2">
+            <div class="flex flex-wrap justify-center gap-2">
               <div
                 :for={type <- @defender_order}
-                class="tooltip"
+                class="tooltip tooltip-bottom"
                 data-tip={defender_tip(type)}
               >
                 <% spec = @defender_specs[type] %>
@@ -263,7 +269,7 @@ defmodule HighSocietyWeb.GameLive.ZombieAttack do
                   data-defender-type={type}
                   class="btn btn-sm btn-outline"
                 >
-                  {spec.name} ({spec.cost} supplies)
+                  {spec.name} {spec.cost}
                 </button>
               </div>
             </div>

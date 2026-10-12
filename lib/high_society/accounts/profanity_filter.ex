@@ -17,7 +17,7 @@ defmodule HighSociety.Accounts.ProfanityFilter do
     bitch bastard asshole ass cunt dick pussy cock
     nigger nigga faggot fag retard retarded spic chink gook kike tranny
     whore slut skank
-    rape rapist nazi hitler
+    rape rapist nazi hitler jew
   )
 
   @doc """

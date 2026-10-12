@@ -154,6 +154,7 @@ defmodule HighSocietyWeb.Router do
       on_mount: [{HighSocietyWeb.UserAuth, :mount_current_scope}] do
       live "/", DashboardLive, :index
       live "/tokens", TokensLive, :index
+      live "/faq", FaqLive, :index
       live "/support", SupportLive, :new
       live "/terms", LegalLive, :terms
       live "/privacy", LegalLive, :privacy

@@ -278,6 +278,9 @@ defmodule HighSocietyWeb.Layouts do
           <.link navigate={~p"/tokens"} class="link link-hover">
             Tokens
           </.link>
+          <.link navigate={~p"/faq"} class="link link-hover">
+            FAQ
+          </.link>
           <.link navigate={~p"/support"} class="link link-hover">
             Support
           </.link>

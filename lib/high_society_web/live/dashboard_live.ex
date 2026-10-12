@@ -37,7 +37,7 @@ defmodule HighSocietyWeb.DashboardLive do
     },
     %{
       slug: "battleship",
-      name: "Battleship",
+      name: "Fleet Strike",
       tagline: "Sink the fleet",
       description: "Call your shots and hunt down the enemy fleet before they find yours.",
       icon: "hero-viewfinder-circle",
