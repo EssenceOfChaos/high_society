@@ -119,6 +119,6 @@ service health (currently Postgres, via `Healthcheck.Services.Database`); result
 ## Deployment
 
 CI (`.github/workflows/elixir.yml`) runs `mix test` against a Postgres 16 service container on
-every push/PR to `main`/`staging`, then deploys to Gigalixir: pushes to `main` deploy+migrate
-production, pushes to `staging` deploy+migrate the staging app. `sobelow.yml` runs a separate
+every push/PR to `main`, then deploys to Gigalixir: pushes to `main` deploy+migrate
+production (there is no staging environment). `sobelow.yml` runs a separate
 security scan on `main` and uploads SARIF results to GitHub's Security tab.

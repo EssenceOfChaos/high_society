@@ -83,8 +83,8 @@ if config_env() == :prod do
     # The fixed entries cover prod's custom domain (both with and without
     # "www", which PHX_HOST can only ever be one of) and its default
     # Gigalixir subdomain; `host` on top of those covers whatever this
-    # specific deploy's PHX_HOST actually is - notably the staging app's
-    # own subdomain, without having to hardcode every environment here.
+    # specific deploy's PHX_HOST actually is, without having to hardcode
+    # every environment here.
     check_origin: [
       "https://highsociety.cc",
       "https://www.highsociety.cc",
