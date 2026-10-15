@@ -31,7 +31,7 @@ defmodule HighSocietyWeb.TournamentGeoCheck do
   let through. Cloudflare's edge rule is the primary defense for real
   traffic; this hook exists to close the live-navigation gap above, not
   to be the sole line of defense - failing closed here would also lock
-  every dev/staging environment out of ever testing registration.
+  every dev environment out of ever testing registration.
   """
   use HighSocietyWeb, :verified_routes
 
