@@ -1,5 +1,5 @@
-![Build Status](https://github.com/EssenceOfChaos/high_society/actions/workflows/elixir.yml/badge.svg)
-![Sobelow Checked](https://github.com/EssenceOfChaos/high_society/actions/workflows/sobelow.yml/badge.svg)
+![Build Status](https://github.com/EssenceOfChaos/high_society/actions/workflows/elixir.yml/badge.svg)![Sobelow Checked](https://github.com/EssenceOfChaos/high_society/actions/workflows/sobelow.yml/badge.svg)
+![Uptime monitored by HawkEye](https://hawkeye.observer/badge/jrgjOPVwZNqEic-i_Ia69g.svg?style=small)
 
 # HighSociety
 
